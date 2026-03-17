@@ -8,6 +8,7 @@ package myaudio
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -530,4 +531,88 @@ func TestFFmpegManager_StressTestWithHealthChecks(t *testing.T) {
 	activeStreams := manager.GetActiveStreams()
 	health := manager.HealthCheck()
 	assert.Len(t, health, len(activeStreams))
+}
+
+// TestFFmpegManager_SetOnStreamReset verifies the callback setter and thread safety.
+func TestFFmpegManager_SetOnStreamReset(t *testing.T) {
+	manager := NewFFmpegManager()
+	defer manager.Shutdown()
+
+	var called atomic.Bool
+	manager.SetOnStreamReset(func(sourceID string) {
+		called.Store(true)
+	})
+
+	// Verify callback is stored and can be read under lock
+	manager.onStreamResetMu.RLock()
+	assert.NotNil(t, manager.onStreamReset, "callback should be registered")
+	manager.onStreamResetMu.RUnlock()
+
+	// Verify nil callback doesn't panic
+	manager.SetOnStreamReset(nil)
+	manager.onStreamResetMu.RLock()
+	assert.Nil(t, manager.onStreamReset, "callback should be cleared")
+	manager.onStreamResetMu.RUnlock()
+}
+
+// TestFFmpegManager_WatchdogCallsOnStreamReset verifies the watchdog invokes
+// the OnStreamReset callback after force-resetting a stuck stream (#2374).
+func TestFFmpegManager_WatchdogCallsOnStreamReset(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		manager := NewFFmpegManager()
+		defer manager.Shutdown()
+
+		// Track callback invocations
+		var callbackCalled atomic.Bool
+		var receivedSourceID atomic.Value
+		manager.SetOnStreamReset(func(newSourceID string) {
+			receivedSourceID.Store(newSourceID)
+			callbackCalled.Store(true)
+		})
+
+		// Start a stream
+		audioChan := make(chan UnifiedAudioData, 10)
+		defer close(audioChan)
+		err := manager.StartStream(testRTSPURL, "tcp", audioChan)
+		require.NoError(t, err)
+
+		// Get the original source ID
+		manager.streamsMu.RLock()
+		stream, exists := manager.streams[testRTSPURL]
+		manager.streamsMu.RUnlock()
+		require.True(t, exists)
+
+		oldSourceID := stream.source.ID
+
+		// Make stream appear stuck unhealthy for longer than maxUnhealthyDuration:
+		// - Set streamCreatedAt far in the past so unhealthyDuration exceeds threshold
+		// - Set process state to stopped so IsRestarting() returns false
+		stream.streamCreatedAt = time.Now().Add(-maxUnhealthyDuration - time.Minute)
+		stream.processStateMu.Lock()
+		stream.processState = StateStopped
+		stream.processStateMu.Unlock()
+
+		// Store audioChan so watchdog can call StartStream
+		manager.audioChanMu.Lock()
+		manager.audioChan = audioChan
+		manager.audioChanMu.Unlock()
+
+		// Clear any cooldown
+		manager.forceResetMu.Lock()
+		delete(manager.lastForceReset, testRTSPURL)
+		manager.forceResetMu.Unlock()
+
+		// Trigger watchdog check — synchronous: callback fires inside StartStream
+		// before checkForStuckStreams returns, so no sleep needed.
+		manager.checkForStuckStreams()
+
+		// Verify callback was called with a new source ID
+		require.True(t, callbackCalled.Load(), "OnStreamReset callback should have been called")
+		newIDVal := receivedSourceID.Load()
+		require.NotNil(t, newIDVal, "receivedSourceID should have been stored by the callback")
+		newID, ok := newIDVal.(string)
+		require.True(t, ok, "receivedSourceID should be a string")
+		assert.NotEqual(t, oldSourceID, newID, "new source ID should differ from old one")
+		assert.NotEmpty(t, newID, "new source ID should not be empty")
+	})
 }
