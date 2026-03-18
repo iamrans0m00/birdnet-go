@@ -16,7 +16,7 @@
   import Hls from 'hls.js';
   import ReconnectingEventSource from 'reconnecting-eventsource';
   import { onMount } from 'svelte';
-  import { Radio, Volume2, VolumeX, Play, Square } from '@lucide/svelte';
+  import { Volume, Volume1, Volume2, VolumeX, Play, Square } from '@lucide/svelte';
   import { t } from '$lib/i18n';
   import { appState } from '$lib/stores/appState.svelte';
   import { HLS_AUDIO_CONFIG } from '$lib/desktop/components/ui/hls-config';
@@ -40,10 +40,23 @@
       appState.security.publicAccess.liveAudio
   );
 
+  // Volume/gain presets: muted → 0dB → +6dB → +12dB
+  const GAIN_PRESETS = [
+    { db: -Infinity, audio: false, labelKey: 'spectrogram.gain.muted' },
+    { db: 0, audio: true, labelKey: 'spectrogram.gain.level', value: '0' },
+    { db: 6, audio: true, labelKey: 'spectrogram.gain.level', value: '+6' },
+    { db: 12, audio: true, labelKey: 'spectrogram.gain.level', value: '+12' },
+  ] as const;
+
   // Local state
   let isActive = $state(false);
   let isConnecting = $state(false);
-  let audioOutput = $state(false);
+  let gainPresetIndex = $state(0);
+
+  const gainLabel = $derived.by(() => {
+    const preset = GAIN_PRESETS[gainPresetIndex];
+    return 'value' in preset ? t(preset.labelKey, { value: preset.value }) : t(preset.labelKey);
+  });
   let colorMap = $state<ColorMapName>('inferno');
   let frequencyRange = $state<[number, number]>([0, 15000]);
   let currentSourceId = $state<string>('');
@@ -52,6 +65,7 @@
   let hls: Hls | null = null;
   let audioElement: HTMLAudioElement | null = null;
   let heartbeatTimer: ReturnType<typeof globalThis.setInterval> | null = null;
+  let abortController: AbortController | null = null;
 
   // Initialize composable during component init (must be at top level for $effect cleanup)
   const spectro = useSpectrogramAnalyser({ fftSize: FFT_SIZE, audioOutput: false });
@@ -80,21 +94,35 @@
   /**
    * Discover the first available audio source via the SSE audio-level stream.
    * Returns the source ID, or null if none found within the timeout.
+   * Accepts an AbortSignal so callers can cancel discovery mid-flight.
    */
-  async function discoverFirstSource(): Promise<string | null> {
+  async function discoverFirstSource(signal: AbortSignal): Promise<string | null> {
     return new Promise(resolve => {
+      if (signal.aborted) {
+        resolve(null);
+        return;
+      }
+
       const sse = new ReconnectingEventSource(buildAppUrl('/api/v2/streams/audio-level'), {
         max_retry_time: 30000,
         withCredentials: false,
       });
 
+      // Abort listener: clean up SSE and timeout if caller cancels
+      const onAbort = () => {
+        globalThis.clearTimeout(timeout);
+        sse.close();
+        resolve(null);
+      };
+
       const timeout = globalThis.setTimeout(() => {
+        signal.removeEventListener('abort', onAbort);
         sse.close();
         resolve(null);
       }, SOURCE_DISCOVERY_TIMEOUT);
 
-      // SSE sends unnamed events (no event: field), so use onmessage
-      // The JSON payload has a type field: { type: 'audio-level', levels: {...} }
+      signal.addEventListener('abort', onAbort, { once: true });
+
       sse.onmessage = (event: globalThis.MessageEvent) => {
         try {
           const data = JSON.parse(event.data) as {
@@ -105,7 +133,8 @@
             const sourceIds = Object.keys(data.levels);
             if (sourceIds.length > 0) {
               globalThis.clearTimeout(timeout);
-              sse.close(); // Close immediately — only needed for discovery
+              signal.removeEventListener('abort', onAbort);
+              sse.close();
               resolve(sourceIds[0]);
             }
           }
@@ -115,7 +144,7 @@
       };
 
       sse.onerror = () => {
-        // ReconnectingEventSource handles reconnection automatically
+        /* ReconnectingEventSource handles reconnection */
       };
     });
   }
@@ -124,21 +153,28 @@
     if (isActive || isConnecting) return;
     isConnecting = true;
 
+    // Abort any previous in-flight operation
+    abortController?.abort();
+    const controller = new AbortController();
+    abortController = controller;
+    const { signal } = controller;
+
     try {
-      const sourceId = await discoverFirstSource();
-      if (!sourceId) {
-        logger.warn('MiniSpectrogram: no audio source found');
-        isConnecting = false;
+      const sourceId = await discoverFirstSource(signal);
+      if (signal.aborted || !sourceId) {
+        if (!signal.aborted) isConnecting = false;
         return;
       }
 
       currentSourceId = sourceId;
       const encodedSourceId = encodeURIComponent(sourceId);
 
-      // Request the backend to start the HLS stream
       await fetchWithCSRF(`/api/v2/streams/hls/${encodedSourceId}/start`, {
         method: 'POST',
+        signal,
       });
+
+      if (signal.aborted) return;
 
       const hlsUrl = buildAppUrl(`/api/v2/streams/hls/${encodedSourceId}/playlist.m3u8`);
 
@@ -151,18 +187,28 @@
         hls.attachMedia(audioElement);
 
         hls.on(Hls.Events.MANIFEST_PARSED, async () => {
+          if (signal.aborted) return;
           try {
             await audioElement?.play();
           } catch {
             /* autoplay blocked — spectrogram still renders */
           }
-          // Connect composable after audio starts playing
+          if (signal.aborted) return;
           if (audioElement) {
             await spectro.connect(audioElement);
           }
+          if (signal.aborted) {
+            spectro.disconnect();
+            return;
+          }
+          startHeartbeat(sourceId);
+          isActive = true;
+          isConnecting = false;
+          persistToggleState(true);
         });
 
         hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (signal.aborted) return;
           if (data.fatal) {
             logger.error('MiniSpectrogram: fatal HLS error', {
               type: data.type,
@@ -179,18 +225,24 @@
         } catch {
           /* autoplay blocked */
         }
+        if (signal.aborted || !audioElement) return;
         await spectro.connect(audioElement);
+        if (signal.aborted) {
+          spectro.disconnect();
+          return;
+        }
+        startHeartbeat(sourceId);
+        isActive = true;
+        isConnecting = false;
+        persistToggleState(true);
+      } else {
+        // Browser supports neither HLS.js nor native HLS — tear down
+        logger.warn('MiniSpectrogram: browser does not support HLS');
+        stop();
+        return;
       }
-
-      // Guard: stop() may have been called during async setup (e.g., fatal HLS error).
-      // If isConnecting was cleared by stop(), don't start heartbeat or transition to active.
-      if (!isConnecting) return;
-
-      startHeartbeat(sourceId);
-      isActive = true;
-      isConnecting = false;
-      persistToggleState(true);
     } catch (error) {
+      if (signal.aborted) return;
       logger.error('MiniSpectrogram: failed to start', error);
       isConnecting = false;
     }
@@ -220,10 +272,15 @@
   }
 
   function stop() {
+    // Abort any in-flight async work first
+    abortController?.abort();
+    abortController = null;
+
     // Send disconnect heartbeat
     if (currentSourceId) {
       fetchWithCSRF('/api/v2/streams/hls/heartbeat?disconnect=true', {
         method: 'POST',
+        keepalive: true,
         body: { source_id: currentSourceId },
       }).catch(() => {});
     }
@@ -247,9 +304,13 @@
     persistToggleState(false);
   }
 
-  function toggleAudio() {
-    audioOutput = !audioOutput;
-    spectro.setAudioOutput(audioOutput);
+  function cycleVolume() {
+    gainPresetIndex = (gainPresetIndex + 1) % GAIN_PRESETS.length;
+    const preset = GAIN_PRESETS[gainPresetIndex];
+    spectro.setAudioOutput(preset.audio);
+    if (preset.audio) {
+      spectro.setGain(preset.db);
+    }
   }
 
   onMount(() => {
@@ -261,38 +322,46 @@
 </script>
 
 {#if hasAudioAccess}
-  <div class="mt-4 rounded-2xl border border-border-100 bg-[var(--color-base-100)] p-3 shadow-sm">
-    <div class="mb-2 flex items-center justify-between">
-      <div class="flex items-center gap-2 text-sm font-medium">
-        <Radio class="size-4" />
-        <span>{t('spectrogram.dashboard.toggle')}</span>
-      </div>
+  <div
+    class="overflow-hidden rounded-2xl border border-border-100 bg-[var(--color-base-100)] shadow-sm"
+  >
+    <div
+      class="flex items-center justify-between border-b border-[var(--color-base-200)] px-6 py-4"
+    >
+      <h3 class="font-semibold">{t('spectrogram.dashboard.toggle')}</h3>
       <div class="flex items-center gap-1">
         {#if isActive}
           <button
-            onclick={toggleAudio}
-            class="btn btn-ghost btn-xs"
-            aria-label={audioOutput
-              ? t('spectrogram.controls.mute')
-              : t('spectrogram.controls.unmute')}
+            onclick={cycleVolume}
+            class="rounded p-1 transition-colors hover:bg-[var(--color-base-200)]"
+            aria-label={gainLabel}
+            title={gainLabel}
           >
-            {#if audioOutput}
-              <Volume2 class="size-3.5" />
+            {#if gainPresetIndex === 0}
+              <VolumeX class="size-4" />
+            {:else if gainPresetIndex === 1}
+              <Volume class="size-4" />
+            {:else if gainPresetIndex === 2}
+              <Volume1 class="size-4" />
             {:else}
-              <VolumeX class="size-3.5" />
+              <Volume2 class="size-4" />
             {/if}
           </button>
-          <button onclick={stop} class="btn btn-ghost btn-xs" aria-label="Stop">
-            <Square class="size-3.5" />
+          <button
+            onclick={stop}
+            class="rounded p-1 transition-colors hover:bg-[var(--color-base-200)]"
+            aria-label={t('media.audio.stop')}
+          >
+            <Square class="size-4" />
           </button>
         {:else}
           <button
             onclick={start}
-            class="btn btn-ghost btn-xs"
+            class="rounded p-1 transition-colors hover:bg-[var(--color-base-200)]"
             disabled={isConnecting}
-            aria-label="Start"
+            aria-label={t('media.audio.play')}
           >
-            <Play class="size-3.5" />
+            <Play class="size-4" />
           </button>
         {/if}
       </div>
@@ -307,10 +376,10 @@
         {frequencyRange}
         {colorMap}
         isActive={spectro.isActive}
-        className="h-28 w-full rounded"
+        className="h-28 w-full"
       />
     {:else if isActive || isConnecting}
-      <div class="flex h-28 items-center justify-center rounded bg-black">
+      <div class="flex h-28 items-center justify-center bg-black">
         <div
           class="h-5 w-5 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent"
         ></div>

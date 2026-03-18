@@ -726,6 +726,7 @@
       "dailySummary": "Podsumowanie dnia",
       "currentlyHearing": "Aktualnie słyszane",
       "detectionsGrid": "Ostatnie detekcje",
+      "liveSpectrogram": "Spektrogram na żywo",
       "videoEmbed": "Osadzenie wideo"
     }
   },
@@ -913,10 +914,16 @@
       "toggle": "Show live spectrogram",
       "audioToggle": "Enable audio"
     },
+    "gain": {
+      "muted": "Wyciszony",
+      "level": "Wzmocnienie: {value} dB"
+    },
     "page": {
       "title": "Live Audio",
       "sourceLabel": "Audio Source",
-      "connected": "Połączono"
+      "connected": "Połączono",
+      "enterFullscreen": "Pełny ekran",
+      "exitFullscreen": "Zamknij pełny ekran"
     },
     "colorMaps": {
       "inferno": "Inferno",

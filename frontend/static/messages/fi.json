@@ -726,6 +726,7 @@
       "dailySummary": "Daily Summary",
       "currentlyHearing": "Currently Hearing",
       "detectionsGrid": "Recent Detections",
+      "liveSpectrogram": "Reaaliaikainen spektrogrammi",
       "videoEmbed": "Video Embed"
     }
   },
@@ -913,10 +914,16 @@
       "toggle": "Show live spectrogram",
       "audioToggle": "Enable audio"
     },
+    "gain": {
+      "muted": "Mykistetty",
+      "level": "Vahvistus: {value} dB"
+    },
     "page": {
       "title": "Live Audio",
       "sourceLabel": "Audio Source",
-      "connected": "Yhdistetty"
+      "connected": "Yhdistetty",
+      "enterFullscreen": "Koko näyttö",
+      "exitFullscreen": "Poistu koko näytöstä"
     },
     "colorMaps": {
       "inferno": "Inferno",
