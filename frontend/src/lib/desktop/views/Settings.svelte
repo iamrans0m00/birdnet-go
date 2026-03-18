@@ -58,7 +58,7 @@
   <title>{t('pageTitle.settings')}</title>
 </svelte:head>
 
-<main class="col-span-12 mx-auto">
+<main class="col-span-12 w-full">
   <!-- Restart Required Banner -->
   {#if store.restartRequired}
     <div
