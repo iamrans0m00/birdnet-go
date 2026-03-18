@@ -227,9 +227,14 @@
      Container with max-width of 80rem (1280px)
      ================================================================= */
 
+  /* Single source of truth for content max-width */
+  :root {
+    --content-max-width: 80rem; /* 1280px */
+  }
+
   /* Max-width container */
   :global(.drawer-content .max-w-7xl) {
-    max-width: 80rem; /* 1280px */
+    max-width: var(--content-max-width);
     width: 100%;
     margin-left: auto;
     margin-right: auto;

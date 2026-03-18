@@ -876,8 +876,6 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    max-width: 960px;
-    margin: 0 auto;
     width: 100%;
   }
 
