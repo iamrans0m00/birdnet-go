@@ -13,7 +13,10 @@ import { vi } from 'vitest';
 // Polyfill localStorage for Node.js 22+ where native localStorage exists but
 // methods are undefined without a valid --localstorage-file path. This broken
 // native object shadows jsdom's working implementation in worker_threads (pool: 'threads').
-if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage.getItem !== 'function') {
+if (
+  typeof globalThis.localStorage === 'undefined' ||
+  typeof globalThis.localStorage.getItem !== 'function'
+) {
   const store = new Map<string, string>();
   const localStoragePolyfill = {
     getItem(key: string): string | null {
