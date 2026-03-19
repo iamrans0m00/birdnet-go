@@ -15,6 +15,7 @@
 
   import Hls from 'hls.js';
   import ReconnectingEventSource from 'reconnecting-eventsource';
+  import { untrack } from 'svelte';
 
   import { Volume, Volume1, Volume2, VolumeX, Play, Square } from '@lucide/svelte';
   import { t } from '$lib/i18n';
@@ -346,8 +347,10 @@
 
   // $effect (not onMount) so the block re-runs when auth state changes,
   // starting the stream if user logs in after page mount.
+  // shouldAutoStart() reads appState.liveSpectrogram — untrack it so the
+  // effect only re-runs on auth changes, not every appState mutation during startup.
   $effect(() => {
-    if (hasAccess && shouldAutoStart()) {
+    if (hasAccess && untrack(() => shouldAutoStart())) {
       start();
     }
     return () => stopRuntime();

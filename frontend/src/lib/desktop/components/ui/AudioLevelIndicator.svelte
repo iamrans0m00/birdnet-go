@@ -60,8 +60,6 @@
   let dropdownRef = $state<HTMLDivElement>();
   let buttonRef = $state<HTMLButtonElement>();
 
-  // PERFORMANCE OPTIMIZATION: Cache computed values with $derived
-  // Reduces repeated object property access and boolean logic in templates
   const isClipping = $derived(
     // eslint-disable-next-line security/detect-object-injection
     selectedSource && levels[selectedSource] ? levels[selectedSource].clipping : false
@@ -70,8 +68,10 @@
   // eslint-disable-next-line security/detect-object-injection
   const smoothedVolume = $derived(selectedSource ? smoothedVolumes[selectedSource] || 0 : 0);
 
-  // PERFORMANCE OPTIMIZATION: Cache audio element creation with $derived.by
-  // Prevents repeated DOM element creation and event listener setup
+  // NOTE: $derived.by with side effects is an anti-pattern (derived should be pure).
+  // This creates the audio element lazily on first access and caches it.
+  // The event listeners inside modify $state (isPlaying) — acceptable here because
+  // the guard (!audioElementRef) ensures the side effect runs exactly once.
   let audioElementRef: HTMLAudioElement | null = null;
   let cachedAudioElement = $derived.by(() => {
     if (!audioElementRef && typeof window !== 'undefined') {
@@ -522,8 +522,11 @@
     }
   }
 
-  // PERFORMANCE OPTIMIZATION: Use Svelte 5 $effect instead of legacy onMount
-  // $effect provides better reactivity and automatic cleanup management
+  // IMPORTANT: This must remain $effect (not onMount) because setupEventSource()
+  // is also called from the visibility change handler and needs cleanup coordination.
+  // However, be careful: any $state read inside this effect body becomes a reactive
+  // dependency. Do NOT read appState or other reactive stores here without untrack()
+  // to avoid effect_update_depth_exceeded loops during startup.
   $effect(() => {
     if (typeof window !== 'undefined') {
       setupEventSource();
@@ -553,8 +556,6 @@
       window.addEventListener('unload', handleUnload);
 
       return () => {
-        // PERFORMANCE OPTIMIZATION: Automatic cleanup with Svelte 5 $effect
-        // Eliminates need for separate onDestroy lifecycle
         document.removeEventListener('click', handleClickOutside);
         document.removeEventListener('visibilitychange', handleVisibilityChange);
         window.removeEventListener('beforeunload', handleUnload);
