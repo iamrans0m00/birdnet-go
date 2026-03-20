@@ -27,37 +27,42 @@
   );
 </script>
 
-<div class="card bg-base-100 shadow-sm">
-  <div class="card-body gap-4">
-    <h3 class="card-title text-base">{t('restart.applicationRestart')}</h3>
+<div class="bg-[var(--surface-100)] border border-[var(--border-100)] rounded-xl p-4 shadow-sm">
+  <h3 class="text-xs font-semibold uppercase tracking-wider mb-3 text-muted">
+    {t('restart.applicationRestart')}
+  </h3>
 
-    <div class="flex flex-wrap gap-3">
+  <div class="flex flex-wrap gap-3">
+    <button
+      class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+             bg-amber-500/15 text-amber-700 dark:text-amber-300
+             border border-amber-500/30
+             hover:bg-amber-500/25 active:bg-amber-500/35
+             disabled:opacity-50 disabled:cursor-not-allowed
+             focus-visible:ring-2 focus-visible:ring-amber-500/50
+             transition-colors cursor-pointer"
+      disabled={restartInProgress.value}
+      onclick={() => (confirmType = 'binary')}
+    >
+      <RotateCw class="h-3.5 w-3.5" />
+      {t('restart.applicationRestart')}
+    </button>
+
+    {#if restartState.container_restart_available}
       <button
-        class="btn btn-warning gap-2"
+        class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium
+               bg-red-500/15 text-red-700 dark:text-red-300
+               border border-red-500/30
+               hover:bg-red-500/25 active:bg-red-500/35
+               disabled:opacity-50 disabled:cursor-not-allowed
+               focus-visible:ring-2 focus-visible:ring-red-500/50
+               transition-colors cursor-pointer"
         disabled={restartInProgress.value}
-        onclick={() => (confirmType = 'binary')}
+        onclick={() => (confirmType = 'container')}
       >
-        <RotateCw class="h-4 w-4" />
-        {t('restart.applicationRestart')}
+        <Container class="h-3.5 w-3.5" />
+        {t('restart.containerRestart')}
       </button>
-
-      {#if restartState.container_restart_available}
-        <button
-          class="btn btn-error gap-2"
-          disabled={restartInProgress.value}
-          onclick={() => (confirmType = 'container')}
-        >
-          <Container class="h-4 w-4" />
-          {t('restart.containerRestart')}
-        </button>
-      {/if}
-    </div>
-
-    {#if restartInProgress.value}
-      <div class="flex items-center gap-2 text-sm opacity-70" role="status">
-        <div class="loading loading-spinner loading-xs"></div>
-        <span>{t('restart.inProgress')}</span>
-      </div>
     {/if}
   </div>
 </div>
