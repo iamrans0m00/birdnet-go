@@ -35,6 +35,8 @@
     shouldDedup,
     promoteFromQueue,
     nextYSlot,
+    getRepeatLabels,
+    STALE_DEDUP_PRUNE_SECONDS,
   } from '$lib/utils/detectionOverlay';
 
   const logger = loggers.audio;
@@ -387,16 +389,21 @@
     }
   }
 
-  // Diff incoming pending detections and queue new labels
+  // Diff incoming pending detections and queue new labels.
+  // Always update prevSnapshot — even when pendingDetections is empty — so
+  // getRepeatLabels doesn't see stale species after detections stop.
   $effect(() => {
-    if (!activeSourceId || pendingDetections.length === 0) return;
-    const newDetections = diffPendingSnapshot(prevSnapshot, pendingDetections, activeSourceId);
-    for (const det of newDetections) {
-      if (shouldDedup(det.species, det.firstDetected, lastSeenSpecies)) continue;
-      lastSeenSpecies.set(det.species, det.firstDetected);
-      const { slot, next } = nextYSlot(slotCounter, MAX_OVERLAY_SLOTS);
-      slotCounter = next;
-      labelQueue.push({ text: det.species, firstDetected: det.firstDetected, ySlot: slot });
+    if (!activeSourceId) return;
+    if (pendingDetections.length > 0) {
+      const newDetections = diffPendingSnapshot(prevSnapshot, pendingDetections, activeSourceId);
+      const nowUnix = Date.now() / 1000;
+      for (const det of newDetections) {
+        if (shouldDedup(det.species, nowUnix, lastSeenSpecies)) continue;
+        lastSeenSpecies.set(det.species, nowUnix);
+        const { slot, next } = nextYSlot(slotCounter, MAX_OVERLAY_SLOTS);
+        slotCounter = next;
+        labelQueue.push({ text: det.species, firstDetected: det.firstDetected, ySlot: slot });
+      }
     }
     prevSnapshot = [...pendingDetections];
   });
@@ -419,21 +426,41 @@
         epochOffsetCalibrated = true;
       }
 
-      if (labelQueue.length === 0) return;
       const wallClockAtPlayhead = streamEpochMs / 1000 + audioElement.currentTime + epochOffset;
       const now = globalThis.performance.now();
-      const { promoted, remaining } = promoteFromQueue(labelQueue, wallClockAtPlayhead, now);
-      if (promoted.length > 0) {
-        labelQueue = remaining;
-        overlayLabels = [...overlayLabels, ...promoted];
+
+      // Promote queued labels
+      if (labelQueue.length > 0) {
+        const { promoted, remaining } = promoteFromQueue(labelQueue, wallClockAtPlayhead, now);
+        if (promoted.length > 0) {
+          labelQueue = remaining;
+          overlayLabels = [...overlayLabels, ...promoted];
+        }
       }
+
+      // Generate repeat labels for species still actively detected.
+      // Use wall-clock time (not playhead time) for dedup tracking so it stays
+      // consistent with the pending diff $effect which also uses Date.now().
+      const nowUnix = Date.now() / 1000;
+      const repeats = getRepeatLabels(prevSnapshot, activeSourceId ?? '', lastSeenSpecies, nowUnix);
+      if (repeats.length > 0) {
+        const newLabels: Array<{ text: string; birthTime: number; ySlot: number }> = [];
+        for (const rep of repeats) {
+          lastSeenSpecies.set(rep.species, nowUnix);
+          const { slot, next } = nextYSlot(slotCounter, MAX_OVERLAY_SLOTS);
+          slotCounter = next;
+          newLabels.push({ text: rep.species, birthTime: now, ySlot: slot });
+        }
+        overlayLabels = [...overlayLabels, ...newLabels];
+      }
+
+      // Prune labels older than 60 seconds
       const cutoff = now - 60000;
       overlayLabels = overlayLabels.filter(l => l.birthTime >= cutoff);
 
-      // Prune stale dedup entries (older than 10s in media time — generous
-      // buffer beyond the 6s dedup window in shouldDedup)
+      // Prune stale dedup entries
       for (const [species, time] of lastSeenSpecies) {
-        if (wallClockAtPlayhead - time > 10) {
+        if (wallClockAtPlayhead - time > STALE_DEDUP_PRUNE_SECONDS) {
           lastSeenSpecies.delete(species);
         }
       }
