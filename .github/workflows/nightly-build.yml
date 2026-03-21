@@ -149,7 +149,7 @@ jobs:
             --repo "$REPO" \
             --title "Nightly Build $TAG" \
             --notes "Nightly build $TAG" \
-            --latest \
+            --prerelease \
             --target main 2>/dev/null; then
             TAG="${TAG}-${{ github.run_number }}"
             gh release create "$TAG" \
@@ -157,7 +157,7 @@ jobs:
               --repo "$REPO" \
               --title "Nightly Build $TAG" \
               --notes "Nightly build $TAG" \
-              --latest \
+              --prerelease \
               --target main
           fi
           echo "Created release: $TAG"
@@ -189,7 +189,7 @@ jobs:
     with:
       tag-strategy: "nightly"
       version: ${{ needs.get-version.outputs.version }}
-      create-latest-tag: true
+      create-latest-tag: false
       platforms: '["linux/amd64", "linux/arm64"]'
       push-to-ghcr: true
       push-to-dockerhub: true
