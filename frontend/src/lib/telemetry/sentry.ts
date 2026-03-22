@@ -29,7 +29,7 @@ interface ApiErrorLike {
 export function initSentry(config: SentryConfig): void {
   Sentry.init({
     dsn: config.dsn,
-    release: config.version,
+    release: `birdnet-go@${config.version}`,
     environment: 'production',
     sampleRate: 1.0,
     tracesSampleRate: 0,
@@ -79,6 +79,32 @@ export function captureApiError(error: ApiErrorLike, context?: Record<string, st
       scope.setTag('error.network', 'true');
     }
 
+    Sentry.captureException(error);
+  });
+}
+
+/**
+ * Capture a non-API error from logger.error() calls.
+ * Used via dependency injection from logger.ts to avoid circular imports.
+ */
+export function captureError(
+  error: Error,
+  context?: { category?: string; [key: string]: unknown }
+): void {
+  Sentry.withScope(scope => {
+    scope.setLevel('error');
+    scope.setTag('error.type', 'logger');
+    if (context?.category) {
+      scope.setTag('logger.category', context.category);
+    }
+    if (context) {
+      const rest = Object.fromEntries(
+        Object.entries(context).filter(([key]) => key !== 'category')
+      );
+      if (Object.keys(rest).length > 0) {
+        scope.setContext('logger', rest);
+      }
+    }
     Sentry.captureException(error);
   });
 }
