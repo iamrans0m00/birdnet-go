@@ -1532,6 +1532,10 @@
         "detections": "Erkennungen:",
         "confidence": "Konfidenz:",
         "first": "Erste:"
+      },
+      "guide": {
+        "loading": "Artinformationen werden geladen...",
+        "source": "Quelle:"
       }
     },
     "advanced": {

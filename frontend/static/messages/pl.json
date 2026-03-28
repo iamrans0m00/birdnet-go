@@ -1532,6 +1532,10 @@
         "detections": "Detekcje:",
         "confidence": "Pewność:",
         "first": "Pierwsze:"
+      },
+      "guide": {
+        "loading": "Ładowanie informacji o gatunku...",
+        "source": "Źródło:"
       }
     },
     "advanced": {

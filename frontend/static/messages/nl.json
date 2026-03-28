@@ -1532,6 +1532,10 @@
         "detections": "Aantal herkend:",
         "confidence": "Betrouwbaarheid:",
         "first": "Eerst:"
+      },
+      "guide": {
+        "loading": "Soortinformatie laden...",
+        "source": "Bron:"
       }
     },
     "advanced": {

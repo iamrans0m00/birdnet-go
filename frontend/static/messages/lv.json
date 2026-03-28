@@ -1555,6 +1555,10 @@
         "detections": "Atpazīšanas:",
         "confidence": "Ticamība:",
         "first": "Pirmā:"
+      },
+      "guide": {
+        "loading": "Ielādē sugas informāciju...",
+        "source": "Avots:"
       }
     },
     "advanced": {

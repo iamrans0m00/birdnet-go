@@ -1532,6 +1532,10 @@
         "detections": "Havainnot:",
         "confidence": "Luottamus:",
         "first": "Ensimmäinen:"
+      },
+      "guide": {
+        "loading": "Ladataan lajitietoja...",
+        "source": "Lähde:"
       }
     },
     "advanced": {

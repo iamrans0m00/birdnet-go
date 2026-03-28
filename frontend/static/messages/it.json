@@ -1531,6 +1531,10 @@
         "detections": "Rilevamenti:",
         "confidence": "Confidenza:",
         "first": "Primo:"
+      },
+      "guide": {
+        "loading": "Caricamento informazioni sulla specie...",
+        "source": "Fonte:"
       }
     },
     "advanced": {

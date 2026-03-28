@@ -1555,6 +1555,10 @@
         "detections": "Detektioner:",
         "confidence": "Konfidens:",
         "first": "Först:"
+      },
+      "guide": {
+        "loading": "Laddar artinformation...",
+        "source": "Källa:"
       }
     },
     "advanced": {

@@ -1555,6 +1555,10 @@
         "detections": "Detektálások:",
         "confidence": "Megbízhatóság:",
         "first": "Első:"
+      },
+      "guide": {
+        "loading": "Fajinformációk betöltése...",
+        "source": "Forrás:"
       }
     },
     "advanced": {

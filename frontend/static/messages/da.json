@@ -1555,6 +1555,10 @@
         "detections": "Registreringer:",
         "confidence": "Sikkerhed:",
         "first": "Første:"
+      },
+      "guide": {
+        "loading": "Indlæser artsoplysninger...",
+        "source": "Kilde:"
       }
     },
     "advanced": {

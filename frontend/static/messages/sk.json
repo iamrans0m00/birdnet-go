@@ -1531,6 +1531,10 @@
         "detections": "Detekcie:",
         "confidence": "Istota:",
         "first": "Prvýkrát:"
+      },
+      "guide": {
+        "loading": "Načítavanie informácií o druhu...",
+        "source": "Zdroj:"
       }
     },
     "advanced": {

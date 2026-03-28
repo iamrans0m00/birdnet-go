@@ -1,8 +1,13 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { ExternalLink } from '@lucide/svelte';
   import Modal from '$lib/desktop/components/ui/Modal.svelte';
   import { t } from '$lib/i18n';
   import { parseLocalDateString } from '$lib/utils/date';
+  import { loggers } from '$lib/utils/logger';
+  import { buildAppUrl } from '$lib/utils/urlHelpers';
+
+  const logger = loggers.ui;
 
   interface SpeciesData {
     common_name: string;
@@ -13,6 +18,21 @@
     first_heard: string;
     last_heard: string;
     thumbnail_url?: string;
+  }
+
+  interface SpeciesGuideData {
+    scientific_name: string;
+    common_name: string;
+    description: string;
+    conservation_status: string;
+    source: {
+      provider: string;
+      url: string;
+      license: string;
+      license_url: string;
+    };
+    partial: boolean;
+    cached_at: string;
   }
 
   interface Props {
@@ -28,6 +48,10 @@
   // while isOpen transitions to false.
   let cachedSpecies = $state<SpeciesData | null>(null);
 
+  // Species guide state
+  let guideData = $state<SpeciesGuideData | null>(null);
+  let guideLoading = $state(false);
+
   // Clear stale cache when the modal opens so previous species data doesn't flash.
   // The cache is only useful during the close transition (species becomes null while
   // isOpen transitions to false), not during open.
@@ -35,6 +59,7 @@
   $effect(() => {
     if (isOpen && !untrack(() => prevIsOpen)) {
       cachedSpecies = null;
+      guideData = null;
     }
     prevIsOpen = isOpen;
   });
@@ -45,8 +70,36 @@
     }
   });
 
+  // Fetch guide data when species changes
+  $effect(() => {
+    if (species?.scientific_name) {
+      fetchGuideData(species.scientific_name);
+    }
+  });
+
   // Use cached data for rendering, fall back to current prop
   let displaySpecies = $derived(species ?? cachedSpecies);
+
+  async function fetchGuideData(scientificName: string) {
+    guideLoading = true;
+    guideData = null;
+
+    try {
+      const encodedName = encodeURIComponent(scientificName);
+      const response = await fetch(buildAppUrl(`/api/v2/species/${encodedName}/guide`));
+      if (!response.ok) {
+        if (response.status !== 404) {
+          logger.debug('Guide fetch failed', { status: response.status, species: scientificName });
+        }
+        return;
+      }
+      guideData = await response.json();
+    } catch (err) {
+      logger.debug('Guide fetch error', { species: scientificName, error: err });
+    } finally {
+      guideLoading = false;
+    }
+  }
 
   function formatPercentage(value: number): string {
     return (value * 100).toFixed(1) + '%';
@@ -96,6 +149,45 @@
             alt={displaySpecies.common_name}
             class="w-full h-full object-cover"
           />
+        </div>
+      {/if}
+
+      {#if guideLoading}
+        <div class="mt-3 flex items-center gap-2 text-sm opacity-60">
+          <div
+            class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
+          ></div>
+          <span>{t('analytics.species.guide.loading')}</span>
+        </div>
+      {:else if guideData?.description}
+        <div class="mt-3 space-y-2">
+          <p class="text-sm leading-relaxed text-[var(--color-base-content)] opacity-85">
+            {guideData.description}
+          </p>
+          {#if guideData.conservation_status}
+            <div class="flex items-center gap-2 text-xs">
+              <span class="px-2 py-0.5 rounded-full bg-[var(--color-base-200)] font-medium">
+                {guideData.conservation_status}
+              </span>
+            </div>
+          {/if}
+          {#if guideData.source.url}
+            <div class="flex items-center gap-1 text-xs opacity-50">
+              <span>{t('analytics.species.guide.source')}</span>
+              <a
+                href={guideData.source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-0.5 underline hover:opacity-80"
+              >
+                {guideData.source.provider}
+                <ExternalLink class="h-3 w-3" />
+              </a>
+              {#if guideData.source.license}
+                <span>· {guideData.source.license}</span>
+              {/if}
+            </div>
+          {/if}
         </div>
       {/if}
 
