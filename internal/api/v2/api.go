@@ -25,6 +25,7 @@ import (
 	"github.com/tphakala/birdnet-go/internal/birdnet"
 	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/datastore"
+	"github.com/tphakala/birdnet-go/internal/guideprovider"
 	datastoreV2 "github.com/tphakala/birdnet-go/internal/datastore/v2"
 	"github.com/tphakala/birdnet-go/internal/datastore/v2/repository"
 	"github.com/tphakala/birdnet-go/internal/ebird"
@@ -48,6 +49,7 @@ type Controller struct {
 	Repo                datastore.DetectionRepository // New: Preferred for detection CRUD operations
 	Settings            *conf.Settings
 	BirdImageCache      *imageprovider.BirdImageCache
+	GuideCache          *guideprovider.GuideCache
 	SunCalc             *suncalc.SunCalc
 	Processor           *processor.Processor
 	EBirdClient         *ebird.Client
@@ -151,6 +153,13 @@ func WithAuthService(svc auth.Service) Option {
 func WithMetricsStore(store observability.MetricsStore) Option {
 	return func(c *Controller) {
 		c.metricsStore = store
+	}
+}
+
+// WithGuideCache sets the species guide cache for the controller.
+func WithGuideCache(gc *guideprovider.GuideCache) Option {
+	return func(c *Controller) {
+		c.GuideCache = gc
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/tphakala/birdnet-go/internal/backup"
 	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/errors"
+	"github.com/tphakala/birdnet-go/internal/guideprovider"
 	"github.com/tphakala/birdnet-go/internal/imageprovider"
 	"github.com/tphakala/birdnet-go/internal/logger"
 	"github.com/tphakala/birdnet-go/internal/monitor"
@@ -38,6 +39,7 @@ type APIServerService struct {
 	server         *api.Server
 	proc           *processor.Processor
 	birdImageCache *imageprovider.BirdImageCache
+	guideCache     *guideprovider.GuideCache
 	sunCalc        *suncalc.SunCalc
 	oauth2Server   *security.OAuth2Server
 	systemMonitor  *monitor.SystemMonitor
@@ -114,6 +116,9 @@ func (s *APIServerService) Start(_ context.Context) error {
 	// Initialize bird image cache.
 	s.birdImageCache = initBirdImageCache(s.settings, dataStore, s.metrics)
 
+	// Initialize species guide cache (optional — failure is non-fatal).
+	s.guideCache = initGuideCacheIfNeeded(s.settings, dataStore)
+
 	// Create SunCalc for sunrise/sunset calculations.
 	s.sunCalc = suncalc.NewSunCalc(s.settings.BirdNET.Latitude, s.settings.BirdNET.Longitude)
 
@@ -169,6 +174,7 @@ func (s *APIServerService) Start(_ context.Context) error {
 		api.WithAudioLevelChannel(s.audioLevelChan),
 		api.WithOAuth2Server(s.oauth2Server),
 		api.WithSunCalc(s.sunCalc),
+		api.WithGuideCache(s.guideCache),
 		api.WithV2Manager(s.dbService.V2Manager()),
 		api.WithAudioEngine(s.engine),
 	)
@@ -234,6 +240,14 @@ func (s *APIServerService) Stop(ctx context.Context) error {
 				logger.String("operation", "shutdown_processor"))
 		}
 		s.proc = nil
+	}
+
+	// Close species guide cache.
+	if s.guideCache != nil {
+		log.Info("closing species guide cache",
+			logger.String("operation", "close_guide_cache"))
+		s.guideCache.Close()
+		s.guideCache = nil
 	}
 
 	// Stop notification service (after processor, which may send final notifications).
