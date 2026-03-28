@@ -260,16 +260,7 @@ func (s *QuietHoursScheduler) Evaluate() {
 	}
 
 	// Determine sound card action.
-	if settings.Realtime.Audio.Source != "" && settings.Realtime.Audio.QuietHours.Enabled {
-		inQuietHours := s.isInQuietHours(&settings.Realtime.Audio.QuietHours, now)
-		if inQuietHours && !s.soundCardSuppressed {
-			soundCardSignal = SignalQuietHoursStopSoundCard
-		} else if !inQuietHours && s.soundCardSuppressed {
-			soundCardSignal = SignalQuietHoursStartSoundCard
-		}
-	} else if s.soundCardSuppressed {
-		soundCardSignal = SignalQuietHoursStartSoundCard
-	}
+	soundCardSignal = s.evaluateSoundCardQuietHours(settings, now)
 
 	s.mu.Unlock()
 
@@ -342,6 +333,51 @@ func (s *QuietHoursScheduler) getLog() logger.Logger {
 		return s.log
 	}
 	return logger.Global().Module("audiocore").Module("schedule")
+}
+
+// evaluateSoundCardQuietHours determines the sound card signal based on
+// per-source quiet hours (falling back to global quiet hours).
+// Must be called with s.mu held.
+func (s *QuietHoursScheduler) evaluateSoundCardQuietHours(settings *conf.Settings, now time.Time) string {
+	// Check per-source quiet hours: suppress if ANY source is in quiet hours,
+	// unsuppress only when ALL enabled sources are out of quiet hours.
+	anyPerSourceQuietHours := false
+	anyInQuietHours := false
+	for i := range settings.Realtime.Audio.Sources {
+		src := &settings.Realtime.Audio.Sources[i]
+		if src.Device == "" || !src.QuietHours.Enabled {
+			continue
+		}
+		anyPerSourceQuietHours = true
+		if s.isInQuietHours(&src.QuietHours, now) {
+			anyInQuietHours = true
+			break
+		}
+	}
+	if anyPerSourceQuietHours {
+		if anyInQuietHours && !s.soundCardSuppressed {
+			return SignalQuietHoursStopSoundCard
+		}
+		if !anyInQuietHours && s.soundCardSuppressed {
+			return SignalQuietHoursStartSoundCard
+		}
+		return ""
+	}
+
+	// Fall back to global quiet hours if no per-source quiet hours configured.
+	if settings.Realtime.Audio.QuietHours.Enabled {
+		inQuietHours := s.isInQuietHours(&settings.Realtime.Audio.QuietHours, now)
+		if inQuietHours && !s.soundCardSuppressed {
+			return SignalQuietHoursStopSoundCard
+		} else if !inQuietHours && s.soundCardSuppressed {
+			return SignalQuietHoursStartSoundCard
+		}
+	} else if s.soundCardSuppressed {
+		// Quiet hours disabled but card still suppressed — restore it.
+		return SignalQuietHoursStartSoundCard
+	}
+
+	return ""
 }
 
 // isInQuietHours determines whether the given time falls within the quiet hours window.
