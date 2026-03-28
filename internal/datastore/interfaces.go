@@ -2075,13 +2075,14 @@ func applyCommonFilters(query *gorm.DB, filters *SearchFilters, ds *DataStore) *
 	query = query.Where("notes.confidence >= ? AND notes.confidence <= ?",
 		filters.ConfidenceMin, filters.ConfidenceMax)
 
-	if filters.VerifiedOnly {
+	switch {
+	case filters.VerifiedOnly:
 		query = query.Where("note_reviews.verified = ?", string(entities.VerificationCorrect))
-	} else if filters.UnverifiedOnly {
+	case filters.UnverifiedOnly:
 		// Handle NULL case explicitly for unverified
 		query = query.Where("(note_reviews.verified IS NULL OR (note_reviews.verified != ? AND note_reviews.verified != ?))",
 			string(entities.VerificationCorrect), string(entities.VerificationFalsePositive))
-	} else if filters.FalsePositiveOnly {
+	case filters.FalsePositiveOnly:
 		query = query.Where("note_reviews.verified = ?", string(entities.VerificationFalsePositive))
 	}
 
