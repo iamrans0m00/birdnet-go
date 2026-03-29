@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,8 +16,10 @@ import (
 func TestWikipediaGuideProvider_Fetch_Success(t *testing.T) {
 	t.Parallel()
 
-	// Create mock Wikipedia REST API server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+
+	// REST summary endpoint
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		response := wikipediaSummaryResponse{
 			Type:    "standard",
 			Title:   "Common blackbird",
@@ -26,22 +29,81 @@ func TestWikipediaGuideProvider_Fetch_Success(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
-	}))
+	})
+
+	// Action API extract endpoint
+	mux.HandleFunc("/w/api.php", func(w http.ResponseWriter, _ *http.Request) {
+		resp := wikipediaExtractResponse{}
+		resp.Query.Pages = map[string]struct {
+			Extract string `json:"extract"`
+		}{
+			"12345": {
+				Extract: "The common blackbird is a species of true thrush.\n\n" +
+					"== Description ==\n" +
+					"The adult male is 24-27 cm long with a glossy black plumage and orange-yellow bill.\n\n" +
+					"== Songs and calls ==\n" +
+					"The male sings a rich melodious fluting song from treetops.\n\n" +
+					"== Distribution ==\nWidely distributed across Europe.",
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	provider := NewWikipediaGuideProvider()
-	// Override the base URL to use our test server
-	// We'll test by creating a custom fetch that uses our server URL
-	guide, err := fetchFromTestServer(t, server.URL, "Turdus merula")
+	provider := newTestWikipediaProvider(server.URL)
+	guide, err := provider.Fetch(context.Background(), "Turdus merula")
 	require.NoError(t, err)
 
 	assert.Equal(t, "Common blackbird", guide.CommonName)
-	assert.Equal(t, "The common blackbird is a species of true thrush.", guide.Description)
+	assert.Equal(t, "Turdus merula", guide.ScientificName)
 	assert.Equal(t, WikipediaProviderName, guide.SourceProvider)
 	assert.Equal(t, "CC BY-SA 4.0", guide.LicenseName)
-	assert.True(t, guide.Partial)
 
-	_ = provider // ensure provider is used
+	// Should contain the intro, description, and songs sections.
+	assert.Contains(t, guide.Description, "species of true thrush")
+	assert.Contains(t, guide.Description, "## Description")
+	assert.Contains(t, guide.Description, "glossy black plumage")
+	assert.Contains(t, guide.Description, "## Songs and calls")
+	assert.Contains(t, guide.Description, "rich melodious fluting")
+
+	// Should NOT contain non-identification sections.
+	assert.NotContains(t, guide.Description, "## Distribution")
+}
+
+func TestWikipediaGuideProvider_Fetch_FallbackToSummary(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+
+	// REST summary endpoint
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+		response := wikipediaSummaryResponse{
+			Type:    "standard",
+			Title:   "Test bird",
+			Extract: "A short summary about a bird.",
+		}
+		response.ContentURLs.Desktop.Page = "https://en.wikipedia.org/wiki/Test_bird"
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	})
+
+	// Action API returns error
+	mux.HandleFunc("/w/api.php", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	provider := newTestWikipediaProvider(server.URL)
+	guide, err := provider.Fetch(context.Background(), "Test species")
+	require.NoError(t, err)
+
+	// Should fall back to the summary extract.
+	assert.Equal(t, "A short summary about a bird.", guide.Description)
 }
 
 func TestWikipediaGuideProvider_Fetch_NotFound(t *testing.T) {
@@ -52,7 +114,8 @@ func TestWikipediaGuideProvider_Fetch_NotFound(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchFromTestServer(t, server.URL, "Nonexistent species")
+	provider := newTestWikipediaProvider(server.URL)
+	_, err := provider.Fetch(context.Background(), "Nonexistent species")
 	assert.ErrorIs(t, err, ErrGuideNotFound)
 }
 
@@ -69,7 +132,8 @@ func TestWikipediaGuideProvider_Fetch_Disambiguation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchFromTestServer(t, server.URL, "Blackbird")
+	provider := newTestWikipediaProvider(server.URL)
+	_, err := provider.Fetch(context.Background(), "Blackbird")
 	assert.ErrorIs(t, err, ErrGuideNotFound)
 }
 
@@ -105,7 +169,8 @@ func TestWikipediaGuideProvider_Fetch_EmptyExtract(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, err := fetchFromTestServer(t, server.URL, "Empty page")
+	provider := newTestWikipediaProvider(server.URL)
+	_, err := provider.Fetch(context.Background(), "Empty page")
 	assert.ErrorIs(t, err, ErrGuideNotFound)
 }
 
@@ -137,49 +202,53 @@ func TestWikipediaGuideProvider_CircuitBreaker(t *testing.T) {
 	assert.Equal(t, "", provider.circuitLastError)
 }
 
-func TestWikipediaGuideProvider_DescriptionTruncation(t *testing.T) {
+func TestParseSections(t *testing.T) {
 	t.Parallel()
 
-	// Create a long description
-	longText := make([]byte, maxDescriptionLength+500)
-	for i := range longText {
-		longText[i] = 'a'
-	}
+	extract := `The intro paragraph.
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		response := wikipediaSummaryResponse{
-			Type:    "standard",
-			Title:   "Test",
-			Extract: string(longText),
-		}
-		response.ContentURLs.Desktop.Page = "https://en.wikipedia.org/wiki/Test"
+== Description ==
+The bird is 24-27 cm long with black plumage.
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
-	}))
-	defer server.Close()
+== Songs and calls ==
+It sings a rich melodious song.
 
-	guide, err := fetchFromTestServer(t, server.URL, "Test")
-	require.NoError(t, err)
+== Distribution and habitat ==
+Found across Europe.
 
-	// Should be truncated to maxDescriptionLength + "..."
-	assert.Equal(t, maxDescriptionLength+3, len(guide.Description))
-	assert.True(t, len(guide.Description) <= maxDescriptionLength+3)
+== Similar species ==
+Closely resembles the ring ouzel.`
+
+	sections := parseSections(extract)
+
+	assert.Contains(t, sections, "description")
+	assert.Contains(t, sections["description"], "24-27 cm")
+
+	assert.Contains(t, sections, "songs and calls")
+	assert.Contains(t, sections["songs and calls"], "melodious song")
+
+	assert.Contains(t, sections, "similar species")
+	assert.Contains(t, sections["similar species"], "ring ouzel")
+
+	assert.Contains(t, sections, "distribution and habitat")
 }
 
-// fetchFromTestServer is a test helper that creates a provider pointing at a test server.
-func fetchFromTestServer(t *testing.T, serverURL, title string) (SpeciesGuide, error) {
-	t.Helper()
-	provider := newTestWikipediaProvider(serverURL)
-	return provider.fetchSummary(context.Background(), title)
+func TestTruncate(t *testing.T) {
+	t.Parallel()
+
+	// Short text — no truncation.
+	assert.Equal(t, "hello", truncate("hello", 100))
+
+	// Long text — truncated at word boundary.
+	long := "word1 word2 word3 word4 word5"
+	result := truncate(long, 15)
+	assert.True(t, strings.HasSuffix(result, "..."))
+	assert.LessOrEqual(t, len(result), 18) // 15 + "..."
 }
 
 // newTestWikipediaProvider creates a WikipediaGuideProvider pointing at a test server.
 func newTestWikipediaProvider(baseURL string) *WikipediaGuideProvider {
 	provider := NewWikipediaGuideProvider()
-	// We override the fetch by modifying the base URL constant via a closure.
-	// Since we can't modify the const, we create a provider that builds URLs
-	// using the test server URL instead.
 	provider.testBaseURL = baseURL
 	return provider
 }

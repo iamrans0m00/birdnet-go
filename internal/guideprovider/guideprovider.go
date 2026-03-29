@@ -54,7 +54,8 @@ const (
 
 	providerTimeout = 10 * time.Second // Per-provider fetch timeout
 
-	maxDescriptionLength = 2000 // Maximum description length to cache
+	maxDescriptionLength     = 2000  // Maximum description length for summary-only fallback
+	maxRichDescriptionLength = 10000 // Maximum description length for rich content with identification sections
 )
 
 // defaultProviderName is the provider used when settings are unavailable.

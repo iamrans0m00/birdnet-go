@@ -1534,6 +1534,7 @@
         "first": "Ensimmäinen:"
       },
       "guide": {
+        "title": "Lajiopas",
         "loading": "Ladataan lajitietoja...",
         "source": "Lähde:"
       }

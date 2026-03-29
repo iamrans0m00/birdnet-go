@@ -17,9 +17,10 @@
   interface Props {
     species: SpeciesData;
     className?: string;
+    onClick?: (species: SpeciesData) => void;
   }
 
-  let { species, className = '' }: Props = $props();
+  let { species, className = '', onClick }: Props = $props();
 
   function formatPercentage(value: number): string {
     return (value * 100).toFixed(1) + '%';
@@ -39,7 +40,16 @@
   }
 </script>
 
-<div class={cn('card bg-[var(--color-base-200)]', className)}>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<div
+  class={cn(
+    'card bg-[var(--color-base-200)]',
+    onClick ? 'cursor-pointer hover:shadow-lg transition-shadow' : '',
+    className
+  )}
+  onclick={() => onClick?.(species)}
+>
   <figure class="px-4 pt-4">
     <div class="rounded-xl w-full aspect-[4/3] overflow-hidden bg-[var(--color-base-300)]">
       {#if species.thumbnail_url && !imageLoadFailed}

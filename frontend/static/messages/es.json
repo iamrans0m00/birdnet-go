@@ -1534,6 +1534,7 @@
         "first": "Primera:"
       },
       "guide": {
+        "title": "Guía de especies",
         "loading": "Cargando información de la especie...",
         "source": "Fuente:"
       }

@@ -1558,6 +1558,7 @@
         "first": "First:"
       },
       "guide": {
+        "title": "Species Guide",
         "loading": "Loading species information...",
         "source": "Source:"
       }

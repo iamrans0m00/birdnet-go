@@ -38,9 +38,25 @@
     Moon,
     Sunrise,
     Sunset,
+    ExternalLink,
   } from '@lucide/svelte';
 
   // Interface definitions for API responses
+  interface SpeciesGuideData {
+    scientific_name: string;
+    common_name: string;
+    description: string;
+    conservation_status: string;
+    source: {
+      provider: string;
+      url: string;
+      license: string;
+      license_url: string;
+    };
+    partial: boolean;
+    cached_at: string;
+  }
+
   interface SpeciesRarity {
     status: string;
     score: number;
@@ -111,6 +127,8 @@
   let isLoadingTaxonomy = $state(false);
   let detectionError = $state<string | null>(null);
   let imageAttribution = $state<ImageAttribution | null>(null);
+  let guideData = $state<SpeciesGuideData | null>(null);
+  let isLoadingGuide = $state(false);
 
   // Derived state for subspecies with proper typing
   let subspeciesList = $derived<Subspecies[]>(
@@ -124,6 +142,7 @@
   let speciesController: AbortController | null = null;
   let taxonomyController: AbortController | null = null;
   let attributionController: AbortController | null = null;
+  let guideController: AbortController | null = null;
 
   // Validate detection ID to prevent path traversal attacks
   // Only allow alphanumeric characters, hyphens, and underscores
@@ -172,6 +191,7 @@
       speciesController?.abort();
       taxonomyController?.abort();
       attributionController?.abort();
+      guideController?.abort();
     };
   });
 
@@ -227,6 +247,7 @@
         fetchSpeciesInfo();
         fetchTaxonomy();
         fetchImageAttribution();
+        fetchGuide();
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -327,6 +348,70 @@
       isLoadingTaxonomy = false;
       taxonomyController = null;
     }
+  }
+
+  // Fetch species guide information
+  async function fetchGuide() {
+    if (!detection?.scientificName) return;
+
+    guideController?.abort();
+    guideController = new AbortController();
+
+    isLoadingGuide = true;
+    try {
+      const response = await fetch(
+        buildAppUrl(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/guide`),
+        { signal: guideController?.signal }
+      );
+      if (guideController?.signal.aborted) return;
+      if (response.ok) {
+        const data = await response.json();
+        if (guideController?.signal.aborted) return;
+        guideData = data as SpeciesGuideData;
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      // Guide is non-critical — fail silently
+    } finally {
+      isLoadingGuide = false;
+      guideController = null;
+    }
+  }
+
+  /**
+   * Parse a guide description that contains `## Section` markdown headers
+   * into an array of { heading, body } segments for structured rendering.
+   */
+  function parseGuideDescription(description: string): Array<{ heading: string; body: string }> {
+    const sections: Array<{ heading: string; body: string }> = [];
+    const parts = description.split(/^## /m);
+
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+
+      const newlineIdx = trimmed.indexOf('\n');
+      if (newlineIdx === -1) {
+        // No newline — either a heading-only section or intro text
+        if (sections.length === 0 && !description.trimStart().startsWith('## ')) {
+          sections.push({ heading: '', body: trimmed });
+        } else {
+          sections.push({ heading: trimmed, body: '' });
+        }
+      } else {
+        const heading =
+          sections.length === 0 && !description.trimStart().startsWith('## ')
+            ? ''
+            : trimmed.slice(0, newlineIdx).trim();
+        const body =
+          sections.length === 0 && !description.trimStart().startsWith('## ')
+            ? trimmed
+            : trimmed.slice(newlineIdx + 1).trim();
+        sections.push({ heading, body });
+      }
+    }
+
+    return sections;
   }
 
   // Dynamically load review component when user has review permission
@@ -665,6 +750,63 @@
       </section>
     {/if}
   </div>
+
+  <!-- Species Guide -->
+  {#if isLoadingGuide}
+    <section class="mt-4" aria-labelledby="guide-heading">
+      <h3 id="guide-heading" class="section-heading">{t('analytics.species.guide.title')}</h3>
+      <div class="content-panel">
+        <div class="flex items-center gap-2 text-sm opacity-60">
+          <div
+            class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
+          ></div>
+          <span>{t('analytics.species.guide.loading')}</span>
+        </div>
+      </div>
+    </section>
+  {:else if guideData?.description}
+    <section class="mt-4" aria-labelledby="guide-heading">
+      <h3 id="guide-heading" class="section-heading">{t('analytics.species.guide.title')}</h3>
+      <div class="content-panel guide-content">
+        {#each parseGuideDescription(guideData.description) as section, i (i)}
+          {#if section.heading}
+            <h4 class="guide-section-heading">{section.heading}</h4>
+          {/if}
+          {#if section.body}
+            <p class="guide-section-body">{section.body}</p>
+          {/if}
+        {/each}
+
+        {#if guideData.conservation_status}
+          <div class="flex items-center gap-2 text-xs mt-3">
+            <span class="px-2 py-0.5 rounded-full bg-[var(--color-base-300)] font-medium">
+              {guideData.conservation_status}
+            </span>
+          </div>
+        {/if}
+
+        <div class="guide-attribution">
+          <span>{t('analytics.species.guide.source')}</span>
+          {#if guideData.source.url}
+            <a
+              href={guideData.source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-0.5 underline hover:opacity-80"
+            >
+              {guideData.source.provider}
+              <ExternalLink class="h-3 w-3" />
+            </a>
+          {:else}
+            <span>{guideData.source.provider}</span>
+          {/if}
+          {#if guideData.source.license}
+            <span>· {guideData.source.license}</span>
+          {/if}
+        </div>
+      </div>
+    </section>
+  {/if}
 {/snippet}
 
 {#snippet historyTab()}
@@ -1437,5 +1579,46 @@
     color: var(--color-base-content);
     opacity: 0.4;
     font-style: italic;
+  }
+
+  /* ----- Species Guide ----- */
+  .guide-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .guide-section-heading {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-base-content);
+    opacity: 0.55;
+    margin-top: 1rem;
+    margin-bottom: 0.375rem;
+  }
+
+  .guide-section-heading:first-child {
+    margin-top: 0;
+  }
+
+  .guide-section-body {
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: var(--color-base-content);
+    opacity: 0.85;
+  }
+
+  .guide-attribution {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.6875rem;
+    color: var(--color-base-content);
+    opacity: 0.4;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-100);
   }
 </style>

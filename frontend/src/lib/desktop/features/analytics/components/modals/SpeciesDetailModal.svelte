@@ -112,6 +112,41 @@
     return date.toLocaleDateString();
   }
 
+  /**
+   * Parse a guide description that contains `## Section` markdown headers
+   * into an array of { heading, body } segments for structured rendering.
+   */
+  function parseGuideDescription(description: string): Array<{ heading: string; body: string }> {
+    const sections: Array<{ heading: string; body: string }> = [];
+    const parts = description.split(/^## /m);
+
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+
+      const newlineIdx = trimmed.indexOf('\n');
+      if (newlineIdx === -1) {
+        if (sections.length === 0 && !description.trimStart().startsWith('## ')) {
+          sections.push({ heading: '', body: trimmed });
+        } else {
+          sections.push({ heading: trimmed, body: '' });
+        }
+      } else {
+        const heading =
+          sections.length === 0 && !description.trimStart().startsWith('## ')
+            ? ''
+            : trimmed.slice(0, newlineIdx).trim();
+        const body =
+          sections.length === 0 && !description.trimStart().startsWith('## ')
+            ? trimmed
+            : trimmed.slice(newlineIdx + 1).trim();
+        sections.push({ heading, body });
+      }
+    }
+
+    return sections;
+  }
+
   function handleClose() {
     if (onClose) onClose();
   }
@@ -160,19 +195,30 @@
           <span>{t('analytics.species.guide.loading')}</span>
         </div>
       {:else if guideData?.description}
-        <div class="mt-3 space-y-2">
-          <p class="text-sm leading-relaxed text-[var(--color-base-content)] opacity-85">
-            {guideData.description}
-          </p>
+        <div class="mt-3 space-y-1">
+          {#each parseGuideDescription(guideData.description) as section, i (i)}
+            {#if section.heading}
+              <h4
+                class="text-xs font-semibold uppercase tracking-wide text-[var(--color-base-content)] opacity-55 mt-3 mb-1"
+              >
+                {section.heading}
+              </h4>
+            {/if}
+            {#if section.body}
+              <p class="text-sm leading-relaxed text-[var(--color-base-content)] opacity-85">
+                {section.body}
+              </p>
+            {/if}
+          {/each}
           {#if guideData.conservation_status}
-            <div class="flex items-center gap-2 text-xs">
+            <div class="flex items-center gap-2 text-xs mt-2">
               <span class="px-2 py-0.5 rounded-full bg-[var(--color-base-200)] font-medium">
                 {guideData.conservation_status}
               </span>
             </div>
           {/if}
           {#if guideData.source.url}
-            <div class="flex items-center gap-1 text-xs opacity-50">
+            <div class="flex items-center gap-1 text-xs opacity-50 mt-2">
               <span>{t('analytics.species.guide.source')}</span>
               <a
                 href={guideData.source.url}

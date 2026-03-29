@@ -1534,6 +1534,7 @@
         "first": "Eerst:"
       },
       "guide": {
+        "title": "Soortengids",
         "loading": "Soortinformatie laden...",
         "source": "Bron:"
       }
