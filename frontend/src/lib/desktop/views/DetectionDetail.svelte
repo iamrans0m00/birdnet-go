@@ -24,6 +24,7 @@
   import { handleBirdImageError } from '$lib/desktop/components/ui/image-utils.js';
   import { t } from '$lib/i18n';
   import type { Detection, ImageAttribution } from '$lib/types/detection.types';
+  import { parseGuideDescription, type SpeciesGuideData } from '$lib/types/species';
   import { hasReviewPermission, isAuthenticated } from '$lib/utils/auth';
   import { formatLocalDateTime } from '$lib/utils/date';
   import { buildAppUrl } from '$lib/utils/urlHelpers';
@@ -42,21 +43,6 @@
   } from '@lucide/svelte';
 
   // Interface definitions for API responses
-  interface SpeciesGuideData {
-    scientific_name: string;
-    common_name: string;
-    description: string;
-    conservation_status: string;
-    source: {
-      provider: string;
-      url: string;
-      license: string;
-      license_url: string;
-    };
-    partial: boolean;
-    cached_at: string;
-  }
-
   interface SpeciesRarity {
     status: string;
     score: number;
@@ -365,9 +351,9 @@
       );
       if (guideController?.signal.aborted) return;
       if (response.ok) {
-        const data = await response.json();
+        const data: SpeciesGuideData = await response.json();
         if (guideController?.signal.aborted) return;
-        guideData = data as SpeciesGuideData;
+        guideData = data;
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
@@ -376,42 +362,6 @@
       isLoadingGuide = false;
       guideController = null;
     }
-  }
-
-  /**
-   * Parse a guide description that contains `## Section` markdown headers
-   * into an array of { heading, body } segments for structured rendering.
-   */
-  function parseGuideDescription(description: string): Array<{ heading: string; body: string }> {
-    const sections: Array<{ heading: string; body: string }> = [];
-    const parts = description.split(/^## /m);
-
-    for (const part of parts) {
-      const trimmed = part.trim();
-      if (!trimmed) continue;
-
-      const newlineIdx = trimmed.indexOf('\n');
-      if (newlineIdx === -1) {
-        // No newline — either a heading-only section or intro text
-        if (sections.length === 0 && !description.trimStart().startsWith('## ')) {
-          sections.push({ heading: '', body: trimmed });
-        } else {
-          sections.push({ heading: trimmed, body: '' });
-        }
-      } else {
-        const heading =
-          sections.length === 0 && !description.trimStart().startsWith('## ')
-            ? ''
-            : trimmed.slice(0, newlineIdx).trim();
-        const body =
-          sections.length === 0 && !description.trimStart().startsWith('## ')
-            ? trimmed
-            : trimmed.slice(newlineIdx + 1).trim();
-        sections.push({ heading, body });
-      }
-    }
-
-    return sections;
   }
 
   // Dynamically load review component when user has review permission

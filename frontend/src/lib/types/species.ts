@@ -60,6 +60,63 @@ export interface SpeciesGroup {
   items: Species[];
 }
 
+// Species guide data returned by the /api/v2/species/:name/guide endpoint
+export interface SpeciesGuideData {
+  scientific_name: string;
+  common_name: string;
+  description: string;
+  conservation_status: string;
+  source: {
+    provider: string;
+    url: string;
+    license: string;
+    license_url: string;
+  };
+  partial: boolean;
+  cached_at: string;
+}
+
+// Parsed guide section with optional heading and body text
+export interface GuideSection {
+  heading: string;
+  body: string;
+}
+
+/**
+ * Parse a guide description that contains `## Section` markdown headers
+ * into an array of { heading, body } segments for structured rendering.
+ */
+export function parseGuideDescription(description: string): GuideSection[] {
+  const sections: GuideSection[] = [];
+  const parts = description.split(/^## /m);
+
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+
+    const newlineIdx = trimmed.indexOf('\n');
+    if (newlineIdx === -1) {
+      if (sections.length === 0 && !description.trimStart().startsWith('## ')) {
+        sections.push({ heading: '', body: trimmed });
+      } else {
+        sections.push({ heading: trimmed, body: '' });
+      }
+    } else {
+      const heading =
+        sections.length === 0 && !description.trimStart().startsWith('## ')
+          ? ''
+          : trimmed.slice(0, newlineIdx).trim();
+      const body =
+        sections.length === 0 && !description.trimStart().startsWith('## ')
+          ? trimmed
+          : trimmed.slice(newlineIdx + 1).trim();
+      sections.push({ heading, body });
+    }
+  }
+
+  return sections;
+}
+
 // Event types for the species selector
 export interface SpeciesSelectorEvents {
   change: { selected: SpeciesId[] };

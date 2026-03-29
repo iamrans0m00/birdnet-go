@@ -1557,6 +1557,7 @@
         "first": "Første:"
       },
       "guide": {
+        "title": "Artguide",
         "loading": "Indlæser artsoplysninger...",
         "source": "Kilde:"
       }

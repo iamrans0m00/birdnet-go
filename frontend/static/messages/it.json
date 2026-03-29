@@ -1533,6 +1533,7 @@
         "first": "Primo:"
       },
       "guide": {
+        "title": "Guida alle specie",
         "loading": "Caricamento informazioni sulla specie...",
         "source": "Fonte:"
       }

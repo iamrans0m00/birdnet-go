@@ -24,7 +24,7 @@ type directDBProvider interface {
 
 // extractDB attempts to get a *gorm.DB from a datastore, supporting both
 // v2only.Datastore (via Manager().DB()) and legacy stores (via GetDB()).
-func extractDB(ds interface{}) *gorm.DB {
+func extractDB(ds any) *gorm.DB {
 	// Try v2only.Datastore path first (Manager().DB()).
 	if mp, ok := ds.(managerProvider); ok {
 		if mgr := mp.Manager(); mgr != nil {
@@ -40,7 +40,7 @@ func extractDB(ds interface{}) *gorm.DB {
 
 // initGuideCacheIfNeeded initializes the species guide cache if the feature is enabled.
 // Returns nil if the feature is disabled or required dependencies are unavailable.
-func initGuideCacheIfNeeded(settings *conf.Settings, ds interface{}) *guideprovider.GuideCache {
+func initGuideCacheIfNeeded(settings *conf.Settings, ds any) *guideprovider.GuideCache {
 	log := GetLogger()
 
 	if !settings.Realtime.Dashboard.SpeciesGuide.Enabled {

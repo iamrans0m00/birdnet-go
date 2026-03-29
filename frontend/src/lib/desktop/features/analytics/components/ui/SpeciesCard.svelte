@@ -40,8 +40,7 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -- role="button" and tabindex are conditionally set together when onClick is provided -->
 <div
   class={cn(
     'card bg-[var(--color-base-200)]',
@@ -49,6 +48,14 @@
     className
   )}
   onclick={() => onClick?.(species)}
+  onkeydown={(e: KeyboardEvent) => {
+    if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      onClick(species);
+    }
+  }}
+  role={onClick ? 'button' : undefined}
+  tabindex={onClick ? 0 : undefined}
 >
   <figure class="px-4 pt-4">
     <div class="rounded-xl w-full aspect-[4/3] overflow-hidden bg-[var(--color-base-300)]">

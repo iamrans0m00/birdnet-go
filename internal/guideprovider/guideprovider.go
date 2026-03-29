@@ -130,6 +130,7 @@ type GuideCache struct {
 	store     GuideStore
 	sfGroup   singleflight.Group
 	quit      chan struct{}
+	closeOnce sync.Once
 	mu        sync.RWMutex // protects providers map
 }
 
@@ -155,9 +156,9 @@ func (c *GuideCache) Start() {
 	c.startCacheRefresh()
 }
 
-// Close stops background routines.
+// Close stops background routines. Safe to call multiple times.
 func (c *GuideCache) Close() {
-	close(c.quit)
+	c.closeOnce.Do(func() { close(c.quit) })
 }
 
 // Get retrieves a species guide, checking memory cache, DB cache, and providers.
@@ -442,7 +443,7 @@ func (c *GuideCache) refreshStaleEntries() {
 		return
 	}
 
-	var staleEntries []string
+	staleEntries := make([]string, 0, len(entries))
 	for i := range entries {
 		isNegative := entries[i].SourceProvider == negativeEntryMarker
 		if isCacheEntryStale(entries[i].CachedAt, isNegative) {

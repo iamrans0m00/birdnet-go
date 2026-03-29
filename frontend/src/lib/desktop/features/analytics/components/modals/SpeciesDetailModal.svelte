@@ -6,6 +6,7 @@
   import { parseLocalDateString } from '$lib/utils/date';
   import { loggers } from '$lib/utils/logger';
   import { buildAppUrl } from '$lib/utils/urlHelpers';
+  import { parseGuideDescription, type SpeciesGuideData } from '$lib/types/species';
 
   const logger = loggers.ui;
 
@@ -18,21 +19,6 @@
     first_heard: string;
     last_heard: string;
     thumbnail_url?: string;
-  }
-
-  interface SpeciesGuideData {
-    scientific_name: string;
-    common_name: string;
-    description: string;
-    conservation_status: string;
-    source: {
-      provider: string;
-      url: string;
-      license: string;
-      license_url: string;
-    };
-    partial: boolean;
-    cached_at: string;
   }
 
   interface Props {
@@ -112,41 +98,6 @@
     return date.toLocaleDateString();
   }
 
-  /**
-   * Parse a guide description that contains `## Section` markdown headers
-   * into an array of { heading, body } segments for structured rendering.
-   */
-  function parseGuideDescription(description: string): Array<{ heading: string; body: string }> {
-    const sections: Array<{ heading: string; body: string }> = [];
-    const parts = description.split(/^## /m);
-
-    for (const part of parts) {
-      const trimmed = part.trim();
-      if (!trimmed) continue;
-
-      const newlineIdx = trimmed.indexOf('\n');
-      if (newlineIdx === -1) {
-        if (sections.length === 0 && !description.trimStart().startsWith('## ')) {
-          sections.push({ heading: '', body: trimmed });
-        } else {
-          sections.push({ heading: trimmed, body: '' });
-        }
-      } else {
-        const heading =
-          sections.length === 0 && !description.trimStart().startsWith('## ')
-            ? ''
-            : trimmed.slice(0, newlineIdx).trim();
-        const body =
-          sections.length === 0 && !description.trimStart().startsWith('## ')
-            ? trimmed
-            : trimmed.slice(newlineIdx + 1).trim();
-        sections.push({ heading, body });
-      }
-    }
-
-    return sections;
-  }
-
   function handleClose() {
     if (onClose) onClose();
   }
@@ -217,7 +168,7 @@
               </span>
             </div>
           {/if}
-          {#if guideData.source.url}
+          {#if guideData.source?.url}
             <div class="flex items-center gap-1 text-xs opacity-50 mt-2">
               <span>{t('analytics.species.guide.source')}</span>
               <a

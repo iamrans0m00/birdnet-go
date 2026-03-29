@@ -1557,6 +1557,7 @@
         "first": "Först:"
       },
       "guide": {
+        "title": "Artguide",
         "loading": "Laddar artinformation...",
         "source": "Källa:"
       }
