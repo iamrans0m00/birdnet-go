@@ -175,6 +175,12 @@ func parseIPFromHeader(headerValue string) string {
 	if headerValue == "" {
 		return ""
 	}
+	// Strip IPv6 zone ID (e.g., %wlan0) before parsing.
+	// net.ParseIP does not handle zone identifiers, and iOS Safari
+	// commonly connects via IPv6 link-local addresses with zone IDs.
+	if before, _, found := strings.Cut(headerValue, "%"); found {
+		headerValue = before
+	}
 	ip := net.ParseIP(headerValue)
 	if ip != nil {
 		return ip.String()
