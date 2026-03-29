@@ -22,7 +22,8 @@
   import ErrorAlert from '$lib/desktop/components/ui/ErrorAlert.svelte';
   import LoadingSpinner from '$lib/desktop/components/ui/LoadingSpinner.svelte';
   import { handleBirdImageError } from '$lib/desktop/components/ui/image-utils.js';
-  import { t } from '$lib/i18n';
+  import CollapsibleSection from '$lib/desktop/components/ui/CollapsibleSection.svelte';
+  import { t, getLocale } from '$lib/i18n';
   import type { Detection, ImageAttribution } from '$lib/types/detection.types';
   import { parseGuideDescription, type SpeciesGuideData } from '$lib/types/species';
   import { hasReviewPermission, isAuthenticated } from '$lib/utils/auth';
@@ -345,8 +346,10 @@
 
     isLoadingGuide = true;
     try {
+      const locale = getLocale();
+      const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
       const response = await fetch(
-        buildAppUrl(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/guide`),
+        buildAppUrl(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/guide${localeParam}`),
         { signal: guideController?.signal }
       );
       if (guideController?.signal.aborted) return;
@@ -717,13 +720,24 @@
   {:else if guideData?.description}
     <section class="mt-4" aria-labelledby="guide-heading">
       <h3 id="guide-heading" class="section-heading">{t('analytics.species.guide.title')}</h3>
-      <div class="content-panel guide-content">
+      <div class="guide-content">
         {#each parseGuideDescription(guideData.description) as section, i (i)}
           {#if section.heading}
-            <h4 class="guide-section-heading">{section.heading}</h4>
-          {/if}
-          {#if section.body}
-            <p class="guide-section-body">{section.body}</p>
+            <CollapsibleSection
+              title={section.heading}
+              defaultOpen={false}
+              className="guide-collapsible"
+              titleClassName="guide-collapsible-title"
+              contentClassName="guide-collapsible-content"
+            >
+              {#if section.body}
+                <p class="guide-section-body">{section.body}</p>
+              {/if}
+            </CollapsibleSection>
+          {:else if section.body}
+            <div class="content-panel">
+              <p class="guide-section-body">{section.body}</p>
+            </div>
           {/if}
         {/each}
 
@@ -1535,22 +1549,26 @@
   .guide-content {
     display: flex;
     flex-direction: column;
-    gap: 0;
+    gap: 0.5rem;
   }
 
-  .guide-section-heading {
-    font-size: 0.8125rem;
+  :global(.guide-collapsible) {
+    background: var(--color-base-200) !important;
+    box-shadow: none !important;
+    border-radius: 0.75rem;
+  }
+
+  :global(.guide-collapsible-title) {
+    font-size: 0.8125rem !important;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--color-base-content);
-    opacity: 0.55;
-    margin-top: 1rem;
-    margin-bottom: 0.375rem;
+    min-height: 2.25rem !important;
+    padding: 0.5rem 1rem !important;
   }
 
-  .guide-section-heading:first-child {
-    margin-top: 0;
+  :global(.guide-collapsible-content) {
+    padding: 0 1rem 0.75rem !important;
   }
 
   .guide-section-body {

@@ -88,12 +88,17 @@ func (g *SpeciesGuide) IsNegativeEntry() bool {
 	return g.SourceProvider == negativeEntryMarker
 }
 
+// FetchOptions holds optional parameters for guide fetching.
+type FetchOptions struct {
+	Locale string // Wikipedia language code (e.g. "de", "fr", "es"). Empty defaults to "en".
+}
+
 // GuideProvider defines the interface for fetching species guide text.
 type GuideProvider interface {
 	// Fetch retrieves guide information for a species by scientific name.
 	// Returns a partial SpeciesGuide if some fields are unavailable.
 	// Returns ErrGuideNotFound if the species cannot be found at all.
-	Fetch(ctx context.Context, scientificName string) (SpeciesGuide, error)
+	Fetch(ctx context.Context, scientificName string, opts FetchOptions) (SpeciesGuide, error)
 }
 
 // GuideStore defines the datastore interface needed by the guide cache.
@@ -162,7 +167,9 @@ func (c *GuideCache) Close() {
 }
 
 // Get retrieves a species guide, checking memory cache, DB cache, and providers.
-func (c *GuideCache) Get(ctx context.Context, scientificName string) (*SpeciesGuide, error) {
+// The locale parameter selects the Wikipedia language edition (e.g. "de", "fr").
+// An empty locale defaults to English.
+func (c *GuideCache) Get(ctx context.Context, scientificName string, opts FetchOptions) (*SpeciesGuide, error) {
 	// Tier 1: Memory cache
 	if cached, ok := c.dataMap.Load(scientificName); ok {
 		guide := cached.(*SpeciesGuide)
@@ -174,7 +181,11 @@ func (c *GuideCache) Get(ctx context.Context, scientificName string) (*SpeciesGu
 		} else if !isCacheEntryStale(guide.CachedAt, false) {
 			return guide, nil
 		}
-		// Stale positive entry, fall through to re-fetch
+		// Stale positive entry: return it immediately, refresh in background (stale-while-revalidate).
+		if !guide.IsNegativeEntry() {
+			c.triggerAsyncRefresh(scientificName, opts)
+			return guide, nil
+		}
 	}
 
 	// Tier 2: DB cache
@@ -199,7 +210,7 @@ func (c *GuideCache) Get(ctx context.Context, scientificName string) (*SpeciesGu
 
 	// Tier 3: Fetch from providers (deduplicated)
 	result, err, _ := c.sfGroup.Do(scientificName, func() (any, error) {
-		return c.fetchFromProviders(ctx, scientificName)
+		return c.fetchFromProviders(ctx, scientificName, opts)
 	})
 	if err != nil {
 		return nil, err
@@ -209,8 +220,20 @@ func (c *GuideCache) Get(ctx context.Context, scientificName string) (*SpeciesGu
 	return guide, nil
 }
 
+// triggerAsyncRefresh starts a background goroutine to refresh stale data.
+// Uses singleflight to deduplicate concurrent refreshes for the same species.
+func (c *GuideCache) triggerAsyncRefresh(scientificName string, opts FetchOptions) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*providerTimeout)
+		defer cancel()
+		c.sfGroup.Do(scientificName, func() (any, error) {
+			return c.fetchFromProviders(ctx, scientificName, opts)
+		})
+	}()
+}
+
 // fetchFromProviders fetches guide data from configured providers with fallback.
-func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName string) (*SpeciesGuide, error) {
+func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName string, opts FetchOptions) (*SpeciesGuide, error) {
 	log := GetLogger()
 	settings := conf.GetSettings()
 
@@ -230,7 +253,7 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 	// Try primary provider
 	if hasPrimary {
 		providerCtx, cancel := context.WithTimeout(ctx, providerTimeout)
-		guide, err := provider.Fetch(providerCtx, scientificName)
+		guide, err := provider.Fetch(providerCtx, scientificName, opts)
 		cancel()
 
 		if err == nil {
@@ -266,7 +289,7 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 			}
 
 			providerCtx, cancel := context.WithTimeout(ctx, providerTimeout)
-			guide, err := fbProvider.Fetch(providerCtx, scientificName)
+			guide, err := fbProvider.Fetch(providerCtx, scientificName, opts)
 			cancel()
 
 			if err != nil {
@@ -346,8 +369,21 @@ func dbEntryToGuide(entry *GuideCacheEntry) *SpeciesGuide {
 }
 
 // saveToDB persists a guide entry to the database.
+// Skips the write if the existing entry has identical content (content diffing).
 func (c *GuideCache) saveToDB(guide *SpeciesGuide, providerName string) {
 	if c.store == nil {
+		return
+	}
+
+	// Content diffing: skip write if existing DB entry has identical description.
+	existing, err := c.store.GetGuideCache(context.Background(), guide.ScientificName, providerName)
+	if err == nil && existing != nil &&
+		existing.Description == guide.Description &&
+		existing.CommonName == guide.CommonName &&
+		existing.ConservationStatus == guide.ConservationStatus &&
+		existing.SourceProvider == guide.SourceProvider {
+		GetLogger().Debug("Guide cache content unchanged, skipping DB write",
+			logger.String("species", guide.ScientificName))
 		return
 	}
 
@@ -470,7 +506,7 @@ func (c *GuideCache) refreshStaleEntries() {
 			}
 		}
 
-		if _, err := c.fetchFromProviders(ctx, name); err == nil {
+		if _, err := c.fetchFromProviders(ctx, name, FetchOptions{}); err == nil {
 			refreshed++
 		}
 	}

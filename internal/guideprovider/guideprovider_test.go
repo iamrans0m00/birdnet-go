@@ -14,7 +14,7 @@ type mockGuideProvider struct {
 	fetchFunc func(ctx context.Context, scientificName string) (SpeciesGuide, error)
 }
 
-func (m *mockGuideProvider) Fetch(ctx context.Context, scientificName string) (SpeciesGuide, error) {
+func (m *mockGuideProvider) Fetch(ctx context.Context, scientificName string, _ FetchOptions) (SpeciesGuide, error) {
 	return m.fetchFunc(ctx, scientificName)
 }
 
@@ -218,7 +218,7 @@ func TestGuideCache_GetFromMemory(t *testing.T) {
 	}
 	cache.dataMap.Store("Turdus merula", guide)
 
-	result, err := cache.Get(context.Background(), "Turdus merula")
+	result, err := cache.Get(context.Background(), "Turdus merula", FetchOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, "Common Blackbird", result.CommonName)
 }
@@ -237,7 +237,7 @@ func TestGuideCache_NegativeMemoryCacheHit(t *testing.T) {
 	}
 	cache.dataMap.Store("Unknown species", negative)
 
-	_, err := cache.Get(context.Background(), "Unknown species")
+	_, err := cache.Get(context.Background(), "Unknown species", FetchOptions{})
 	assert.ErrorIs(t, err, ErrGuideNotFound)
 }
 
@@ -264,7 +264,7 @@ func TestGuideCache_FetchFromProvider(t *testing.T) {
 	cache.RegisterProvider(WikipediaProviderName, provider)
 
 	// First fetch should go to the provider
-	result, err := cache.Get(context.Background(), "Turdus merula")
+	result, err := cache.Get(context.Background(), "Turdus merula", FetchOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, "Common Blackbird", result.CommonName)
 	assert.Equal(t, "A species of true thrush.", result.Description)
@@ -295,7 +295,7 @@ func TestGuideCache_ProviderNotFound(t *testing.T) {
 	}
 	cache.RegisterProvider(WikipediaProviderName, provider)
 
-	_, err := cache.Get(context.Background(), "Nonexistent species")
+	_, err := cache.Get(context.Background(), "Nonexistent species", FetchOptions{})
 	assert.ErrorIs(t, err, ErrGuideNotFound)
 
 	// Verify negative entry was cached

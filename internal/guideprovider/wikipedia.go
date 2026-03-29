@@ -18,9 +18,12 @@ import (
 )
 
 const (
-	// Wikipedia API endpoints.
-	wikipediaRESTBaseURL  = "https://en.wikipedia.org/api/rest_v1/page/summary"
-	wikipediaActionAPIURL = "https://en.wikipedia.org/w/api.php"
+	// Wikipedia API endpoint templates. Use wikipediaURLs() to get locale-specific URLs.
+	wikipediaRESTTemplate   = "https://%s.wikipedia.org/api/rest_v1/page/summary"
+	wikipediaActionTemplate = "https://%s.wikipedia.org/w/api.php"
+
+	// Default locale for Wikipedia API requests.
+	defaultLocale = "en"
 
 	// User-Agent following Wikimedia policy
 	wikiUserAgent = "BirdNETGo/1.0 (https://github.com/tphakala/birdnet-go) Go-HTTP-Client"
@@ -42,7 +45,7 @@ const (
 	wikiMaxResponseBody = 1024 * 1024 // 1MB max response body (full extracts are larger)
 )
 
-// identificationSections lists Wikipedia section headings that contain
+// identificationSections lists English Wikipedia section headings that contain
 // bird identification information, in priority order.
 var identificationSections = []string{
 	"Description",
@@ -56,11 +59,49 @@ var identificationSections = []string{
 	"Similar species",
 }
 
+// localizedSectionNames maps locale codes to their identification section headings.
+// Languages not listed here will only get the intro paragraph (no section extraction).
+var localizedSectionNames = map[string][]string{
+	"de": {"Beschreibung", "Merkmale", "Stimme", "Aussehen", "Verwechslungsmöglichkeiten", "Ähnliche Arten"},
+	"fr": {"Description", "Chant et cris", "Voix", "Plumage", "Espèces similaires"},
+	"es": {"Descripción", "Voz", "Canto", "Vocalización", "Especies similares"},
+	"nl": {"Beschrijving", "Geluid", "Stem", "Herkenning"},
+	"pl": {"Opis", "Wygląd", "Głos", "Odgłosy"},
+	"pt": {"Descrição", "Vocalização", "Canto", "Voz"},
+	"it": {"Descrizione", "Voce", "Canto", "Piumaggio"},
+	"sv": {"Utseende", "Läte", "Kännetecken"},
+	"da": {"Udseende", "Stemme", "Kendetegn"},
+	"fi": {"Kuvaus", "Ääntelyt", "Ulkonäkö"},
+	"hu": {"Leírás", "Megjelenés", "Hang"},
+	"sk": {"Opis", "Hlas", "Vzhľad"},
+	"lv": {"Apraksts", "Balss", "Izskats"},
+}
+
+// getIdentificationSections returns the section names to look for based on locale.
+func getIdentificationSections(locale string) []string {
+	if locale == "" || locale == defaultLocale {
+		return identificationSections
+	}
+	if sections, ok := localizedSectionNames[locale]; ok {
+		return sections
+	}
+	// Unsupported locale — return nil so we only use the intro paragraph.
+	return nil
+}
+
 // sectionHeaderRe matches Wikipedia section headers like "== Description ==" or "=== Subsection ===".
 var sectionHeaderRe = regexp.MustCompile(`(?m)^={2,4}\s*(.+?)\s*={2,4}\s*$`)
 
 // referenceCleanupRe matches inline reference markers like [1], [2], etc.
 var referenceCleanupRe = regexp.MustCompile(`\[\d+\]`)
+
+// wikipediaURLs returns the REST summary base URL and action API URL for a locale.
+func wikipediaURLs(locale string) (restBase, actionAPI string) {
+	if locale == "" {
+		locale = defaultLocale
+	}
+	return fmt.Sprintf(wikipediaRESTTemplate, locale), fmt.Sprintf(wikipediaActionTemplate, locale)
+}
 
 // wikipediaSummaryResponse represents the Wikipedia REST API summary response.
 type wikipediaSummaryResponse struct {
@@ -119,8 +160,13 @@ func NewWikipediaGuideProvider() *WikipediaGuideProvider {
 // It first gets the summary (intro paragraph + article URL), then fetches
 // the full plain-text extract to pull out identification-relevant sections
 // like Description, Songs and calls, and Similar species.
-func (p *WikipediaGuideProvider) Fetch(ctx context.Context, scientificName string) (SpeciesGuide, error) {
+// The locale in opts selects the Wikipedia language edition.
+func (p *WikipediaGuideProvider) Fetch(ctx context.Context, scientificName string, opts FetchOptions) (SpeciesGuide, error) {
 	log := GetLogger()
+	locale := opts.Locale
+	if locale == "" {
+		locale = defaultLocale
+	}
 
 	// Check circuit breaker
 	if open, reason := p.isCircuitOpen(); open {
@@ -139,17 +185,31 @@ func (p *WikipediaGuideProvider) Fetch(ctx context.Context, scientificName strin
 	}
 
 	// Step 1: Get the summary (intro + metadata like article URL).
-	summary, err := p.fetchSummary(ctx, scientificName)
+	summary, err := p.fetchSummary(ctx, scientificName, locale)
 	if err != nil {
-		log.Debug("Wikipedia scientific name lookup failed",
-			logger.String("species", scientificName),
-			logger.Any("error", err))
-		return SpeciesGuide{}, ErrGuideNotFound
+		// If non-English locale failed, try falling back to English.
+		if locale != defaultLocale {
+			log.Debug("Localized Wikipedia lookup failed, falling back to English",
+				logger.String("locale", locale),
+				logger.String("species", scientificName))
+			summary, err = p.fetchSummary(ctx, scientificName, defaultLocale)
+			if err != nil {
+				return SpeciesGuide{}, ErrGuideNotFound
+			}
+			// Reset locale to English since we fell back
+			locale = defaultLocale
+		} else {
+			log.Debug("Wikipedia scientific name lookup failed",
+				logger.String("species", scientificName),
+				logger.Any("error", err))
+			return SpeciesGuide{}, ErrGuideNotFound
+		}
 	}
 
 	// Step 2: Fetch the full extract to get identification sections.
 	// This is best-effort — if it fails, we still have the summary.
-	fullDescription := p.buildRichDescription(ctx, summary.Title, summary.Extract)
+	sectionNames := getIdentificationSections(locale)
+	fullDescription := p.buildRichDescription(ctx, summary.Title, summary.Extract, locale, sectionNames)
 
 	guide := SpeciesGuide{
 		ScientificName: scientificName,
@@ -169,13 +229,20 @@ func (p *WikipediaGuideProvider) Fetch(ctx context.Context, scientificName strin
 // buildRichDescription fetches the full article extract and combines the intro
 // with identification-relevant sections (Description, Songs and calls, etc.).
 // Falls back to just the intro summary if the full extract isn't available.
-func (p *WikipediaGuideProvider) buildRichDescription(ctx context.Context, title, introText string) string {
+// If sectionNames is nil (unsupported locale), only the intro is returned.
+func (p *WikipediaGuideProvider) buildRichDescription(ctx context.Context, title, introText, locale string, sectionNames []string) string {
 	log := GetLogger()
 
-	fullExtract, err := p.fetchFullExtract(ctx, title)
+	// If no section names for this locale, just return the intro.
+	if sectionNames == nil {
+		return truncate(introText, maxDescriptionLength)
+	}
+
+	fullExtract, err := p.fetchFullExtract(ctx, title, locale)
 	if err != nil {
 		log.Debug("Failed to fetch full Wikipedia extract, using summary only",
 			logger.String("title", title),
+			logger.String("locale", locale),
 			logger.Any("error", err))
 		return truncate(introText, maxDescriptionLength)
 	}
@@ -187,7 +254,7 @@ func (p *WikipediaGuideProvider) buildRichDescription(ctx context.Context, title
 	var parts []string
 	parts = append(parts, strings.TrimSpace(introText))
 
-	for _, sectionName := range identificationSections {
+	for _, sectionName := range sectionNames {
 		if content, ok := sections[strings.ToLower(sectionName)]; ok {
 			cleaned := strings.TrimSpace(content)
 			if cleaned != "" {
@@ -202,9 +269,10 @@ func (p *WikipediaGuideProvider) buildRichDescription(ctx context.Context, title
 	return truncate(combined, maxRichDescriptionLength)
 }
 
-// fetchSummary fetches the Wikipedia REST API summary for a given title.
-func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title string) (*wikipediaSummaryResponse, error) {
-	baseURL := wikipediaRESTBaseURL
+// fetchSummary fetches the Wikipedia REST API summary for a given title and locale.
+func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title, locale string) (*wikipediaSummaryResponse, error) {
+	restBase, _ := wikipediaURLs(locale)
+	baseURL := restBase
 	if p.testBaseURL != "" {
 		baseURL = p.testBaseURL
 	}
@@ -266,8 +334,9 @@ func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title string)
 
 // fetchFullExtract uses the MediaWiki action API to get the full plain-text
 // extract of an article, including all sections.
-func (p *WikipediaGuideProvider) fetchFullExtract(ctx context.Context, title string) (string, error) {
-	baseURL := wikipediaActionAPIURL
+func (p *WikipediaGuideProvider) fetchFullExtract(ctx context.Context, title, locale string) (string, error) {
+	_, actionBase := wikipediaURLs(locale)
+	baseURL := actionBase
 	if p.testBaseURL != "" {
 		// In tests, the action API is at testBaseURL + "/w/api.php"
 		// but for simplicity, tests can override this separately.

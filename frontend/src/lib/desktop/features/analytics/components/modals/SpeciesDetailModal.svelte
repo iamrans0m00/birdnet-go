@@ -1,8 +1,9 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { ExternalLink } from '@lucide/svelte';
+  import CollapsibleSection from '$lib/desktop/components/ui/CollapsibleSection.svelte';
   import Modal from '$lib/desktop/components/ui/Modal.svelte';
-  import { t } from '$lib/i18n';
+  import { t, getLocale } from '$lib/i18n';
   import { parseLocalDateString } from '$lib/utils/date';
   import { loggers } from '$lib/utils/logger';
   import { buildAppUrl } from '$lib/utils/urlHelpers';
@@ -72,7 +73,9 @@
 
     try {
       const encodedName = encodeURIComponent(scientificName);
-      const response = await fetch(buildAppUrl(`/api/v2/species/${encodedName}/guide`));
+      const locale = getLocale();
+      const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
+      const response = await fetch(buildAppUrl(`/api/v2/species/${encodedName}/guide${localeParam}`));
       if (!response.ok) {
         if (response.status !== 404) {
           logger.debug('Guide fetch failed', { status: response.status, species: scientificName });
@@ -146,16 +149,23 @@
           <span>{t('analytics.species.guide.loading')}</span>
         </div>
       {:else if guideData?.description}
-        <div class="mt-3 space-y-1">
+        <div class="mt-3 space-y-2">
           {#each parseGuideDescription(guideData.description) as section, i (i)}
             {#if section.heading}
-              <h4
-                class="text-xs font-semibold uppercase tracking-wide text-[var(--color-base-content)] opacity-55 mt-3 mb-1"
+              <CollapsibleSection
+                title={section.heading}
+                defaultOpen={false}
+                className="bg-[var(--color-base-200)] shadow-none rounded-lg"
+                titleClassName="text-xs font-semibold uppercase tracking-wide min-h-8 py-1 px-3"
+                contentClassName="px-3 pb-2"
               >
-                {section.heading}
-              </h4>
-            {/if}
-            {#if section.body}
+                {#if section.body}
+                  <p class="text-sm leading-relaxed text-[var(--color-base-content)] opacity-85">
+                    {section.body}
+                  </p>
+                {/if}
+              </CollapsibleSection>
+            {:else if section.body}
               <p class="text-sm leading-relaxed text-[var(--color-base-content)] opacity-85">
                 {section.body}
               </p>

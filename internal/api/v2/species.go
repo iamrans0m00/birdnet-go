@@ -659,6 +659,7 @@ type SpeciesGuideSource struct {
 // @Tags species
 // @Produce json
 // @Param scientific_name path string true "Scientific name (URL-encoded)"
+// @Param locale query string false "Wikipedia language code (e.g. de, fr, es). Defaults to en."
 // @Success 200 {object} SpeciesGuideResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 404 {object} ErrorResponse
@@ -699,8 +700,11 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 			Build(), "Missing required parameter", http.StatusBadRequest)
 	}
 
+	// Parse optional locale query parameter for Wikipedia language selection
+	locale := strings.TrimSpace(ctx.QueryParam("locale"))
+
 	// Fetch guide from cache (memory → DB → providers)
-	guide, err := c.GuideCache.Get(ctx.Request().Context(), scientificName)
+	guide, err := c.GuideCache.Get(ctx.Request().Context(), scientificName, guideprovider.FetchOptions{Locale: locale})
 	if err != nil {
 		if errors.Is(err, guideprovider.ErrGuideNotFound) {
 			return c.HandleError(ctx, err, "Species guide not found", http.StatusNotFound)

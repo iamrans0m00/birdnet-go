@@ -54,7 +54,7 @@ func TestWikipediaGuideProvider_Fetch_Success(t *testing.T) {
 	defer server.Close()
 
 	provider := newTestWikipediaProvider(server.URL)
-	guide, err := provider.Fetch(context.Background(), "Turdus merula")
+	guide, err := provider.Fetch(context.Background(), "Turdus merula", FetchOptions{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "Common blackbird", guide.CommonName)
@@ -99,7 +99,7 @@ func TestWikipediaGuideProvider_Fetch_FallbackToSummary(t *testing.T) {
 	defer server.Close()
 
 	provider := newTestWikipediaProvider(server.URL)
-	guide, err := provider.Fetch(context.Background(), "Test species")
+	guide, err := provider.Fetch(context.Background(), "Test species", FetchOptions{})
 	require.NoError(t, err)
 
 	// Should fall back to the summary extract.
@@ -115,7 +115,7 @@ func TestWikipediaGuideProvider_Fetch_NotFound(t *testing.T) {
 	defer server.Close()
 
 	provider := newTestWikipediaProvider(server.URL)
-	_, err := provider.Fetch(context.Background(), "Nonexistent species")
+	_, err := provider.Fetch(context.Background(), "Nonexistent species", FetchOptions{})
 	assert.ErrorIs(t, err, ErrGuideNotFound)
 }
 
@@ -133,7 +133,7 @@ func TestWikipediaGuideProvider_Fetch_Disambiguation(t *testing.T) {
 	defer server.Close()
 
 	provider := newTestWikipediaProvider(server.URL)
-	_, err := provider.Fetch(context.Background(), "Blackbird")
+	_, err := provider.Fetch(context.Background(), "Blackbird", FetchOptions{})
 	assert.ErrorIs(t, err, ErrGuideNotFound)
 }
 
@@ -146,7 +146,7 @@ func TestWikipediaGuideProvider_Fetch_RateLimited(t *testing.T) {
 	defer server.Close()
 
 	provider := newTestWikipediaProvider(server.URL)
-	_, err := provider.fetchSummary(context.Background(), "Turdus merula")
+	_, err := provider.fetchSummary(context.Background(), "Turdus merula", "en")
 	assert.Error(t, err)
 
 	// Circuit breaker should be tripped
@@ -170,7 +170,7 @@ func TestWikipediaGuideProvider_Fetch_EmptyExtract(t *testing.T) {
 	defer server.Close()
 
 	provider := newTestWikipediaProvider(server.URL)
-	_, err := provider.Fetch(context.Background(), "Empty page")
+	_, err := provider.Fetch(context.Background(), "Empty page", FetchOptions{})
 	assert.ErrorIs(t, err, ErrGuideNotFound)
 }
 

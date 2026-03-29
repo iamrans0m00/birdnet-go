@@ -26,8 +26,9 @@ func NewEBirdGuideProvider(client *ebird.Client) (*EBirdGuideProvider, error) {
 
 // Fetch retrieves species guide information from the eBird taxonomy API.
 // This provider only supplies taxonomy metadata (common name, extinction status).
-// It does not provide descriptions.
-func (p *EBirdGuideProvider) Fetch(ctx context.Context, scientificName string) (SpeciesGuide, error) {
+// It does not provide descriptions. The opts parameter is accepted for interface
+// compatibility but locale is not used (eBird taxonomy uses English).
+func (p *EBirdGuideProvider) Fetch(ctx context.Context, scientificName string, _ FetchOptions) (SpeciesGuide, error) {
 	log := GetLogger()
 
 	// Get taxonomy data

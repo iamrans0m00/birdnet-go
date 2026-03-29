@@ -534,7 +534,7 @@ type stubGuideProvider struct {
 	err   error
 }
 
-func (s *stubGuideProvider) Fetch(_ context.Context, _ string) (guideprovider.SpeciesGuide, error) {
+func (s *stubGuideProvider) Fetch(_ context.Context, _ string, _ guideprovider.FetchOptions) (guideprovider.SpeciesGuide, error) {
 	if s.err != nil {
 		return guideprovider.SpeciesGuide{}, s.err
 	}
