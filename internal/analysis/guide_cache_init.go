@@ -2,6 +2,7 @@ package analysis
 
 import (
 	"github.com/tphakala/birdnet-go/internal/conf"
+	"github.com/tphakala/birdnet-go/internal/datastore"
 	v2 "github.com/tphakala/birdnet-go/internal/datastore/v2"
 	"github.com/tphakala/birdnet-go/internal/ebird"
 	"github.com/tphakala/birdnet-go/internal/guideprovider"
@@ -40,7 +41,8 @@ func extractDB(ds any) *gorm.DB {
 
 // initGuideCacheIfNeeded initializes the species guide cache if the feature is enabled.
 // Returns nil if the feature is disabled or required dependencies are unavailable.
-func initGuideCacheIfNeeded(settings *conf.Settings, ds any) *guideprovider.GuideCache {
+// If WarmTopN > 0, it warms the cache with the top detected species after startup.
+func initGuideCacheIfNeeded(settings *conf.Settings, ds any, store datastore.Interface) *guideprovider.GuideCache {
 	log := GetLogger()
 
 	if !settings.Realtime.Dashboard.SpeciesGuide.Enabled {
@@ -83,5 +85,39 @@ func initGuideCacheIfNeeded(settings *conf.Settings, ds any) *guideprovider.Guid
 
 	cache.Start()
 	log.Info("species guide cache initialized")
+
+	// Warm the cache with top detected species if configured.
+	if warmN := settings.Realtime.Dashboard.SpeciesGuide.WarmTopN; warmN > 0 && store != nil {
+		warmGuideCacheWithTopSpecies(cache, store, warmN, log)
+	}
+
 	return cache
+}
+
+// warmGuideCacheWithTopSpecies fetches all detected species and warms the cache
+// for the top N (by number of detections).
+func warmGuideCacheWithTopSpecies(cache *guideprovider.GuideCache, ds datastore.Interface, topN int, log logger.Logger) {
+	notes, err := ds.GetAllDetectedSpecies()
+	if err != nil {
+		log.Warn("failed to get detected species for cache warming", logger.Error(err))
+		return
+	}
+
+	// GetAllDetectedSpecies returns unique species — take up to topN.
+	names := make([]string, 0, min(topN, len(notes)))
+	for i := range notes {
+		if len(names) >= topN {
+			break
+		}
+		if notes[i].ScientificName != "" {
+			names = append(names, notes[i].ScientificName)
+		}
+	}
+
+	if len(names) > 0 {
+		log.Info("warming guide cache with detected species",
+			logger.Int("requested", topN),
+			logger.Int("available", len(names)))
+		cache.WarmForSpecies(names)
+	}
 }

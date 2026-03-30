@@ -117,7 +117,7 @@ func (s *APIServerService) Start(_ context.Context) error {
 	s.birdImageCache = initBirdImageCache(s.settings, dataStore, s.metrics)
 
 	// Initialize species guide cache (optional — failure is non-fatal).
-	s.guideCache = initGuideCacheIfNeeded(s.settings, dataStore)
+	s.guideCache = initGuideCacheIfNeeded(s.settings, dataStore, dataStore)
 
 	// Create SunCalc for sunrise/sunset calculations.
 	s.sunCalc = suncalc.NewSunCalc(s.settings.BirdNET.Latitude, s.settings.BirdNET.Longitude)
@@ -125,6 +125,11 @@ func (s *APIServerService) Start(_ context.Context) error {
 	// Create processor.
 	s.proc = processor.New(s.settings, dataStore, bn, s.metrics, s.birdImageCache, GetLogger())
 	s.proc.SetSunCalc(s.sunCalc)
+
+	// Wire up guide pre-fetch if enabled.
+	if s.guideCache != nil && s.settings.Realtime.Dashboard.SpeciesGuide.PreFetchEnabled {
+		s.proc.SetGuidePreFetch(s.guideCache.PreFetch)
+	}
 
 	// Initialize backup system (optional — failure is non-fatal).
 	backupLog := logger.Global().Module("backup")

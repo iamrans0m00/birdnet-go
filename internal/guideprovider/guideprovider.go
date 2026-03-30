@@ -166,6 +166,67 @@ func (c *GuideCache) Close() {
 	c.closeOnce.Do(func() { close(c.quit) })
 }
 
+// WarmForSpecies pre-fetches guides for a list of species in the background.
+// It respects the quit channel and paces requests using refreshDelay.
+func (c *GuideCache) WarmForSpecies(speciesNames []string) {
+	if len(speciesNames) == 0 {
+		return
+	}
+
+	log := GetLogger()
+	log.Info("Starting guide cache warm-up",
+		logger.Int("species_count", len(speciesNames)))
+
+	go func() {
+		ctx := context.Background()
+		warmed := 0
+		skipped := 0
+
+		for _, name := range speciesNames {
+			if c.shouldQuit() {
+				break
+			}
+
+			// Skip if already cached in memory
+			if _, ok := c.dataMap.Load(name); ok {
+				skipped++
+				continue
+			}
+
+			// Pace requests
+			if warmed > 0 && warmed%refreshBatchSize == 0 {
+				if c.waitWithQuit(refreshDelay) {
+					break
+				}
+			}
+
+			if _, err := c.Get(ctx, name, FetchOptions{}); err == nil {
+				warmed++
+			}
+		}
+
+		log.Info("Guide cache warm-up complete",
+			logger.Int("warmed", warmed),
+			logger.Int("skipped", skipped),
+			logger.Int("total", len(speciesNames)))
+	}()
+}
+
+// PreFetch triggers an async guide fetch for a species if not already cached.
+// This is a non-blocking call intended for use in the detection pipeline.
+func (c *GuideCache) PreFetch(scientificName string) {
+	// Skip if already in memory cache
+	if _, ok := c.dataMap.Load(scientificName); ok {
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), providerTimeout*2)
+		defer cancel()
+		_, _ = c.Get(ctx, scientificName, FetchOptions{})
+	}()
+}
+
 // Get retrieves a species guide, checking memory cache, DB cache, and providers.
 // The locale parameter selects the Wikipedia language edition (e.g. "de", "fr").
 // An empty locale defaults to English.

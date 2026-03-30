@@ -309,3 +309,155 @@ func TestGuideCacheEntry_TableName(t *testing.T) {
 	entry := GuideCacheEntry{}
 	assert.Equal(t, "guide_caches", entry.TableName())
 }
+
+func TestGuideCache_WarmForSpecies(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "guideprovider")
+	t.Attr("type", "unit")
+	t.Attr("feature", "cache-warming")
+
+	store := newMockGuideStore()
+	cache := NewGuideCache(store)
+
+	fetchCount := 0
+	provider := &mockGuideProvider{
+		fetchFunc: func(_ context.Context, name string) (SpeciesGuide, error) {
+			fetchCount++
+			return SpeciesGuide{
+				ScientificName: name,
+				CommonName:     "Test Bird",
+				Description:    "A test bird.",
+				SourceProvider: WikipediaProviderName,
+			}, nil
+		},
+	}
+	cache.RegisterProvider(WikipediaProviderName, provider)
+	cache.Start()
+	defer cache.Close()
+
+	species := []string{"Turdus merula", "Parus major", "Corvus corax"}
+	cache.WarmForSpecies(species)
+
+	// Give the goroutine time to process
+	time.Sleep(500 * time.Millisecond)
+
+	// All species should be in memory cache now
+	for _, name := range species {
+		_, ok := cache.dataMap.Load(name)
+		assert.True(t, ok, "expected %s to be cached", name)
+	}
+}
+
+func TestGuideCache_WarmForSpecies_SkipsExisting(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "guideprovider")
+	t.Attr("type", "unit")
+	t.Attr("feature", "cache-warming")
+
+	store := newMockGuideStore()
+	cache := NewGuideCache(store)
+
+	fetchCount := 0
+	provider := &mockGuideProvider{
+		fetchFunc: func(_ context.Context, name string) (SpeciesGuide, error) {
+			fetchCount++
+			return SpeciesGuide{
+				ScientificName: name,
+				CommonName:     "Test Bird",
+				Description:    "A test bird.",
+				SourceProvider: WikipediaProviderName,
+			}, nil
+		},
+	}
+	cache.RegisterProvider(WikipediaProviderName, provider)
+	cache.Start()
+	defer cache.Close()
+
+	// Pre-populate one species in memory
+	cache.dataMap.Store("Turdus merula", &SpeciesGuide{ScientificName: "Turdus merula"})
+
+	species := []string{"Turdus merula", "Parus major"}
+	cache.WarmForSpecies(species)
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Only Parus major should have been fetched (Turdus merula was already cached)
+	assert.Equal(t, 1, fetchCount, "should only fetch uncached species")
+}
+
+func TestGuideCache_PreFetch(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "guideprovider")
+	t.Attr("type", "unit")
+	t.Attr("feature", "prefetch")
+
+	store := newMockGuideStore()
+	cache := NewGuideCache(store)
+
+	provider := &mockGuideProvider{
+		fetchFunc: func(_ context.Context, name string) (SpeciesGuide, error) {
+			return SpeciesGuide{
+				ScientificName: name,
+				CommonName:     "Test Bird",
+				Description:    "A test bird.",
+				SourceProvider: WikipediaProviderName,
+			}, nil
+		},
+	}
+	cache.RegisterProvider(WikipediaProviderName, provider)
+	cache.Start()
+	defer cache.Close()
+
+	// PreFetch should be non-blocking
+	cache.PreFetch("Turdus merula")
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Species should now be in memory cache
+	_, ok := cache.dataMap.Load("Turdus merula")
+	assert.True(t, ok, "expected Turdus merula to be cached after PreFetch")
+}
+
+func TestGuideCache_PreFetch_SkipsExisting(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "guideprovider")
+	t.Attr("type", "unit")
+	t.Attr("feature", "prefetch")
+
+	store := newMockGuideStore()
+	cache := NewGuideCache(store)
+
+	fetchCount := 0
+	provider := &mockGuideProvider{
+		fetchFunc: func(_ context.Context, name string) (SpeciesGuide, error) {
+			fetchCount++
+			return SpeciesGuide{
+				ScientificName: name,
+				SourceProvider: WikipediaProviderName,
+			}, nil
+		},
+	}
+	cache.RegisterProvider(WikipediaProviderName, provider)
+	cache.Start()
+	defer cache.Close()
+
+	// Pre-populate
+	cache.dataMap.Store("Turdus merula", &SpeciesGuide{ScientificName: "Turdus merula"})
+
+	cache.PreFetch("Turdus merula")
+	time.Sleep(200 * time.Millisecond)
+
+	assert.Equal(t, 0, fetchCount, "should not fetch already-cached species")
+}
+
+func TestGuideCache_WarmForSpecies_Empty(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "guideprovider")
+	t.Attr("type", "unit")
+	t.Attr("feature", "cache-warming")
+
+	cache := NewGuideCache(nil)
+	// Should not panic with empty or nil list
+	cache.WarmForSpecies(nil)
+	cache.WarmForSpecies([]string{})
+}

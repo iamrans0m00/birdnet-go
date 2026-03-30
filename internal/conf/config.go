@@ -150,9 +150,11 @@ type CustomColors struct {
 
 // SpeciesGuideConfig holds configuration for the species guide provider.
 type SpeciesGuideConfig struct {
-	Enabled        bool   `yaml:"enabled" json:"enabled"`               // enable species guide feature
-	Provider       string `yaml:"provider" json:"provider"`             // preferred provider: "wikipedia", "auto"
-	FallbackPolicy string `yaml:"fallbackpolicy" json:"fallbackPolicy"` // fallback policy: "none", "all"
+	Enabled         bool   `yaml:"enabled" json:"enabled"`               // enable species guide feature
+	Provider        string `yaml:"provider" json:"provider"`             // preferred provider: "wikipedia", "auto"
+	FallbackPolicy  string `yaml:"fallbackpolicy" json:"fallbackPolicy"` // fallback policy: "none", "all"
+	WarmTopN        int    `yaml:"warmtopn" json:"warmTopN"`             // number of top detected species to warm on startup (0 = disabled)
+	PreFetchEnabled bool   `yaml:"prefetchenabled" json:"preFetchEnabled"` // pre-fetch guides for newly detected species
 }
 
 // Dashboard contains settings for the web dashboard.
