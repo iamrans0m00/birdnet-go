@@ -7,12 +7,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/tphakala/birdnet-go/internal/conf"
+	"github.com/tphakala/birdnet-go/internal/datastore"
+	"github.com/tphakala/birdnet-go/internal/datastore/mocks"
 	"github.com/tphakala/birdnet-go/internal/guideprovider"
 )
 
@@ -480,7 +484,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 			expectedBody:   "Species guide not found",
 		},
 		{
-			name:           "success returns guide data",
+			name:           "success returns guide data with quality stub",
 			scientificName: "Turdus merula",
 			setupCtrl: func(c *Controller) {
 				c.Settings = &conf.Settings{}
@@ -503,7 +507,29 @@ func TestGetSpeciesGuide(t *testing.T) {
 				c.GuideCache = cache
 			},
 			expectedStatus: http.StatusOK,
-			expectedBody:   "Common Blackbird",
+			expectedBody:   `"quality":"stub"`,
+		},
+		{
+			name:           "success returns full quality guide",
+			scientificName: "Turdus merula",
+			setupCtrl: func(c *Controller) {
+				c.Settings = &conf.Settings{}
+				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				c.Settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
+				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = "none"
+				cache := guideprovider.NewGuideCache(nil)
+				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
+					guide: guideprovider.SpeciesGuide{
+						ScientificName: "Turdus merula",
+						CommonName:     "Common Blackbird",
+						Description:    "The common blackbird.\n\n## Description\nBlack plumage.\n\n## Songs and calls\nFlute-like song.",
+						SourceProvider: guideprovider.WikipediaProviderName,
+					},
+				})
+				c.GuideCache = cache
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `"quality":"full"`,
 		},
 	}
 
@@ -614,4 +640,205 @@ func TestGetAllSpecies(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestClassifyGuideQuality tests the guide quality classification logic.
+func TestClassifyGuideQuality(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "guide-quality")
+
+	tests := []struct {
+		name        string
+		description string
+		partial     bool
+		expected    GuideQuality
+	}{
+		{
+			name:        "full guide with sections",
+			description: "An introduction paragraph.\n\n## Description\nA detailed description.\n\n## Songs and calls\nVarious songs.",
+			partial:     false,
+			expected:    GuideQualityFull,
+		},
+		{
+			name:        "intro only - no sections",
+			description: "A common blackbird found throughout Europe.",
+			partial:     false,
+			expected:    GuideQualityIntroOnly,
+		},
+		{
+			name:        "stub - empty description",
+			description: "",
+			partial:     false,
+			expected:    GuideQualityStub,
+		},
+		{
+			name:        "stub - partial flag set",
+			description: "Some text",
+			partial:     true,
+			expected:    GuideQualityStub,
+		},
+		{
+			name:        "stub - partial with empty",
+			description: "",
+			partial:     true,
+			expected:    GuideQualityStub,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := classifyGuideQuality(tt.description, tt.partial)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestGetSpeciesNotes tests the GetSpeciesNotes endpoint.
+func TestGetSpeciesNotes(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "species-notes")
+
+	t.Run("empty scientific name", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodGet, "/api/v2/species//notes", http.NoBody)
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("scientific_name")
+		ctx.SetParamValues("")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2")}
+		err := c.GetSpeciesNotes(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("returns notes for species", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		mockDS := mocks.NewMockInterface(t)
+		mockDS.EXPECT().
+			GetSpeciesNotes("Turdus merula").
+			Return([]datastore.SpeciesNote{
+				{ID: 1, ScientificName: "Turdus merula", Entry: "Seen in garden"},
+				{ID: 2, ScientificName: "Turdus merula", Entry: "Singing at dawn"},
+			}, nil)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v2/species/Turdus%20merula/notes", http.NoBody)
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("scientific_name")
+		ctx.SetParamValues("Turdus merula")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS}
+		err := c.GetSpeciesNotes(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var notes []SpeciesNoteResponse
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &notes))
+		assert.Len(t, notes, 2)
+		assert.Equal(t, "Seen in garden", notes[0].Entry)
+	})
+}
+
+// TestCreateSpeciesNote tests the CreateSpeciesNote endpoint.
+func TestCreateSpeciesNote(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "species-notes")
+
+	t.Run("empty entry", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		body := `{"entry":""}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v2/species/Turdus%20merula/notes",
+			strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("scientific_name")
+		ctx.SetParamValues("Turdus merula")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2")}
+		err := c.CreateSpeciesNote(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("successful creation", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		mockDS := mocks.NewMockInterface(t)
+		mockDS.EXPECT().
+			SaveSpeciesNote(mock.AnythingOfType("*datastore.SpeciesNote")).
+			Run(func(note *datastore.SpeciesNote) {
+				assert.Equal(t, "Turdus merula", note.ScientificName)
+				assert.Equal(t, "Beautiful singer", note.Entry)
+			}).
+			Return(nil)
+
+		body := `{"entry":"Beautiful singer"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v2/species/Turdus%20merula/notes",
+			strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("scientific_name")
+		ctx.SetParamValues("Turdus merula")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS}
+		err := c.CreateSpeciesNote(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusCreated, rec.Code)
+	})
+}
+
+// TestDeleteSpeciesNote tests the DeleteSpeciesNote endpoint.
+func TestDeleteSpeciesNote(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "species-notes")
+
+	t.Run("empty ID", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodDelete, "/api/v2/species/notes/", http.NoBody)
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("id")
+		ctx.SetParamValues("")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2")}
+		err := c.DeleteSpeciesNote(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("successful deletion", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		mockDS := mocks.NewMockInterface(t)
+		mockDS.EXPECT().
+			DeleteSpeciesNote("42").
+			Return(nil)
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/v2/species/notes/42", http.NoBody)
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("id")
+		ctx.SetParamValues("42")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS}
+		err := c.DeleteSpeciesNote(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNoContent, rec.Code)
+	})
 }

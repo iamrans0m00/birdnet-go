@@ -1559,7 +1559,20 @@
       "guide": {
         "title": "Sugu ceļvedis",
         "loading": "Ielādē sugas informāciju...",
-        "source": "Avots:"
+        "source": "Avots:",
+        "qualityFull": "Detalizēts",
+        "qualityIntroOnly": "Īss",
+        "qualityStub": "Melnraksts"
+      },
+      "notes": {
+        "title": "Sugas piezīmes",
+        "placeholder": "Pievienot piezīmi par šo sugu...",
+        "save": "Saglabāt piezīmi",
+        "empty": "Vēl nav piezīmju. Pievienojiet savus novērojumus par šo sugu.",
+        "deleteConfirm": "Dzēst šo piezīmi?",
+        "saving": "Saglabā...",
+        "deleteFailed": "Neizdevās dzēst piezīmi",
+        "saveFailed": "Neizdevās saglabāt piezīmi"
       }
     },
     "advanced": {

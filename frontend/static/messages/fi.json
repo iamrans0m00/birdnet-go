@@ -1536,7 +1536,20 @@
       "guide": {
         "title": "Lajiopas",
         "loading": "Ladataan lajitietoja...",
-        "source": "Lähde:"
+        "source": "Lähde:",
+        "qualityFull": "Yksityiskohtainen",
+        "qualityIntroOnly": "Lyhyt",
+        "qualityStub": "Luonnos"
+      },
+      "notes": {
+        "title": "Lajimuistiinpanot",
+        "placeholder": "Lisää muistiinpano tästä lajista...",
+        "save": "Tallenna muistiinpano",
+        "empty": "Ei muistiinpanoja vielä. Lisää havaintosi tästä lajista.",
+        "deleteConfirm": "Poista tämä muistiinpano?",
+        "saving": "Tallennetaan...",
+        "deleteFailed": "Muistiinpanon poistaminen epäonnistui",
+        "saveFailed": "Muistiinpanon tallentaminen epäonnistui"
       }
     },
     "advanced": {

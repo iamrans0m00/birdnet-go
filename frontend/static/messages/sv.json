@@ -1559,7 +1559,20 @@
       "guide": {
         "title": "Artguide",
         "loading": "Laddar artinformation...",
-        "source": "Källa:"
+        "source": "Källa:",
+        "qualityFull": "Detaljerad",
+        "qualityIntroOnly": "Kort",
+        "qualityStub": "Utkast"
+      },
+      "notes": {
+        "title": "Artanteckningar",
+        "placeholder": "Lägg till en anteckning om denna art...",
+        "save": "Spara anteckning",
+        "empty": "Inga anteckningar ännu. Lägg till dina observationer om denna art.",
+        "deleteConfirm": "Ta bort denna anteckning?",
+        "saving": "Sparar...",
+        "deleteFailed": "Kunde inte ta bort anteckning",
+        "saveFailed": "Kunde inte spara anteckning"
       }
     },
     "advanced": {

@@ -1536,7 +1536,20 @@
       "guide": {
         "title": "Soortengids",
         "loading": "Soortinformatie laden...",
-        "source": "Bron:"
+        "source": "Bron:",
+        "qualityFull": "Gedetailleerd",
+        "qualityIntroOnly": "Kort",
+        "qualityStub": "Concept"
+      },
+      "notes": {
+        "title": "Soortnotities",
+        "placeholder": "Voeg een notitie toe over deze soort...",
+        "save": "Notitie opslaan",
+        "empty": "Nog geen notities. Voeg uw waarnemingen over deze soort toe.",
+        "deleteConfirm": "Deze notitie verwijderen?",
+        "saving": "Opslaan...",
+        "deleteFailed": "Notitie verwijderen mislukt",
+        "saveFailed": "Notitie opslaan mislukt"
       }
     },
     "advanced": {

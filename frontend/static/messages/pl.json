@@ -1536,7 +1536,20 @@
       "guide": {
         "title": "Przewodnik po gatunkach",
         "loading": "Ładowanie informacji o gatunku...",
-        "source": "Źródło:"
+        "source": "Źródło:",
+        "qualityFull": "Szczegółowy",
+        "qualityIntroOnly": "Krótki",
+        "qualityStub": "Szkic"
+      },
+      "notes": {
+        "title": "Notatki o gatunku",
+        "placeholder": "Dodaj notatkę o tym gatunku...",
+        "save": "Zapisz notatkę",
+        "empty": "Brak notatek. Dodaj swoje obserwacje o tym gatunku.",
+        "deleteConfirm": "Usunąć tę notatkę?",
+        "saving": "Zapisywanie...",
+        "deleteFailed": "Nie udało się usunąć notatki",
+        "saveFailed": "Nie udało się zapisać notatki"
       }
     },
     "advanced": {

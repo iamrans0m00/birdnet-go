@@ -60,12 +60,16 @@ export interface SpeciesGroup {
   items: Species[];
 }
 
+// Guide quality level indicating content richness
+export type GuideQuality = 'full' | 'intro_only' | 'stub';
+
 // Species guide data returned by the /api/v2/species/:name/guide endpoint
 export interface SpeciesGuideData {
   scientific_name: string;
   common_name: string;
   description: string;
   conservation_status: string;
+  quality: GuideQuality;
   source: {
     provider: string;
     url: string;
@@ -74,6 +78,14 @@ export interface SpeciesGuideData {
   };
   partial: boolean;
   cached_at: string;
+}
+
+// Species note data returned by /api/v2/species/:name/notes
+export interface SpeciesNoteData {
+  id: number;
+  entry: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // Parsed guide section with optional heading and body text

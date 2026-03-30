@@ -1536,7 +1536,20 @@
       "guide": {
         "title": "Artenleitfaden",
         "loading": "Artinformationen werden geladen...",
-        "source": "Quelle:"
+        "source": "Quelle:",
+        "qualityFull": "Ausführlich",
+        "qualityIntroOnly": "Kurz",
+        "qualityStub": "Entwurf"
+      },
+      "notes": {
+        "title": "Artnotizen",
+        "placeholder": "Notiz zu dieser Art hinzufügen...",
+        "save": "Notiz speichern",
+        "empty": "Noch keine Notizen. Fügen Sie Ihre Beobachtungen zu dieser Art hinzu.",
+        "deleteConfirm": "Diese Notiz löschen?",
+        "saving": "Speichern...",
+        "deleteFailed": "Notiz konnte nicht gelöscht werden",
+        "saveFailed": "Notiz konnte nicht gespeichert werden"
       }
     },
     "advanced": {

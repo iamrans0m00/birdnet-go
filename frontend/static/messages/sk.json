@@ -1535,7 +1535,20 @@
       "guide": {
         "title": "Sprievodca druhmi",
         "loading": "Načítavanie informácií o druhu...",
-        "source": "Zdroj:"
+        "source": "Zdroj:",
+        "qualityFull": "Podrobný",
+        "qualityIntroOnly": "Stručný",
+        "qualityStub": "Náčrt"
+      },
+      "notes": {
+        "title": "Poznámky o druhu",
+        "placeholder": "Pridať poznámku o tomto druhu...",
+        "save": "Uložiť poznámku",
+        "empty": "Zatiaľ žiadne poznámky. Pridajte svoje pozorovania o tomto druhu.",
+        "deleteConfirm": "Odstrániť túto poznámku?",
+        "saving": "Ukladanie...",
+        "deleteFailed": "Nepodarilo sa odstrániť poznámku",
+        "saveFailed": "Nepodarilo sa uložiť poznámku"
       }
     },
     "advanced": {

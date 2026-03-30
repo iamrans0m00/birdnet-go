@@ -10,6 +10,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/tphakala/birdnet-go/internal/birdnet"
+	"github.com/tphakala/birdnet-go/internal/datastore"
 	"github.com/tphakala/birdnet-go/internal/detection"
 	"github.com/tphakala/birdnet-go/internal/ebird"
 	"github.com/tphakala/birdnet-go/internal/errors"
@@ -101,6 +102,11 @@ func (c *Controller) initSpeciesRoutes() {
 
 	// Species guide endpoint
 	c.Group.GET("/species/:scientific_name/guide", c.GetSpeciesGuide)
+
+	// Species notes endpoints
+	c.Group.GET("/species/:scientific_name/notes", c.GetSpeciesNotes)
+	c.Group.POST("/species/:scientific_name/notes", c.CreateSpeciesNote, c.getEffectiveAuthMiddleware())
+	c.Group.DELETE("/species/notes/:id", c.DeleteSpeciesNote, c.getEffectiveAuthMiddleware())
 
 	// New taxonomy endpoints using local database
 	c.Group.GET("/taxonomy/genus/:genus", c.GetGenusSpecies)
@@ -634,15 +640,39 @@ func (c *Controller) GetSpeciesThumbnail(ctx echo.Context) error {
 	return c.ServeSpeciesImageProxy(ctx)
 }
 
+// GuideQuality indicates the richness of guide content.
+type GuideQuality string
+
+const (
+	// GuideQualityFull means the guide has structured sections (Description, Songs, etc.).
+	GuideQualityFull GuideQuality = "full"
+	// GuideQualityIntroOnly means only the intro paragraph is available.
+	GuideQualityIntroOnly GuideQuality = "intro_only"
+	// GuideQualityStub means only metadata is available, no description.
+	GuideQualityStub GuideQuality = "stub"
+)
+
+// classifyGuideQuality determines the quality level of guide content.
+func classifyGuideQuality(description string, partial bool) GuideQuality {
+	if partial || description == "" {
+		return GuideQualityStub
+	}
+	if strings.Contains(description, "## ") {
+		return GuideQualityFull
+	}
+	return GuideQualityIntroOnly
+}
+
 // SpeciesGuideResponse represents the API response for a species guide.
 type SpeciesGuideResponse struct {
-	ScientificName     string                `json:"scientific_name"`
-	CommonName         string                `json:"common_name"`
-	Description        string                `json:"description"`
-	ConservationStatus string                `json:"conservation_status"`
-	Source             SpeciesGuideSource    `json:"source"`
-	Partial            bool                  `json:"partial"`
-	CachedAt           time.Time             `json:"cached_at"`
+	ScientificName     string             `json:"scientific_name"`
+	CommonName         string             `json:"common_name"`
+	Description        string             `json:"description"`
+	ConservationStatus string             `json:"conservation_status"`
+	Quality            GuideQuality       `json:"quality"`
+	Source             SpeciesGuideSource `json:"source"`
+	Partial            bool               `json:"partial"`
+	CachedAt           time.Time          `json:"cached_at"`
 }
 
 // SpeciesGuideSource represents the attribution for the guide data.
@@ -720,6 +750,7 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 		CommonName:         guide.CommonName,
 		Description:        guide.Description,
 		ConservationStatus: guide.ConservationStatus,
+		Quality:            classifyGuideQuality(guide.Description, guide.Partial),
 		Source: SpeciesGuideSource{
 			Provider:   guide.SourceProvider,
 			URL:        guide.SourceURL,
@@ -731,4 +762,148 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 	}
 
 	return ctx.JSON(http.StatusOK, response)
+}
+
+// SpeciesNoteResponse represents a species note in API responses.
+type SpeciesNoteResponse struct {
+	ID        uint      `json:"id"`
+	Entry     string    `json:"entry"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// CreateSpeciesNoteRequest represents the request body for creating a species note.
+type CreateSpeciesNoteRequest struct {
+	Entry string `json:"entry"`
+}
+
+// GetSpeciesNotes retrieves all notes for a species.
+// @Summary Get species notes
+// @Description Returns user-authored notes for a species
+// @Tags species
+// @Produce json
+// @Param scientific_name path string true "Scientific name (URL-encoded)"
+// @Success 200 {array} SpeciesNoteResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v2/species/{scientific_name}/notes [get]
+func (c *Controller) GetSpeciesNotes(ctx echo.Context) error {
+	rawName := ctx.Param("scientific_name")
+	scientificName, err := url.PathUnescape(rawName)
+	if err != nil {
+		return c.HandleError(ctx, errors.Newf("invalid scientific name encoding").
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Invalid scientific name", http.StatusBadRequest)
+	}
+
+	scientificName = strings.TrimSpace(scientificName)
+	if scientificName == "" {
+		return c.HandleError(ctx, errors.Newf("scientific_name parameter is required").
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Missing required parameter", http.StatusBadRequest)
+	}
+
+	notes, err := c.DS.GetSpeciesNotes(scientificName)
+	if err != nil {
+		return c.HandleError(ctx, err, "Failed to retrieve species notes", http.StatusInternalServerError)
+	}
+
+	response := make([]SpeciesNoteResponse, 0, len(notes))
+	for _, n := range notes {
+		response = append(response, SpeciesNoteResponse{
+			ID:        n.ID,
+			Entry:     n.Entry,
+			CreatedAt: n.CreatedAt,
+			UpdatedAt: n.UpdatedAt,
+		})
+	}
+
+	return ctx.JSON(http.StatusOK, response)
+}
+
+// CreateSpeciesNote creates a new note for a species.
+// @Summary Create a species note
+// @Description Creates a new user note for a species
+// @Tags species
+// @Accept json
+// @Produce json
+// @Param scientific_name path string true "Scientific name (URL-encoded)"
+// @Param body body CreateSpeciesNoteRequest true "Note content"
+// @Success 201 {object} SpeciesNoteResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v2/species/{scientific_name}/notes [post]
+func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
+	rawName := ctx.Param("scientific_name")
+	scientificName, err := url.PathUnescape(rawName)
+	if err != nil {
+		return c.HandleError(ctx, errors.Newf("invalid scientific name encoding").
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Invalid scientific name", http.StatusBadRequest)
+	}
+
+	scientificName = strings.TrimSpace(scientificName)
+	if scientificName == "" {
+		return c.HandleError(ctx, errors.Newf("scientific_name parameter is required").
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Missing required parameter", http.StatusBadRequest)
+	}
+
+	var req CreateSpeciesNoteRequest
+	if err := ctx.Bind(&req); err != nil {
+		return c.HandleError(ctx, errors.Newf("invalid request body: %w", err).
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Invalid request body", http.StatusBadRequest)
+	}
+
+	entry := strings.TrimSpace(req.Entry)
+	if entry == "" {
+		return c.HandleError(ctx, errors.Newf("entry cannot be empty").
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Note entry is required", http.StatusBadRequest)
+	}
+
+	note := &datastore.SpeciesNote{
+		ScientificName: scientificName,
+		Entry:          entry,
+	}
+
+	if err := c.DS.SaveSpeciesNote(note); err != nil {
+		return c.HandleError(ctx, err, "Failed to save species note", http.StatusInternalServerError)
+	}
+
+	return ctx.JSON(http.StatusCreated, SpeciesNoteResponse{
+		ID:        note.ID,
+		Entry:     note.Entry,
+		CreatedAt: note.CreatedAt,
+		UpdatedAt: note.UpdatedAt,
+	})
+}
+
+// DeleteSpeciesNote deletes a species note by ID.
+// @Summary Delete a species note
+// @Description Deletes a user note for a species
+// @Tags species
+// @Param id path string true "Note ID"
+// @Success 204
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v2/species/notes/{id} [delete]
+func (c *Controller) DeleteSpeciesNote(ctx echo.Context) error {
+	noteID := ctx.Param("id")
+	if noteID == "" {
+		return c.HandleError(ctx, errors.Newf("note ID is required").
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Missing note ID", http.StatusBadRequest)
+	}
+
+	if err := c.DS.DeleteSpeciesNote(noteID); err != nil {
+		return c.HandleError(ctx, err, "Failed to delete species note", http.StatusInternalServerError)
+	}
+
+	return ctx.NoContent(http.StatusNoContent)
 }

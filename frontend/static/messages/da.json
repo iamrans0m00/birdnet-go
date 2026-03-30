@@ -1559,7 +1559,20 @@
       "guide": {
         "title": "Artguide",
         "loading": "Indlæser artsoplysninger...",
-        "source": "Kilde:"
+        "source": "Kilde:",
+        "qualityFull": "Detaljeret",
+        "qualityIntroOnly": "Kort",
+        "qualityStub": "Udkast"
+      },
+      "notes": {
+        "title": "Artsnoter",
+        "placeholder": "Tilføj en note om denne art...",
+        "save": "Gem note",
+        "empty": "Ingen noter endnu. Tilføj dine observationer om denne art.",
+        "deleteConfirm": "Slet denne note?",
+        "saving": "Gemmer...",
+        "deleteFailed": "Kunne ikke slette note",
+        "saveFailed": "Kunne ikke gemme note"
       }
     },
     "advanced": {

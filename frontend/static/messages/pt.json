@@ -1536,7 +1536,20 @@
       "guide": {
         "title": "Guia de espécies",
         "loading": "Carregando informações da espécie...",
-        "source": "Fonte:"
+        "source": "Fonte:",
+        "qualityFull": "Detalhado",
+        "qualityIntroOnly": "Breve",
+        "qualityStub": "Rascunho"
+      },
+      "notes": {
+        "title": "Notas da Espécie",
+        "placeholder": "Adicionar uma nota sobre esta espécie...",
+        "save": "Salvar Nota",
+        "empty": "Sem notas ainda. Adicione suas observações sobre esta espécie.",
+        "deleteConfirm": "Excluir esta nota?",
+        "saving": "Salvando...",
+        "deleteFailed": "Falha ao excluir nota",
+        "saveFailed": "Falha ao salvar nota"
       }
     },
     "advanced": {

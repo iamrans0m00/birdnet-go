@@ -1,13 +1,17 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { ExternalLink } from '@lucide/svelte';
+  import { ExternalLink, BookOpen, Trash2 } from '@lucide/svelte';
   import CollapsibleSection from '$lib/desktop/components/ui/CollapsibleSection.svelte';
   import Modal from '$lib/desktop/components/ui/Modal.svelte';
   import { t, getLocale } from '$lib/i18n';
   import { parseLocalDateString } from '$lib/utils/date';
   import { loggers } from '$lib/utils/logger';
   import { buildAppUrl } from '$lib/utils/urlHelpers';
-  import { parseGuideDescription, type SpeciesGuideData } from '$lib/types/species';
+  import {
+    parseGuideDescription,
+    type SpeciesGuideData,
+    type SpeciesNoteData,
+  } from '$lib/types/species';
 
   const logger = loggers.ui;
 
@@ -39,6 +43,12 @@
   let guideData = $state<SpeciesGuideData | null>(null);
   let guideLoading = $state(false);
 
+  // Species notes state
+  let speciesNotes = $state<SpeciesNoteData[]>([]);
+  let isLoadingNotes = $state(false);
+  let isSavingNote = $state(false);
+  let newNoteText = $state('');
+
   // Clear stale cache when the modal opens so previous species data doesn't flash.
   // The cache is only useful during the close transition (species becomes null while
   // isOpen transitions to false), not during open.
@@ -47,6 +57,8 @@
     if (isOpen && !untrack(() => prevIsOpen)) {
       cachedSpecies = null;
       guideData = null;
+      speciesNotes = [];
+      newNoteText = '';
     }
     prevIsOpen = isOpen;
   });
@@ -57,10 +69,11 @@
     }
   });
 
-  // Fetch guide data when species changes
+  // Fetch guide data and notes when species changes
   $effect(() => {
     if (species?.scientific_name) {
       fetchGuideData(species.scientific_name);
+      fetchSpeciesNotes(species.scientific_name);
     }
   });
 
@@ -87,6 +100,61 @@
       logger.debug('Guide fetch error', { species: scientificName, error: err });
     } finally {
       guideLoading = false;
+    }
+  }
+
+  async function fetchSpeciesNotes(scientificName: string) {
+    isLoadingNotes = true;
+    try {
+      const response = await fetch(
+        buildAppUrl(`/api/v2/species/${encodeURIComponent(scientificName)}/notes`)
+      );
+      if (response.ok) {
+        speciesNotes = await response.json();
+      }
+    } catch {
+      // Non-critical
+    } finally {
+      isLoadingNotes = false;
+    }
+  }
+
+  async function saveSpeciesNote() {
+    if (!displaySpecies?.scientific_name || !newNoteText.trim()) return;
+    isSavingNote = true;
+    try {
+      const response = await fetch(
+        buildAppUrl(
+          `/api/v2/species/${encodeURIComponent(displaySpecies.scientific_name)}/notes`
+        ),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entry: newNoteText.trim() }),
+        }
+      );
+      if (response.ok) {
+        newNoteText = '';
+        await fetchSpeciesNotes(displaySpecies.scientific_name);
+      }
+    } catch (err) {
+      logger.error('Error saving species note', { error: err });
+    } finally {
+      isSavingNote = false;
+    }
+  }
+
+  async function deleteSpeciesNote(noteId: number) {
+    if (!displaySpecies?.scientific_name) return;
+    try {
+      const response = await fetch(buildAppUrl(`/api/v2/species/notes/${noteId}`), {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        await fetchSpeciesNotes(displaySpecies.scientific_name);
+      }
+    } catch (err) {
+      logger.error('Error deleting species note', { error: err });
     }
   }
 
@@ -149,6 +217,14 @@
           <span>{t('analytics.species.guide.loading')}</span>
         </div>
       {:else if guideData?.description}
+        {#if guideData.quality && guideData.quality !== 'full'}
+          <div class="mt-2 mb-1">
+            <span class="inline-block text-[0.625rem] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full
+              {guideData.quality === 'intro_only' ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' : 'bg-[var(--color-base-300)] text-[var(--color-base-content)] opacity-60'}">
+              {t(`analytics.species.guide.quality${guideData.quality === 'intro_only' ? 'IntroOnly' : 'Stub'}`)}
+            </span>
+          </div>
+        {/if}
         <div class="mt-3 space-y-2">
           {#each parseGuideDescription(guideData.description) as section, i (i)}
             {#if section.heading}
@@ -197,6 +273,57 @@
           {/if}
         </div>
       {/if}
+
+      <!-- Species Notes -->
+      <div class="mt-3">
+        <div class="flex items-center gap-1.5 mb-2">
+          <BookOpen class="h-3.5 w-3.5 opacity-60" />
+          <span class="text-xs font-semibold uppercase tracking-wide opacity-70">
+            {t('analytics.species.notes.title')}
+          </span>
+        </div>
+
+        {#if speciesNotes.length > 0}
+          <div class="space-y-1.5">
+            {#each speciesNotes as note (note.id)}
+              <div class="group flex items-start gap-2 bg-[var(--color-base-200)] rounded-lg px-3 py-2">
+                <p class="text-sm leading-relaxed flex-1">{note.entry}</p>
+                <button
+                  class="opacity-0 group-hover:opacity-50 hover:!opacity-100 p-1 rounded text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                  aria-label={t('analytics.species.notes.deleteConfirm')}
+                  onclick={() => deleteSpeciesNote(note.id)}
+                >
+                  <Trash2 class="h-3 w-3" />
+                </button>
+              </div>
+            {/each}
+          </div>
+        {:else if !isLoadingNotes}
+          <p class="text-xs opacity-40 italic">{t('analytics.species.notes.empty')}</p>
+        {/if}
+
+        <div class="flex gap-2 mt-2">
+          <input
+            type="text"
+            class="flex-1 text-sm px-3 py-1.5 rounded-lg border border-[var(--border-100)] bg-[var(--color-base-100)] text-[var(--color-base-content)] focus:outline-none focus:border-[var(--color-primary)]"
+            placeholder={t('analytics.species.notes.placeholder')}
+            bind:value={newNoteText}
+            onkeydown={(e: KeyboardEvent) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                saveSpeciesNote();
+              }
+            }}
+          />
+          <button
+            class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-content)] disabled:opacity-40 hover:opacity-90 transition-opacity"
+            disabled={!newNoteText.trim() || isSavingNote}
+            onclick={saveSpeciesNote}
+          >
+            {isSavingNote ? t('analytics.species.notes.saving') : t('analytics.species.notes.save')}
+          </button>
+        </div>
+      </div>
 
       <div class="grid grid-cols-2 gap-3 text-sm mt-3">
         <div class="flex justify-between bg-[var(--color-base-200)] rounded px-3 py-2">

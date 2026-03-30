@@ -4664,6 +4664,154 @@ func (_c *MockInterface_UpdateNoteComment_Call) RunAndReturn(run func(string, st
 	return _c
 }
 
+// GetSpeciesNotes provides a mock function with given fields: scientificName
+func (_m *MockInterface) GetSpeciesNotes(scientificName string) ([]datastore.SpeciesNote, error) {
+	ret := _m.Called(scientificName)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetSpeciesNotes")
+	}
+
+	var r0 []datastore.SpeciesNote
+	var r1 error
+	if rf, ok := ret.Get(0).(func(string) ([]datastore.SpeciesNote, error)); ok {
+		return rf(scientificName)
+	}
+	if rf, ok := ret.Get(0).(func(string) []datastore.SpeciesNote); ok {
+		r0 = rf(scientificName)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]datastore.SpeciesNote)
+		}
+	}
+	if rf, ok := ret.Get(1).(func(string) error); ok {
+		r1 = rf(scientificName)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockInterface_GetSpeciesNotes_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetSpeciesNotes'
+type MockInterface_GetSpeciesNotes_Call struct {
+	*mock.Call
+}
+
+// GetSpeciesNotes is a helper method to define mock.On call
+//   - scientificName string
+func (_e *MockInterface_Expecter) GetSpeciesNotes(scientificName interface{}) *MockInterface_GetSpeciesNotes_Call {
+	return &MockInterface_GetSpeciesNotes_Call{Call: _e.mock.On("GetSpeciesNotes", scientificName)}
+}
+
+func (_c *MockInterface_GetSpeciesNotes_Call) Run(run func(scientificName string)) *MockInterface_GetSpeciesNotes_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *MockInterface_GetSpeciesNotes_Call) Return(_a0 []datastore.SpeciesNote, _a1 error) *MockInterface_GetSpeciesNotes_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockInterface_GetSpeciesNotes_Call) RunAndReturn(run func(string) ([]datastore.SpeciesNote, error)) *MockInterface_GetSpeciesNotes_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SaveSpeciesNote provides a mock function with given fields: note
+func (_m *MockInterface) SaveSpeciesNote(note *datastore.SpeciesNote) error {
+	ret := _m.Called(note)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SaveSpeciesNote")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(*datastore.SpeciesNote) error); ok {
+		r0 = rf(note)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockInterface_SaveSpeciesNote_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SaveSpeciesNote'
+type MockInterface_SaveSpeciesNote_Call struct {
+	*mock.Call
+}
+
+// SaveSpeciesNote is a helper method to define mock.On call
+//   - note *datastore.SpeciesNote
+func (_e *MockInterface_Expecter) SaveSpeciesNote(note interface{}) *MockInterface_SaveSpeciesNote_Call {
+	return &MockInterface_SaveSpeciesNote_Call{Call: _e.mock.On("SaveSpeciesNote", note)}
+}
+
+func (_c *MockInterface_SaveSpeciesNote_Call) Run(run func(note *datastore.SpeciesNote)) *MockInterface_SaveSpeciesNote_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(*datastore.SpeciesNote))
+	})
+	return _c
+}
+
+func (_c *MockInterface_SaveSpeciesNote_Call) Return(_a0 error) *MockInterface_SaveSpeciesNote_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockInterface_SaveSpeciesNote_Call) RunAndReturn(run func(*datastore.SpeciesNote) error) *MockInterface_SaveSpeciesNote_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteSpeciesNote provides a mock function with given fields: noteID
+func (_m *MockInterface) DeleteSpeciesNote(noteID string) error {
+	ret := _m.Called(noteID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for DeleteSpeciesNote")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(string) error); ok {
+		r0 = rf(noteID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// MockInterface_DeleteSpeciesNote_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteSpeciesNote'
+type MockInterface_DeleteSpeciesNote_Call struct {
+	*mock.Call
+}
+
+// DeleteSpeciesNote is a helper method to define mock.On call
+//   - noteID string
+func (_e *MockInterface_Expecter) DeleteSpeciesNote(noteID interface{}) *MockInterface_DeleteSpeciesNote_Call {
+	return &MockInterface_DeleteSpeciesNote_Call{Call: _e.mock.On("DeleteSpeciesNote", noteID)}
+}
+
+func (_c *MockInterface_DeleteSpeciesNote_Call) Run(run func(noteID string)) *MockInterface_DeleteSpeciesNote_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string))
+	})
+	return _c
+}
+
+func (_c *MockInterface_DeleteSpeciesNote_Call) Return(_a0 error) *MockInterface_DeleteSpeciesNote_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockInterface_DeleteSpeciesNote_Call) RunAndReturn(run func(string) error) *MockInterface_DeleteSpeciesNote_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // NewMockInterface creates a new instance of MockInterface. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockInterface(t interface {

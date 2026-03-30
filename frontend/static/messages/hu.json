@@ -1559,7 +1559,20 @@
       "guide": {
         "title": "Fajismertető",
         "loading": "Fajinformációk betöltése...",
-        "source": "Forrás:"
+        "source": "Forrás:",
+        "qualityFull": "Részletes",
+        "qualityIntroOnly": "Rövid",
+        "qualityStub": "Vázlat"
+      },
+      "notes": {
+        "title": "Fajjegyzetek",
+        "placeholder": "Jegyzet hozzáadása ehhez a fajhoz...",
+        "save": "Jegyzet mentése",
+        "empty": "Még nincsenek jegyzetek. Adja hozzá megfigyeléseit erről a fajról.",
+        "deleteConfirm": "Törli ezt a jegyzetet?",
+        "saving": "Mentés...",
+        "deleteFailed": "A jegyzet törlése sikertelen",
+        "saveFailed": "A jegyzet mentése sikertelen"
       }
     },
     "advanced": {

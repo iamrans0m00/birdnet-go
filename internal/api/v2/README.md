@@ -216,7 +216,10 @@ Lightweight connectivity check. Returns a minimal response with no database quer
 | GET    | `/species/all`             | `GetAllSpecies`       | ❌   | Get all BirdNET species labels (not filtered by location)         |
 | GET    | `/species/taxonomy`        | `GetSpeciesTaxonomy`  | ❌   | Get detailed taxonomy data with subspecies and hierarchy          |
 | GET    | `/species/:code/thumbnail` | `GetSpeciesThumbnail` | ❌   | Get bird thumbnail image by species code (redirects to image URL) |
-| GET    | `/species/:scientific_name/guide` | `GetSpeciesGuide` | ❌   | Get species guide text (description, conservation status, attribution) |
+| GET    | `/species/:scientific_name/guide` | `GetSpeciesGuide` | ❌   | Get species guide text (description, conservation status, quality, attribution) |
+| GET    | `/species/:scientific_name/notes` | `GetSpeciesNotes` | ❌   | Get user-authored notes for a species |
+| POST   | `/species/:scientific_name/notes` | `CreateSpeciesNote` | ✅   | Create a new species note |
+| DELETE | `/species/notes/:id` | `DeleteSpeciesNote` | ✅   | Delete a species note by ID |
 
 ### Server-Sent Events (`sse.go`)
 

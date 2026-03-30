@@ -2976,3 +2976,31 @@ func (ds *Datastore) DeleteExpiredNotificationHistory(before time.Time) (int64, 
 	ctx := context.Background()
 	return ds.notification.DeleteExpiredNotificationHistory(ctx, before)
 }
+
+// GetSpeciesNotes retrieves all notes for a species by scientific name.
+func (ds *Datastore) GetSpeciesNotes(scientificName string) ([]datastore.SpeciesNote, error) {
+	var notes []datastore.SpeciesNote
+	if err := ds.manager.DB().Where("scientific_name = ?", scientificName).
+		Order("created_at DESC").
+		Find(&notes).Error; err != nil {
+		return nil, fmt.Errorf("get species notes: %w", err)
+	}
+	return notes, nil
+}
+
+// SaveSpeciesNote saves a new species note.
+func (ds *Datastore) SaveSpeciesNote(note *datastore.SpeciesNote) error {
+	if note == nil {
+		return fmt.Errorf("species note cannot be nil")
+	}
+	return ds.manager.DB().Create(note).Error
+}
+
+// DeleteSpeciesNote deletes a species note by ID.
+func (ds *Datastore) DeleteSpeciesNote(noteID string) error {
+	id, err := parseID(noteID)
+	if err != nil {
+		return err
+	}
+	return ds.manager.DB().Delete(&datastore.SpeciesNote{}, id).Error
+}

@@ -25,7 +25,11 @@
   import CollapsibleSection from '$lib/desktop/components/ui/CollapsibleSection.svelte';
   import { t, getLocale } from '$lib/i18n';
   import type { Detection, ImageAttribution } from '$lib/types/detection.types';
-  import { parseGuideDescription, type SpeciesGuideData } from '$lib/types/species';
+  import {
+    parseGuideDescription,
+    type SpeciesGuideData,
+    type SpeciesNoteData,
+  } from '$lib/types/species';
   import { hasReviewPermission, isAuthenticated } from '$lib/utils/auth';
   import { formatLocalDateTime } from '$lib/utils/date';
   import { buildAppUrl } from '$lib/utils/urlHelpers';
@@ -41,6 +45,8 @@
     Sunrise,
     Sunset,
     ExternalLink,
+    Trash2,
+    BookOpen,
   } from '@lucide/svelte';
 
   // Interface definitions for API responses
@@ -116,6 +122,10 @@
   let imageAttribution = $state<ImageAttribution | null>(null);
   let guideData = $state<SpeciesGuideData | null>(null);
   let isLoadingGuide = $state(false);
+  let speciesNotes = $state<SpeciesNoteData[]>([]);
+  let isLoadingNotes = $state(false);
+  let isSavingNote = $state(false);
+  let newNoteText = $state('');
 
   // Derived state for subspecies with proper typing
   let subspeciesList = $derived<Subspecies[]>(
@@ -235,6 +245,7 @@
         fetchTaxonomy();
         fetchImageAttribution();
         fetchGuide();
+        fetchSpeciesNotes();
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -364,6 +375,66 @@
     } finally {
       isLoadingGuide = false;
       guideController = null;
+    }
+  }
+
+  // Fetch species notes
+  async function fetchSpeciesNotes() {
+    if (!detection?.scientificName) return;
+    isLoadingNotes = true;
+    try {
+      const response = await fetch(
+        buildAppUrl(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`)
+      );
+      if (response.ok) {
+        speciesNotes = await response.json();
+      }
+    } catch {
+      // Notes are non-critical — fail silently
+    } finally {
+      isLoadingNotes = false;
+    }
+  }
+
+  // Save a new species note
+  async function saveSpeciesNote() {
+    if (!detection?.scientificName || !newNoteText.trim()) return;
+    isSavingNote = true;
+    try {
+      const response = await fetch(
+        buildAppUrl(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entry: newNoteText.trim() }),
+        }
+      );
+      if (response.ok) {
+        newNoteText = '';
+        await fetchSpeciesNotes();
+      } else {
+        logger.error('Failed to save species note', { status: response.status });
+      }
+    } catch (err) {
+      logger.error('Error saving species note', { error: err });
+    } finally {
+      isSavingNote = false;
+    }
+  }
+
+  // Delete a species note
+  async function deleteSpeciesNote(noteId: number) {
+    try {
+      const response = await fetch(buildAppUrl(`/api/v2/species/notes/${noteId}`), {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        await fetchSpeciesNotes();
+      } else {
+        logger.error('Failed to delete species note', { status: response.status });
+      }
+    } catch (err) {
+      logger.error('Error deleting species note', { error: err });
     }
   }
 
@@ -719,7 +790,14 @@
     </section>
   {:else if guideData?.description}
     <section class="mt-4" aria-labelledby="guide-heading">
-      <h3 id="guide-heading" class="section-heading">{t('analytics.species.guide.title')}</h3>
+      <div class="flex items-center gap-2">
+        <h3 id="guide-heading" class="section-heading !mb-0">{t('analytics.species.guide.title')}</h3>
+        {#if guideData.quality && guideData.quality !== 'full'}
+          <span class="guide-quality-badge guide-quality-{guideData.quality}">
+            {t(`analytics.species.guide.quality${guideData.quality === 'intro_only' ? 'IntroOnly' : 'Stub'}`)}
+          </span>
+        {/if}
+      </div>
       <div class="guide-content">
         {#each parseGuideDescription(guideData.description) as section, i (i)}
           {#if section.heading}
@@ -771,6 +849,75 @@
       </div>
     </section>
   {/if}
+
+  <!-- Species Notes -->
+  <section class="mt-4" aria-labelledby="species-notes-heading">
+    <div class="flex items-center gap-2">
+      <BookOpen class="h-4 w-4 opacity-60" />
+      <h3 id="species-notes-heading" class="section-heading !mb-0">
+        {t('analytics.species.notes.title')}
+      </h3>
+    </div>
+
+    {#if isLoadingNotes}
+      <div class="content-panel mt-2">
+        <div class="flex items-center gap-2 text-sm opacity-60">
+          <div
+            class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
+          ></div>
+        </div>
+      </div>
+    {:else}
+      {#if speciesNotes.length > 0}
+        <div class="space-y-2 mt-2" role="list" aria-label="Species notes">
+          {#each speciesNotes as note (note.id)}
+            <article class="content-panel species-note-card" role="listitem">
+              <div class="flex justify-between items-start gap-2">
+                <p class="text-sm leading-relaxed flex-1">{note.entry}</p>
+                <button
+                  class="species-note-delete"
+                  aria-label={t('analytics.species.notes.deleteConfirm')}
+                  onclick={() => deleteSpeciesNote(note.id)}
+                >
+                  <Trash2 class="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <p class="text-xs opacity-40 mt-1.5">
+                {formatLocalDateTime(new Date(note.created_at))}
+              </p>
+            </article>
+          {/each}
+        </div>
+      {:else}
+        <p class="text-sm opacity-40 italic mt-2">
+          {t('analytics.species.notes.empty')}
+        </p>
+      {/if}
+
+      <!-- Add note form -->
+      <div class="mt-3 flex gap-2">
+        <textarea
+          class="species-note-input"
+          placeholder={t('analytics.species.notes.placeholder')}
+          rows="2"
+          bind:value={newNoteText}
+          onkeydown={(e: KeyboardEvent) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              saveSpeciesNote();
+            }
+          }}
+        ></textarea>
+        <button
+          class="species-note-save"
+          disabled={!newNoteText.trim() || isSavingNote}
+          onclick={saveSpeciesNote}
+        >
+          {isSavingNote ? t('analytics.species.notes.saving') : t('analytics.species.notes.save')}
+        </button>
+      </div>
+    {/if}
+  </section>
 {/snippet}
 
 {#snippet historyTab()}
@@ -1588,5 +1735,95 @@
     margin-top: 0.75rem;
     padding-top: 0.75rem;
     border-top: 1px solid var(--border-100);
+  }
+
+  /* ----- Guide Quality Badge ----- */
+  .guide-quality-badge {
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    line-height: 1.4;
+  }
+
+  .guide-quality-intro_only {
+    background: var(--color-warning, #f59e0b);
+    color: var(--color-warning-content, #fff);
+    opacity: 0.8;
+  }
+
+  .guide-quality-stub {
+    background: var(--color-base-300);
+    color: var(--color-base-content);
+    opacity: 0.6;
+  }
+
+  /* ----- Species Notes ----- */
+  .species-note-card {
+    transition: background-color 0.15s;
+  }
+
+  .species-note-card:hover .species-note-delete {
+    opacity: 0.5;
+  }
+
+  .species-note-delete {
+    opacity: 0;
+    padding: 0.25rem;
+    border-radius: 0.375rem;
+    color: var(--color-error, #ef4444);
+    transition: opacity 0.15s;
+    cursor: pointer;
+    background: none;
+    border: none;
+  }
+
+  .species-note-delete:hover {
+    opacity: 1 !important;
+    background: var(--color-error, #ef4444);
+    color: white;
+  }
+
+  .species-note-input {
+    flex: 1;
+    font-size: 0.875rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-100);
+    background: var(--color-base-100);
+    color: var(--color-base-content);
+    resize: vertical;
+    min-height: 2.5rem;
+  }
+
+  .species-note-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+
+  .species-note-save {
+    align-self: flex-end;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    background: var(--color-primary);
+    color: var(--color-primary-content);
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity 0.15s;
+  }
+
+  .species-note-save:hover:not(:disabled) {
+    opacity: 0.9;
+  }
+
+  .species-note-save:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
   }
 </style>
