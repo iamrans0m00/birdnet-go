@@ -1539,7 +1539,23 @@
         "source": "Źródło:",
         "qualityFull": "Szczegółowy",
         "qualityIntroOnly": "Krótki",
-        "qualityStub": "Szkic"
+        "qualityStub": "Szkic",
+        "expectedness": {
+          "expected": "Oczekiwany",
+          "uncommon": "Niepospolity",
+          "rare": "Rzadki",
+          "unexpected": "Nieoczekiwany"
+        },
+        "season": {
+          "spring": "Wiosna",
+          "summer": "Lato",
+          "fall": "Jesień",
+          "winter": "Zima",
+          "wet1": "Pora deszczowa",
+          "dry1": "Pora sucha",
+          "wet2": "Pora deszczowa",
+          "dry2": "Pora sucha"
+        }
       },
       "notes": {
         "title": "Notatki o gatunku",

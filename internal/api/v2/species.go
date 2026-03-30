@@ -5,11 +5,13 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/tphakala/birdnet-go/internal/birdnet"
+	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/datastore"
 	"github.com/tphakala/birdnet-go/internal/detection"
 	"github.com/tphakala/birdnet-go/internal/ebird"
@@ -36,6 +38,16 @@ const (
 	RarityThresholdCommon     = 0.5
 	RarityThresholdUncommon   = 0.2
 	RarityThresholdRare       = 0.05
+)
+
+// Expectedness represents how expected a species is in the user's area at the current time.
+type Expectedness string
+
+const (
+	ExpectednessExpected   Expectedness = "expected"
+	ExpectednessUncommon   Expectedness = "uncommon"
+	ExpectednessRare       Expectedness = "rare"
+	ExpectednessUnexpected Expectedness = "unexpected"
 )
 
 // SpeciesInfo represents extended information about a bird species
@@ -319,6 +331,56 @@ func calculateRarityStatus(score float64) RarityStatus {
 	default:
 		return RarityVeryRare
 	}
+}
+
+// scoreToExpectedness maps a BirdNET probability score to an expectedness classification.
+func scoreToExpectedness(score float64) Expectedness {
+	switch {
+	case score > RarityThresholdCommon:
+		return ExpectednessExpected
+	case score > RarityThresholdUncommon:
+		return ExpectednessUncommon
+	case score > RarityThresholdRare:
+		return ExpectednessRare
+	default:
+		return ExpectednessUnexpected
+	}
+}
+
+// computeCurrentSeason determines the current season name based on latitude and time.
+// It uses the default season definitions for the detected hemisphere.
+func computeCurrentSeason(latitude float64, now time.Time) string {
+	seasons := conf.GetDefaultSeasons(latitude)
+
+	// Build a sorted list of season boundaries for the current year.
+	type seasonBoundary struct {
+		name string
+		date time.Time
+	}
+
+	boundaries := make([]seasonBoundary, 0, len(seasons))
+	for name, s := range seasons {
+		boundaries = append(boundaries, seasonBoundary{
+			name: name,
+			date: time.Date(now.Year(), time.Month(s.StartMonth), s.StartDay, 0, 0, 0, 0, now.Location()),
+		})
+	}
+
+	// Sort by date ascending.
+	slices.SortFunc(boundaries, func(a, b seasonBoundary) int {
+		return a.date.Compare(b.date)
+	})
+
+	// Find the most recent boundary that has passed.
+	currentSeason := boundaries[len(boundaries)-1].name // default: last season (wraps around)
+	for _, b := range boundaries {
+		if now.Before(b.date) {
+			break
+		}
+		currentSeason = b.name
+	}
+
+	return currentSeason
 }
 
 // TaxonomyInfo represents detailed taxonomy information for a species
@@ -670,6 +732,8 @@ type SpeciesGuideResponse struct {
 	Description        string             `json:"description"`
 	ConservationStatus string             `json:"conservation_status"`
 	Quality            GuideQuality       `json:"quality"`
+	Expectedness       Expectedness       `json:"expectedness,omitempty"`
+	CurrentSeason      string             `json:"current_season,omitempty"`
 	Source             SpeciesGuideSource `json:"source"`
 	Partial            bool               `json:"partial"`
 	CachedAt           time.Time          `json:"cached_at"`
@@ -759,6 +823,30 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 		},
 		Partial:  guide.Partial,
 		CachedAt: guide.CachedAt,
+	}
+
+	// Compute current season from configured latitude.
+	latitude := c.Settings.BirdNET.Latitude
+	now := time.Now()
+	response.CurrentSeason = computeCurrentSeason(latitude, now)
+
+	// Compute expectedness if BirdNET model is available.
+	if bn := c.Processor.GetBirdNET(); bn != nil {
+		speciesLabel := scientificName + "_" + guide.CommonName
+		speciesScores, scoreErr := bn.GetProbableSpecies(now, 0.0)
+		if scoreErr == nil {
+			found := false
+			for _, ss := range speciesScores {
+				if ss.Label == speciesLabel {
+					response.Expectedness = scoreToExpectedness(ss.Score)
+					found = true
+					break
+				}
+			}
+			if !found {
+				response.Expectedness = ExpectednessUnexpected
+			}
+		}
 	}
 
 	return ctx.JSON(http.StatusOK, response)

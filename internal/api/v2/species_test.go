@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
@@ -841,4 +842,117 @@ func TestDeleteSpeciesNote(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusNoContent, rec.Code)
 	})
+}
+
+// TestScoreToExpectedness tests the scoreToExpectedness helper function.
+func TestScoreToExpectedness(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "expectedness")
+
+	tests := []struct {
+		name     string
+		score    float64
+		expected Expectedness
+	}{
+		{
+			name:     "high score is expected",
+			score:    0.9,
+			expected: ExpectednessExpected,
+		},
+		{
+			name:     "moderate score is expected",
+			score:    0.6,
+			expected: ExpectednessExpected,
+		},
+		{
+			name:     "borderline common/uncommon is uncommon",
+			score:    0.4,
+			expected: ExpectednessUncommon,
+		},
+		{
+			name:     "low score is rare",
+			score:    0.1,
+			expected: ExpectednessRare,
+		},
+		{
+			name:     "very low score is unexpected",
+			score:    0.01,
+			expected: ExpectednessUnexpected,
+		},
+		{
+			name:     "zero score is unexpected",
+			score:    0.0,
+			expected: ExpectednessUnexpected,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := scoreToExpectedness(tt.score)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestComputeCurrentSeason tests the computeCurrentSeason helper function.
+func TestComputeCurrentSeason(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "seasonal-context")
+
+	tests := []struct {
+		name     string
+		latitude float64
+		date     time.Time
+		expected string
+	}{
+		{
+			name:     "northern hemisphere - spring",
+			latitude: 52.0,
+			date:     time.Date(2024, 4, 15, 12, 0, 0, 0, time.UTC),
+			expected: "spring",
+		},
+		{
+			name:     "northern hemisphere - summer",
+			latitude: 52.0,
+			date:     time.Date(2024, 7, 15, 12, 0, 0, 0, time.UTC),
+			expected: "summer",
+		},
+		{
+			name:     "northern hemisphere - fall",
+			latitude: 52.0,
+			date:     time.Date(2024, 10, 15, 12, 0, 0, 0, time.UTC),
+			expected: "fall",
+		},
+		{
+			name:     "northern hemisphere - winter",
+			latitude: 52.0,
+			date:     time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC),
+			expected: "winter",
+		},
+		{
+			name:     "southern hemisphere - spring in september",
+			latitude: -35.0,
+			date:     time.Date(2024, 10, 15, 12, 0, 0, 0, time.UTC),
+			expected: "spring",
+		},
+		{
+			name:     "southern hemisphere - summer in january",
+			latitude: -35.0,
+			date:     time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC),
+			expected: "summer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := computeCurrentSeason(tt.latitude, tt.date)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }

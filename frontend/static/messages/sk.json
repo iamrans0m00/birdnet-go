@@ -1538,7 +1538,23 @@
         "source": "Zdroj:",
         "qualityFull": "Podrobný",
         "qualityIntroOnly": "Stručný",
-        "qualityStub": "Náčrt"
+        "qualityStub": "Náčrt",
+        "expectedness": {
+          "expected": "Očakávaný",
+          "uncommon": "Nezvyčajný",
+          "rare": "Vzácny",
+          "unexpected": "Neočakávaný"
+        },
+        "season": {
+          "spring": "Jar",
+          "summer": "Leto",
+          "fall": "Jeseň",
+          "winter": "Zima",
+          "wet1": "Obdobie dažďov",
+          "dry1": "Suché obdobie",
+          "wet2": "Obdobie dažďov",
+          "dry2": "Suché obdobie"
+        }
       },
       "notes": {
         "title": "Poznámky o druhu",

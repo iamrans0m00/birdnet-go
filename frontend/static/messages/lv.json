@@ -1562,7 +1562,23 @@
         "source": "Avots:",
         "qualityFull": "Detalizēts",
         "qualityIntroOnly": "Īss",
-        "qualityStub": "Melnraksts"
+        "qualityStub": "Melnraksts",
+        "expectedness": {
+          "expected": "Gaidīts",
+          "uncommon": "Neparasts",
+          "rare": "Rets",
+          "unexpected": "Negaidīts"
+        },
+        "season": {
+          "spring": "Pavasaris",
+          "summer": "Vasara",
+          "fall": "Rudens",
+          "winter": "Ziema",
+          "wet1": "Lietus sezona",
+          "dry1": "Sausā sezona",
+          "wet2": "Lietus sezona",
+          "dry2": "Sausā sezona"
+        }
       },
       "notes": {
         "title": "Sugas piezīmes",

@@ -12,6 +12,7 @@
     type SpeciesGuideData,
     type SpeciesNoteData,
   } from '$lib/types/species';
+  import { highlightSeasonKeywords } from '$lib/utils/seasonHighlight';
 
   const logger = loggers.ui;
 
@@ -217,14 +218,27 @@
           <span>{t('analytics.species.guide.loading')}</span>
         </div>
       {:else if guideData?.description}
-        {#if guideData.quality && guideData.quality !== 'full'}
-          <div class="mt-2 mb-1">
+        <div class="flex items-center gap-1.5 flex-wrap mt-2 mb-1">
+          {#if guideData.quality && guideData.quality !== 'full'}
             <span class="inline-block text-[0.625rem] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full
               {guideData.quality === 'intro_only' ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' : 'bg-[var(--color-base-300)] text-[var(--color-base-content)] opacity-60'}">
               {t(`analytics.species.guide.quality${guideData.quality === 'intro_only' ? 'IntroOnly' : 'Stub'}`)}
             </span>
-          </div>
-        {/if}
+          {/if}
+          {#if guideData.expectedness}
+            <span class="inline-block text-[0.625rem] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full
+              {guideData.expectedness === 'expected' ? 'bg-green-500/20 text-green-600 dark:text-green-400' :
+               guideData.expectedness === 'uncommon' ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' :
+               'bg-red-500/20 text-red-600 dark:text-red-400'}">
+              {t(`analytics.species.guide.expectedness.${guideData.expectedness}`)}
+            </span>
+          {/if}
+          {#if guideData.current_season}
+            <span class="inline-block text-[0.625rem] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[var(--color-base-200)] text-[var(--color-base-content)] opacity-70">
+              {t(`analytics.species.guide.season.${guideData.current_season}`)}
+            </span>
+          {/if}
+        </div>
         <div class="mt-3 space-y-2">
           {#each parseGuideDescription(guideData.description) as section, i (i)}
             {#if section.heading}
@@ -237,13 +251,13 @@
               >
                 {#if section.body}
                   <p class="text-sm leading-relaxed text-[var(--color-base-content)] opacity-85">
-                    {section.body}
+                    {@html highlightSeasonKeywords(section.body, guideData.current_season)}
                   </p>
                 {/if}
               </CollapsibleSection>
             {:else if section.body}
               <p class="text-sm leading-relaxed text-[var(--color-base-content)] opacity-85">
-                {section.body}
+                {@html highlightSeasonKeywords(section.body, guideData.current_season)}
               </p>
             {/if}
           {/each}

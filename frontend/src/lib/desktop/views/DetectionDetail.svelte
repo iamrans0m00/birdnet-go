@@ -30,6 +30,7 @@
     type SpeciesGuideData,
     type SpeciesNoteData,
   } from '$lib/types/species';
+  import { highlightSeasonKeywords } from '$lib/utils/seasonHighlight';
   import { hasReviewPermission, isAuthenticated } from '$lib/utils/auth';
   import { formatLocalDateTime } from '$lib/utils/date';
   import { buildAppUrl } from '$lib/utils/urlHelpers';
@@ -790,11 +791,21 @@
     </section>
   {:else if guideData?.description}
     <section class="mt-4" aria-labelledby="guide-heading">
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <h3 id="guide-heading" class="section-heading !mb-0">{t('analytics.species.guide.title')}</h3>
         {#if guideData.quality && guideData.quality !== 'full'}
           <span class="guide-quality-badge guide-quality-{guideData.quality}">
             {t(`analytics.species.guide.quality${guideData.quality === 'intro_only' ? 'IntroOnly' : 'Stub'}`)}
+          </span>
+        {/if}
+        {#if guideData.expectedness}
+          <span class="guide-badge guide-expectedness-{guideData.expectedness}">
+            {t(`analytics.species.guide.expectedness.${guideData.expectedness}`)}
+          </span>
+        {/if}
+        {#if guideData.current_season}
+          <span class="guide-badge guide-season">
+            {t(`analytics.species.guide.season.${guideData.current_season}`)}
           </span>
         {/if}
       </div>
@@ -809,12 +820,12 @@
               contentClassName="guide-collapsible-content"
             >
               {#if section.body}
-                <p class="guide-section-body">{section.body}</p>
+                <p class="guide-section-body">{@html highlightSeasonKeywords(section.body, guideData.current_season)}</p>
               {/if}
             </CollapsibleSection>
           {:else if section.body}
             <div class="content-panel">
-              <p class="guide-section-body">{section.body}</p>
+              <p class="guide-section-body">{@html highlightSeasonKeywords(section.body, guideData.current_season)}</p>
             </div>
           {/if}
         {/each}
@@ -1758,6 +1769,52 @@
     background: var(--color-base-300);
     color: var(--color-base-content);
     opacity: 0.6;
+  }
+
+  /* ----- Guide Badges (Expectedness + Season) ----- */
+  .guide-badge {
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    line-height: 1.4;
+  }
+
+  .guide-expectedness-expected {
+    background: color-mix(in srgb, var(--color-success, #22c55e) 20%, transparent);
+    color: var(--color-success, #22c55e);
+  }
+
+  .guide-expectedness-uncommon {
+    background: color-mix(in srgb, var(--color-warning, #f59e0b) 20%, transparent);
+    color: var(--color-warning, #f59e0b);
+  }
+
+  .guide-expectedness-rare {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 20%, transparent);
+    color: var(--color-error, #ef4444);
+  }
+
+  .guide-expectedness-unexpected {
+    background: color-mix(in srgb, var(--color-error, #ef4444) 30%, transparent);
+    color: var(--color-error, #ef4444);
+    font-weight: 700;
+  }
+
+  .guide-season {
+    background: var(--color-base-200);
+    color: var(--color-base-content);
+    opacity: 0.7;
+  }
+
+  /* ----- Seasonal Keyword Highlight ----- */
+  :global(.season-highlight) {
+    background: color-mix(in srgb, var(--color-primary, #3b82f6) 15%, transparent);
+    color: inherit;
+    padding: 0 0.125rem;
+    border-radius: 0.125rem;
   }
 
   /* ----- Species Notes ----- */

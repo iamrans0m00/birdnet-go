@@ -1539,7 +1539,23 @@
         "source": "Bron:",
         "qualityFull": "Gedetailleerd",
         "qualityIntroOnly": "Kort",
-        "qualityStub": "Concept"
+        "qualityStub": "Concept",
+        "expectedness": {
+          "expected": "Verwacht",
+          "uncommon": "Ongewoon",
+          "rare": "Zeldzaam",
+          "unexpected": "Onverwacht"
+        },
+        "season": {
+          "spring": "Lente",
+          "summer": "Zomer",
+          "fall": "Herfst",
+          "winter": "Winter",
+          "wet1": "Regenseizoen",
+          "dry1": "Droogseizoen",
+          "wet2": "Regenseizoen",
+          "dry2": "Droogseizoen"
+        }
       },
       "notes": {
         "title": "Soortnotities",

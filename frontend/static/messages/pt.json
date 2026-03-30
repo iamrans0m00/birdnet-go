@@ -1539,7 +1539,23 @@
         "source": "Fonte:",
         "qualityFull": "Detalhado",
         "qualityIntroOnly": "Breve",
-        "qualityStub": "Rascunho"
+        "qualityStub": "Rascunho",
+        "expectedness": {
+          "expected": "Esperado",
+          "uncommon": "Incomum",
+          "rare": "Raro",
+          "unexpected": "Inesperado"
+        },
+        "season": {
+          "spring": "Primavera",
+          "summer": "Verão",
+          "fall": "Outono",
+          "winter": "Inverno",
+          "wet1": "Estação chuvosa",
+          "dry1": "Estação seca",
+          "wet2": "Estação chuvosa",
+          "dry2": "Estação seca"
+        }
       },
       "notes": {
         "title": "Notas da Espécie",

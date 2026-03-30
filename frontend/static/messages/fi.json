@@ -1539,7 +1539,23 @@
         "source": "Lähde:",
         "qualityFull": "Yksityiskohtainen",
         "qualityIntroOnly": "Lyhyt",
-        "qualityStub": "Luonnos"
+        "qualityStub": "Luonnos",
+        "expectedness": {
+          "expected": "Odotettu",
+          "uncommon": "Harvinainen",
+          "rare": "Harvinainen",
+          "unexpected": "Odottamaton"
+        },
+        "season": {
+          "spring": "Kevät",
+          "summer": "Kesä",
+          "fall": "Syksy",
+          "winter": "Talvi",
+          "wet1": "Sadekausi",
+          "dry1": "Kuivakausi",
+          "wet2": "Sadekausi",
+          "dry2": "Kuivakausi"
+        }
       },
       "notes": {
         "title": "Lajimuistiinpanot",

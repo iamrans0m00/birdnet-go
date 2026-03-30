@@ -63,6 +63,9 @@ export interface SpeciesGroup {
 // Guide quality level indicating content richness
 export type GuideQuality = 'full' | 'intro_only' | 'stub';
 
+// Species expectedness in the user's area at the current time of year
+export type Expectedness = 'expected' | 'uncommon' | 'rare' | 'unexpected';
+
 // Species guide data returned by the /api/v2/species/:name/guide endpoint
 export interface SpeciesGuideData {
   scientific_name: string;
@@ -70,6 +73,8 @@ export interface SpeciesGuideData {
   description: string;
   conservation_status: string;
   quality: GuideQuality;
+  expectedness?: Expectedness;
+  current_season?: string;
   source: {
     provider: string;
     url: string;

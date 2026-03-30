@@ -1539,7 +1539,23 @@
         "source": "Source :",
         "qualityFull": "Détaillé",
         "qualityIntroOnly": "Bref",
-        "qualityStub": "Ébauche"
+        "qualityStub": "Ébauche",
+        "expectedness": {
+          "expected": "Attendu",
+          "uncommon": "Peu commun",
+          "rare": "Rare",
+          "unexpected": "Inattendu"
+        },
+        "season": {
+          "spring": "Printemps",
+          "summer": "Été",
+          "fall": "Automne",
+          "winter": "Hiver",
+          "wet1": "Saison humide",
+          "dry1": "Saison sèche",
+          "wet2": "Saison humide",
+          "dry2": "Saison sèche"
+        }
       },
       "notes": {
         "title": "Notes d'espèce",

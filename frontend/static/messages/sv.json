@@ -1562,7 +1562,23 @@
         "source": "Källa:",
         "qualityFull": "Detaljerad",
         "qualityIntroOnly": "Kort",
-        "qualityStub": "Utkast"
+        "qualityStub": "Utkast",
+        "expectedness": {
+          "expected": "Förväntad",
+          "uncommon": "Ovanlig",
+          "rare": "Sällsynt",
+          "unexpected": "Oväntad"
+        },
+        "season": {
+          "spring": "Vår",
+          "summer": "Sommar",
+          "fall": "Höst",
+          "winter": "Vinter",
+          "wet1": "Regnperiod",
+          "dry1": "Torrperiod",
+          "wet2": "Regnperiod",
+          "dry2": "Torrperiod"
+        }
       },
       "notes": {
         "title": "Artanteckningar",

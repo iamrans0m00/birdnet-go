@@ -1563,7 +1563,23 @@
         "source": "Source:",
         "qualityFull": "Detailed",
         "qualityIntroOnly": "Brief",
-        "qualityStub": "Stub"
+        "qualityStub": "Stub",
+        "expectedness": {
+          "expected": "Expected",
+          "uncommon": "Uncommon",
+          "rare": "Rare",
+          "unexpected": "Unexpected"
+        },
+        "season": {
+          "spring": "Spring",
+          "summer": "Summer",
+          "fall": "Fall",
+          "winter": "Winter",
+          "wet1": "Wet Season",
+          "dry1": "Dry Season",
+          "wet2": "Wet Season",
+          "dry2": "Dry Season"
+        }
       },
       "notes": {
         "title": "Species Notes",

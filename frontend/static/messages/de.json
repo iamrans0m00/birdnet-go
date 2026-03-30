@@ -1539,7 +1539,23 @@
         "source": "Quelle:",
         "qualityFull": "Ausführlich",
         "qualityIntroOnly": "Kurz",
-        "qualityStub": "Entwurf"
+        "qualityStub": "Entwurf",
+        "expectedness": {
+          "expected": "Erwartet",
+          "uncommon": "Ungewöhnlich",
+          "rare": "Selten",
+          "unexpected": "Unerwartet"
+        },
+        "season": {
+          "spring": "Frühling",
+          "summer": "Sommer",
+          "fall": "Herbst",
+          "winter": "Winter",
+          "wet1": "Regenzeit",
+          "dry1": "Trockenzeit",
+          "wet2": "Regenzeit",
+          "dry2": "Trockenzeit"
+        }
       },
       "notes": {
         "title": "Artnotizen",

@@ -1538,7 +1538,23 @@
         "source": "Fonte:",
         "qualityFull": "Dettagliato",
         "qualityIntroOnly": "Breve",
-        "qualityStub": "Bozza"
+        "qualityStub": "Bozza",
+        "expectedness": {
+          "expected": "Previsto",
+          "uncommon": "Insolito",
+          "rare": "Raro",
+          "unexpected": "Inatteso"
+        },
+        "season": {
+          "spring": "Primavera",
+          "summer": "Estate",
+          "fall": "Autunno",
+          "winter": "Inverno",
+          "wet1": "Stagione umida",
+          "dry1": "Stagione secca",
+          "wet2": "Stagione umida",
+          "dry2": "Stagione secca"
+        }
       },
       "notes": {
         "title": "Note sulla Specie",
