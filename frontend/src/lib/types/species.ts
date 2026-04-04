@@ -85,6 +85,21 @@ export interface SpeciesGuideData {
   cached_at: string;
 }
 
+// Similar species entry returned by /api/v2/species/:name/similar
+export interface SimilarSpeciesEntry {
+  scientific_name: string;
+  common_name: string;
+  relationship: 'same_genus' | 'same_family' | 'similar';
+  guide_summary?: string;
+}
+
+// Response from /api/v2/species/:name/similar
+export interface SimilarSpeciesResponse {
+  scientific_name: string;
+  genus: string;
+  similar: SimilarSpeciesEntry[];
+}
+
 // Species note data returned by /api/v2/species/:name/notes
 export interface SpeciesNoteData {
   id: number;

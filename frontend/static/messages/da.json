@@ -1589,6 +1589,14 @@
         "saving": "Gemmer...",
         "deleteFailed": "Kunne ikke slette note",
         "saveFailed": "Kunne ikke gemme note"
+      },
+      "similar": {
+        "title": "Lignende arter",
+        "compare": "Sammenlign med lignende",
+        "loading": "Indlæser lignende arter...",
+        "empty": "Ingen lignende arter fundet i denne slægt.",
+        "sameGenus": "Samme slægt",
+        "sameFamily": "Samme familie"
       }
     },
     "advanced": {

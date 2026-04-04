@@ -1589,6 +1589,14 @@
         "saving": "Saglabā...",
         "deleteFailed": "Neizdevās dzēst piezīmi",
         "saveFailed": "Neizdevās saglabāt piezīmi"
+      },
+      "similar": {
+        "title": "Līdzīgas sugas",
+        "compare": "Salīdzināt ar līdzīgām",
+        "loading": "Ielādē līdzīgas sugas...",
+        "empty": "Šajā ģintī nav atrasta neviena līdzīga suga.",
+        "sameGenus": "Tā pati ģints",
+        "sameFamily": "Tā pati dzimta"
       }
     },
     "advanced": {

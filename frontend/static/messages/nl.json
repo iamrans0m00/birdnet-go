@@ -1566,6 +1566,14 @@
         "saving": "Opslaan...",
         "deleteFailed": "Notitie verwijderen mislukt",
         "saveFailed": "Notitie opslaan mislukt"
+      },
+      "similar": {
+        "title": "Vergelijkbare soorten",
+        "compare": "Vergelijk met soortgelijken",
+        "loading": "Vergelijkbare soorten laden...",
+        "empty": "Geen vergelijkbare soorten gevonden in dit geslacht.",
+        "sameGenus": "Zelfde geslacht",
+        "sameFamily": "Zelfde familie"
       }
     },
     "advanced": {

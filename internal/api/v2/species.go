@@ -115,6 +115,9 @@ func (c *Controller) initSpeciesRoutes() {
 	// Species guide endpoint
 	c.Group.GET("/species/:scientific_name/guide", c.GetSpeciesGuide)
 
+	// Similar species endpoint
+	c.Group.GET("/species/:scientific_name/similar", c.GetSimilarSpecies)
+
 	// Species notes endpoints
 	c.Group.GET("/species/:scientific_name/notes", c.GetSpeciesNotes)
 	c.Group.POST("/species/:scientific_name/notes", c.CreateSpeciesNote, c.getEffectiveAuthMiddleware())
@@ -847,6 +850,104 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 				response.Expectedness = ExpectednessUnexpected
 			}
 		}
+	}
+
+	return ctx.JSON(http.StatusOK, response)
+}
+
+// SimilarSpeciesEntry represents one similar species in the comparison response.
+type SimilarSpeciesEntry struct {
+	ScientificName string `json:"scientific_name"`
+	CommonName     string `json:"common_name"`
+	Relationship   string `json:"relationship"` // "same_genus", "same_family", or "similar"
+	GuideSummary   string `json:"guide_summary,omitempty"`
+}
+
+// SimilarSpeciesResponse is the response for the similar species endpoint.
+type SimilarSpeciesResponse struct {
+	ScientificName string                 `json:"scientific_name"`
+	Genus          string                 `json:"genus"`
+	Similar        []SimilarSpeciesEntry  `json:"similar"`
+}
+
+// GetSimilarSpecies returns species that are similar or related to the given species.
+// @Summary Get similar species
+// @Description Returns up to 5 species in the same genus, with optional guide summaries
+// @Tags species
+// @Produce json
+// @Param scientific_name path string true "Scientific name (URL-encoded)"
+// @Param locale query string false "Wikipedia language code for guide summaries"
+// @Success 200 {object} SimilarSpeciesResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Router /api/v2/species/{scientific_name}/similar [get]
+func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
+	rawName := ctx.Param("scientific_name")
+	scientificName, err := url.PathUnescape(rawName)
+	if err != nil {
+		return c.HandleError(ctx, errors.Newf("invalid scientific name encoding").
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Invalid scientific name", http.StatusBadRequest)
+	}
+
+	scientificName = strings.TrimSpace(scientificName)
+	if scientificName == "" {
+		return c.HandleError(ctx, errors.Newf("scientific_name parameter is required").
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Missing required parameter", http.StatusBadRequest)
+	}
+
+	// Extract genus (first word of the binomial name).
+	genus := scientificName
+	if spaceIdx := strings.IndexByte(scientificName, ' '); spaceIdx > 0 {
+		genus = scientificName[:spaceIdx]
+	}
+
+	// Find same-genus species from BirdNET labels.
+	var similar []SimilarSpeciesEntry
+	bn := c.Processor.GetBirdNET()
+	if bn != nil {
+		genusPrefix := genus + " "
+		for _, label := range bn.Settings.BirdNET.Labels {
+			sp := detection.ParseSpeciesString(label)
+			if sp.ScientificName == scientificName {
+				continue // skip self
+			}
+			if strings.HasPrefix(sp.ScientificName, genusPrefix) {
+				similar = append(similar, SimilarSpeciesEntry{
+					ScientificName: sp.ScientificName,
+					CommonName:     sp.CommonName,
+					Relationship:   "same_genus",
+				})
+			}
+			if len(similar) >= 5 {
+				break
+			}
+		}
+	}
+
+	// Optionally fetch short guide summaries for each similar species.
+	locale := strings.TrimSpace(ctx.QueryParam("locale"))
+	if c.GuideCache != nil && len(similar) > 0 {
+		for i := range similar {
+			guide, guideErr := c.GuideCache.Get(ctx.Request().Context(), similar[i].ScientificName, guideprovider.FetchOptions{Locale: locale})
+			if guideErr == nil && guide.Description != "" {
+				// Take first 200 characters as summary.
+				summary := guide.Description
+				if len(summary) > 200 {
+					summary = summary[:200] + "…"
+				}
+				similar[i].GuideSummary = summary
+			}
+		}
+	}
+
+	response := SimilarSpeciesResponse{
+		ScientificName: scientificName,
+		Genus:          genus,
+		Similar:        similar,
 	}
 
 	return ctx.JSON(http.StatusOK, response)

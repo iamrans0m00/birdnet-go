@@ -1590,6 +1590,14 @@
         "saving": "Saving...",
         "deleteFailed": "Failed to delete note",
         "saveFailed": "Failed to save note"
+      },
+      "similar": {
+        "title": "Similar Species",
+        "compare": "Compare with similar",
+        "loading": "Loading similar species...",
+        "empty": "No similar species found in this genus.",
+        "sameGenus": "Same genus",
+        "sameFamily": "Same family"
       }
     },
     "advanced": {

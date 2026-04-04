@@ -1,7 +1,8 @@
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { ExternalLink, BookOpen, Trash2 } from '@lucide/svelte';
+  import { ExternalLink, BookOpen, Trash2, GitCompareArrows } from '@lucide/svelte';
   import CollapsibleSection from '$lib/desktop/components/ui/CollapsibleSection.svelte';
+  import SpeciesComparison from '$lib/desktop/components/ui/SpeciesComparison.svelte';
   import Modal from '$lib/desktop/components/ui/Modal.svelte';
   import { t, getLocale } from '$lib/i18n';
   import { parseLocalDateString } from '$lib/utils/date';
@@ -49,6 +50,7 @@
   let isLoadingNotes = $state(false);
   let isSavingNote = $state(false);
   let newNoteText = $state('');
+  let showComparison = $state(false);
 
   // Clear stale cache when the modal opens so previous species data doesn't flash.
   // The cache is only useful during the close transition (species becomes null while
@@ -285,6 +287,26 @@
               {/if}
             </div>
           {/if}
+
+          <!-- Compare with similar species button -->
+          <button
+            class="inline-flex items-center gap-1.5 text-[0.6875rem] font-medium px-3 py-1 rounded-full border border-[var(--border-100)] bg-[var(--color-base-100)] opacity-70 hover:opacity-100 hover:bg-[var(--color-base-200)] transition-all mt-3 cursor-pointer"
+            onclick={() => showComparison = !showComparison}
+          >
+            <GitCompareArrows class="h-3.5 w-3.5" />
+            {t('analytics.species.similar.compare')}
+          </button>
+        </div>
+      {/if}
+
+      <!-- Similar Species Comparison -->
+      {#if showComparison && species}
+        <div class="mt-3">
+          <SpeciesComparison
+            scientificName={species.scientific_name}
+            commonName={species.common_name}
+            onclose={() => showComparison = false}
+          />
         </div>
       {/if}
 

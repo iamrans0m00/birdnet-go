@@ -1566,6 +1566,14 @@
         "saving": "Salvando...",
         "deleteFailed": "Falha ao excluir nota",
         "saveFailed": "Falha ao salvar nota"
+      },
+      "similar": {
+        "title": "Espécies semelhantes",
+        "compare": "Comparar com semelhantes",
+        "loading": "Carregando espécies semelhantes...",
+        "empty": "Nenhuma espécie semelhante encontrada neste gênero.",
+        "sameGenus": "Mesmo gênero",
+        "sameFamily": "Mesma família"
       }
     },
     "advanced": {

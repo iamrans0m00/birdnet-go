@@ -1589,6 +1589,14 @@
         "saving": "Sparar...",
         "deleteFailed": "Kunde inte ta bort anteckning",
         "saveFailed": "Kunde inte spara anteckning"
+      },
+      "similar": {
+        "title": "Liknande arter",
+        "compare": "Jämför med liknande",
+        "loading": "Laddar liknande arter...",
+        "empty": "Inga liknande arter hittades i detta släkte.",
+        "sameGenus": "Samma släkte",
+        "sameFamily": "Samma familj"
       }
     },
     "advanced": {

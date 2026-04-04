@@ -1566,6 +1566,14 @@
         "saving": "Tallennetaan...",
         "deleteFailed": "Muistiinpanon poistaminen epäonnistui",
         "saveFailed": "Muistiinpanon tallentaminen epäonnistui"
+      },
+      "similar": {
+        "title": "Samankaltaiset lajit",
+        "compare": "Vertaa samankaltaisiin",
+        "loading": "Ladataan samankaltaisia lajeja...",
+        "empty": "Samankaltaisia lajeja ei löytynyt tästä suvusta.",
+        "sameGenus": "Sama suku",
+        "sameFamily": "Sama heimo"
       }
     },
     "advanced": {

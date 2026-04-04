@@ -1589,6 +1589,14 @@
         "saving": "Mentés...",
         "deleteFailed": "A jegyzet törlése sikertelen",
         "saveFailed": "A jegyzet mentése sikertelen"
+      },
+      "similar": {
+        "title": "Hasonló fajok",
+        "compare": "Összehasonlítás hasonlókkal",
+        "loading": "Hasonló fajok betöltése...",
+        "empty": "Nem találhatók hasonló fajok ebben a nemben.",
+        "sameGenus": "Azonos nem",
+        "sameFamily": "Azonos család"
       }
     },
     "advanced": {

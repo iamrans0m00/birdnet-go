@@ -48,7 +48,9 @@
     ExternalLink,
     Trash2,
     BookOpen,
+    GitCompareArrows,
   } from '@lucide/svelte';
+  import SpeciesComparison from '$lib/desktop/components/ui/SpeciesComparison.svelte';
 
   // Interface definitions for API responses
   interface SpeciesRarity {
@@ -127,6 +129,7 @@
   let isLoadingNotes = $state(false);
   let isSavingNote = $state(false);
   let newNoteText = $state('');
+  let showComparison = $state(false);
 
   // Derived state for subspecies with proper typing
   let subspeciesList = $derived<Subspecies[]>(
@@ -857,7 +860,26 @@
             <span>· {guideData.source.license}</span>
           {/if}
         </div>
+        <!-- Compare with similar species button -->
+        <button
+          class="compare-button"
+          onclick={() => showComparison = !showComparison}
+        >
+          <GitCompareArrows class="h-3.5 w-3.5" />
+          {t('analytics.species.similar.compare')}
+        </button>
       </div>
+    </section>
+  {/if}
+
+  <!-- Similar Species Comparison -->
+  {#if showComparison && detection}
+    <section class="mt-4">
+      <SpeciesComparison
+        scientificName={detection.scientificName}
+        commonName={detection.commonName}
+        onclose={() => showComparison = false}
+      />
     </section>
   {/if}
 
@@ -1807,6 +1829,29 @@
     background: var(--color-base-200);
     color: var(--color-base-content);
     opacity: 0.7;
+  }
+
+  /* ----- Compare Button ----- */
+  .compare-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border-100);
+    background: var(--color-base-100);
+    color: var(--color-base-content);
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s, background-color 0.15s;
+    margin-top: 0.75rem;
+  }
+
+  .compare-button:hover {
+    opacity: 1;
+    background: var(--color-base-200);
   }
 
   /* ----- Seasonal Keyword Highlight ----- */

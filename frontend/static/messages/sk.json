@@ -1565,6 +1565,14 @@
         "saving": "Ukladanie...",
         "deleteFailed": "Nepodarilo sa odstrániť poznámku",
         "saveFailed": "Nepodarilo sa uložiť poznámku"
+      },
+      "similar": {
+        "title": "Podobné druhy",
+        "compare": "Porovnať s podobnými",
+        "loading": "Načítavanie podobných druhov...",
+        "empty": "V tomto rode sa nenašli žiadne podobné druhy.",
+        "sameGenus": "Rovnaký rod",
+        "sameFamily": "Rovnaká čeľaď"
       }
     },
     "advanced": {

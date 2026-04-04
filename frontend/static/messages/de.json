@@ -1566,6 +1566,14 @@
         "saving": "Speichern...",
         "deleteFailed": "Notiz konnte nicht gelöscht werden",
         "saveFailed": "Notiz konnte nicht gespeichert werden"
+      },
+      "similar": {
+        "title": "Ähnliche Arten",
+        "compare": "Mit ähnlichen vergleichen",
+        "loading": "Ähnliche Arten werden geladen...",
+        "empty": "Keine ähnlichen Arten in dieser Gattung gefunden.",
+        "sameGenus": "Gleiche Gattung",
+        "sameFamily": "Gleiche Familie"
       }
     },
     "advanced": {

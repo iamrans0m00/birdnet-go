@@ -75,6 +75,7 @@ type SpeciesGuide struct {
 	CommonName         string    // e.g. "Common Blackbird"
 	Description        string    // Wikipedia extract (plain text)
 	ConservationStatus string    // e.g. "Least Concern" (if available)
+	SimilarSpecies     []string  // Scientific names parsed from "Similar species" section
 	SourceProvider     string    // Which provider supplied this data
 	SourceURL          string    // Attribution link
 	LicenseName        string    // e.g. "CC BY-SA 4.0"

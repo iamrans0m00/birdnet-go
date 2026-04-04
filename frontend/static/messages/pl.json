@@ -1566,6 +1566,14 @@
         "saving": "Zapisywanie...",
         "deleteFailed": "Nie udało się usunąć notatki",
         "saveFailed": "Nie udało się zapisać notatki"
+      },
+      "similar": {
+        "title": "Podobne gatunki",
+        "compare": "Porównaj z podobnymi",
+        "loading": "Ładowanie podobnych gatunków...",
+        "empty": "Nie znaleziono podobnych gatunków w tym rodzaju.",
+        "sameGenus": "Ten sam rodzaj",
+        "sameFamily": "Ta sama rodzina"
       }
     },
     "advanced": {
