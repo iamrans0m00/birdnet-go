@@ -860,6 +860,24 @@
             <span>· {guideData.source.license}</span>
           {/if}
         </div>
+
+        {#if guideData.external_links && guideData.external_links.length > 0}
+          <div class="external-links">
+            <span class="external-links-label">{t('common.actions.learnMore')}</span>
+            {#each guideData.external_links as link (link.name)}
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="external-link-pill"
+              >
+                {link.name}
+                <ExternalLink class="h-3 w-3" />
+              </a>
+            {/each}
+          </div>
+        {/if}
+
         <!-- Compare with similar species button -->
         <button
           class="compare-button"
@@ -1829,6 +1847,39 @@
     background: var(--color-base-200);
     color: var(--color-base-content);
     opacity: 0.7;
+  }
+
+  /* ----- External Links ----- */
+  .external-links {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .external-links-label {
+    font-size: 0.6875rem;
+    opacity: 0.5;
+  }
+
+  .external-link-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 0.2rem 0.625rem;
+    border-radius: 9999px;
+    border: 1px solid var(--border-100);
+    color: var(--color-primary);
+    text-decoration: none;
+    transition: background-color 0.15s, border-color 0.15s;
+  }
+
+  .external-link-pill:hover {
+    background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+    border-color: var(--color-primary);
   }
 
   /* ----- Compare Button ----- */

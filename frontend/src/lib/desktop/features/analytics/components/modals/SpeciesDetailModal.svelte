@@ -288,6 +288,23 @@
             </div>
           {/if}
 
+          {#if guideData.external_links && guideData.external_links.length > 0}
+            <div class="flex items-center flex-wrap gap-2 mt-3">
+              <span class="text-[0.6875rem] opacity-50">{t('common.actions.learnMore')}</span>
+              {#each guideData.external_links as link (link.name)}
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1 text-[0.6875rem] font-medium px-2.5 py-0.5 rounded-full border border-[var(--border-100)] text-[var(--color-primary)] no-underline hover:bg-[color-mix(in_srgb,var(--color-primary)_8%,transparent)] hover:border-[var(--color-primary)] transition-all"
+                >
+                  {link.name}
+                  <ExternalLink class="h-3 w-3" />
+                </a>
+              {/each}
+            </div>
+          {/if}
+
           <!-- Compare with similar species button -->
           <button
             class="inline-flex items-center gap-1.5 text-[0.6875rem] font-medium px-3 py-1 rounded-full border border-[var(--border-100)] bg-[var(--color-base-100)] opacity-70 hover:opacity-100 hover:bg-[var(--color-base-200)] transition-all mt-3 cursor-pointer"

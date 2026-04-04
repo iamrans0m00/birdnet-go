@@ -956,3 +956,36 @@ func TestComputeCurrentSeason(t *testing.T) {
 		})
 	}
 }
+
+// TestBuildExternalLinks tests the buildExternalLinks helper function.
+func TestBuildExternalLinks(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "external-links")
+
+	t.Run("generates links for common name", func(t *testing.T) {
+		t.Parallel()
+		links := buildExternalLinks("Northern Cardinal")
+		require.Len(t, links, 2)
+
+		assert.Equal(t, "All About Birds", links[0].Name)
+		assert.Equal(t, "https://www.allaboutbirds.org/guide/northern-cardinal", links[0].URL)
+
+		assert.Equal(t, "Xeno-canto", links[1].Name)
+		assert.Contains(t, links[1].URL, "xeno-canto.org/species/")
+	})
+
+	t.Run("handles apostrophes", func(t *testing.T) {
+		t.Parallel()
+		links := buildExternalLinks("Cooper's Hawk")
+		require.Len(t, links, 2)
+		assert.Equal(t, "https://www.allaboutbirds.org/guide/coopers-hawk", links[0].URL)
+	})
+
+	t.Run("returns nil for empty name", func(t *testing.T) {
+		t.Parallel()
+		links := buildExternalLinks("")
+		assert.Nil(t, links)
+	})
+}

@@ -336,6 +336,29 @@ func calculateRarityStatus(score float64) RarityStatus {
 	}
 }
 
+// buildExternalLinks generates curated links to external bird identification resources.
+func buildExternalLinks(commonName string) []ExternalLink {
+	if commonName == "" {
+		return nil
+	}
+
+	// AllAboutBirds uses hyphenated lowercase common names as URL slugs.
+	slug := strings.ToLower(commonName)
+	slug = strings.ReplaceAll(slug, " ", "-")
+	slug = strings.ReplaceAll(slug, "'", "")
+
+	return []ExternalLink{
+		{
+			Name: "All About Birds",
+			URL:  "https://www.allaboutbirds.org/guide/" + slug,
+		},
+		{
+			Name: "Xeno-canto",
+			URL:  "https://xeno-canto.org/species/" + url.PathEscape(commonName),
+		},
+	}
+}
+
 // scoreToExpectedness maps a BirdNET probability score to an expectedness classification.
 func scoreToExpectedness(score float64) Expectedness {
 	switch {
@@ -728,6 +751,12 @@ func classifyGuideQuality(description string, partial bool) GuideQuality {
 	return GuideQualityIntroOnly
 }
 
+// ExternalLink represents a curated link to an external resource.
+type ExternalLink struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
 // SpeciesGuideResponse represents the API response for a species guide.
 type SpeciesGuideResponse struct {
 	ScientificName     string             `json:"scientific_name"`
@@ -737,6 +766,7 @@ type SpeciesGuideResponse struct {
 	Quality            GuideQuality       `json:"quality"`
 	Expectedness       Expectedness       `json:"expectedness,omitempty"`
 	CurrentSeason      string             `json:"current_season,omitempty"`
+	ExternalLinks      []ExternalLink     `json:"external_links,omitempty"`
 	Source             SpeciesGuideSource `json:"source"`
 	Partial            bool               `json:"partial"`
 	CachedAt           time.Time          `json:"cached_at"`
@@ -832,6 +862,9 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 	latitude := c.Settings.BirdNET.Latitude
 	now := time.Now()
 	response.CurrentSeason = computeCurrentSeason(latitude, now)
+
+	// Generate external links.
+	response.ExternalLinks = buildExternalLinks(guide.CommonName)
 
 	// Compute expectedness if BirdNET model is available.
 	if bn := c.Processor.GetBirdNET(); bn != nil {

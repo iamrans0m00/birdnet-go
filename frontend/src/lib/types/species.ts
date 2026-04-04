@@ -66,6 +66,12 @@ export type GuideQuality = 'full' | 'intro_only' | 'stub';
 // Species expectedness in the user's area at the current time of year
 export type Expectedness = 'expected' | 'uncommon' | 'rare' | 'unexpected';
 
+// External link to a bird identification resource
+export interface ExternalLink {
+  name: string;
+  url: string;
+}
+
 // Species guide data returned by the /api/v2/species/:name/guide endpoint
 export interface SpeciesGuideData {
   scientific_name: string;
@@ -75,6 +81,7 @@ export interface SpeciesGuideData {
   quality: GuideQuality;
   expectedness?: Expectedness;
   current_season?: string;
+  external_links?: ExternalLink[];
   source: {
     provider: string;
     url: string;
