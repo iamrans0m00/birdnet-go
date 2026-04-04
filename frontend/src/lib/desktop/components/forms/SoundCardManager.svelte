@@ -89,11 +89,8 @@
     return () => controller.abort();
   });
 
-  // Model options — default entry + dynamically loaded models
-  const modelOptions = $derived([
-    { value: '', label: t('settings.audio.soundCards.models.birdnetDefault') },
-    ...availableModels.map(m => ({ value: m.id, label: m.name })),
-  ]);
+  // Model options — dynamically loaded from enabled models in config
+  const modelOptions = $derived(availableModels.map(m => ({ value: m.id, label: m.name })));
 
   interface Props {
     sources: AudioSourceConfig[];

@@ -95,7 +95,8 @@
   // Model display name
   let modelDisplayName = $derived(
     modelOptions.find(m => m.value === source.model)?.label ??
-      t('settings.audio.soundCards.models.birdnetDefault')
+      modelOptions[0]?.label ??
+      source.model
   );
 
   // Device dropdown options
