@@ -57,13 +57,13 @@ func initGuideCacheIfNeeded(settings *conf.Settings, ds any, store datastore.Int
 		return nil
 	}
 
-	store, err := guideprovider.NewGORMGuideStore(db)
+	guideStore, err := guideprovider.NewGORMGuideStore(db)
 	if err != nil {
 		log.Error("failed to initialize guide cache store", logger.Error(err))
 		return nil
 	}
 
-	cache := guideprovider.NewGuideCache(store)
+	cache := guideprovider.NewGuideCache(guideStore)
 
 	// Register Wikipedia provider (always available, no API key needed).
 	wikiProvider := guideprovider.NewWikipediaGuideProvider()

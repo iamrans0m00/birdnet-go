@@ -120,8 +120,8 @@ func (c *Controller) initSpeciesRoutes() {
 
 	// Species notes endpoints
 	c.Group.GET("/species/:scientific_name/notes", c.GetSpeciesNotes)
-	c.Group.POST("/species/:scientific_name/notes", c.CreateSpeciesNote, c.getEffectiveAuthMiddleware())
-	c.Group.DELETE("/species/notes/:id", c.DeleteSpeciesNote, c.getEffectiveAuthMiddleware())
+	c.Group.POST("/species/:scientific_name/notes", c.CreateSpeciesNote, c.authMiddleware)
+	c.Group.DELETE("/species/notes/:id", c.DeleteSpeciesNote, c.authMiddleware)
 
 	// New taxonomy endpoints using local database
 	c.Group.GET("/taxonomy/genus/:genus", c.GetGenusSpecies)
