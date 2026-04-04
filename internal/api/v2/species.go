@@ -757,6 +757,13 @@ type ExternalLink struct {
 	URL  string `json:"url"`
 }
 
+// GuideFeatureFlags indicates which optional guide features are enabled.
+type GuideFeatureFlags struct {
+	Notes          bool `json:"notes"`
+	Enrichments    bool `json:"enrichments"`
+	SimilarSpecies bool `json:"similar_species"`
+}
+
 // SpeciesGuideResponse represents the API response for a species guide.
 type SpeciesGuideResponse struct {
 	ScientificName     string             `json:"scientific_name"`
@@ -767,6 +774,7 @@ type SpeciesGuideResponse struct {
 	Expectedness       Expectedness       `json:"expectedness,omitempty"`
 	CurrentSeason      string             `json:"current_season,omitempty"`
 	ExternalLinks      []ExternalLink     `json:"external_links,omitempty"`
+	Features           GuideFeatureFlags  `json:"features"`
 	Source             SpeciesGuideSource `json:"source"`
 	Partial            bool               `json:"partial"`
 	CachedAt           time.Time          `json:"cached_at"`
@@ -858,29 +866,36 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 		CachedAt: guide.CachedAt,
 	}
 
-	// Compute current season from configured latitude.
-	latitude := c.Settings.BirdNET.Latitude
-	now := time.Now()
-	response.CurrentSeason = computeCurrentSeason(latitude, now)
+	// Include feature flags so the frontend knows what to render.
+	guideConfig := c.Settings.Realtime.Dashboard.SpeciesGuide
+	response.Features = GuideFeatureFlags{
+		Notes:          guideConfig.IsShowNotes(),
+		Enrichments:    guideConfig.IsShowEnrichments(),
+		SimilarSpecies: guideConfig.IsShowSimilarSpecies(),
+	}
 
-	// Generate external links.
-	response.ExternalLinks = buildExternalLinks(guide.CommonName)
+	// Add enrichments (expectedness, season, external links) if enabled.
+	if guideConfig.IsShowEnrichments() {
+		latitude := c.Settings.BirdNET.Latitude
+		now := time.Now()
+		response.CurrentSeason = computeCurrentSeason(latitude, now)
+		response.ExternalLinks = buildExternalLinks(guide.CommonName)
 
-	// Compute expectedness if BirdNET model is available.
-	if bn := c.Processor.GetBirdNET(); bn != nil {
-		speciesLabel := scientificName + "_" + guide.CommonName
-		speciesScores, scoreErr := bn.GetProbableSpecies(now, 0.0)
-		if scoreErr == nil {
-			found := false
-			for _, ss := range speciesScores {
-				if ss.Label == speciesLabel {
-					response.Expectedness = scoreToExpectedness(ss.Score)
-					found = true
-					break
+		if bn := c.Processor.GetBirdNET(); bn != nil {
+			speciesLabel := scientificName + "_" + guide.CommonName
+			speciesScores, scoreErr := bn.GetProbableSpecies(now, 0.0)
+			if scoreErr == nil {
+				found := false
+				for _, ss := range speciesScores {
+					if ss.Label == speciesLabel {
+						response.Expectedness = scoreToExpectedness(ss.Score)
+						found = true
+						break
+					}
 				}
-			}
-			if !found {
-				response.Expectedness = ExpectednessUnexpected
+				if !found {
+					response.Expectedness = ExpectednessUnexpected
+				}
 			}
 		}
 	}
@@ -915,6 +930,13 @@ type SimilarSpeciesResponse struct {
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v2/species/{scientific_name}/similar [get]
 func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
+	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowSimilarSpecies() {
+		return c.HandleError(ctx, errors.Newf("similar species feature is disabled").
+			Category(errors.CategoryConfiguration).
+			Component("api-species").
+			Build(), "Similar species feature is disabled", http.StatusNotFound)
+	}
+
 	rawName := ctx.Param("scientific_name")
 	scientificName, err := url.PathUnescape(rawName)
 	if err != nil {
@@ -1009,6 +1031,13 @@ type CreateSpeciesNoteRequest struct {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v2/species/{scientific_name}/notes [get]
 func (c *Controller) GetSpeciesNotes(ctx echo.Context) error {
+	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
+		return c.HandleError(ctx, errors.Newf("species notes feature is disabled").
+			Category(errors.CategoryConfiguration).
+			Component("api-species").
+			Build(), "Species notes feature is disabled", http.StatusNotFound)
+	}
+
 	rawName := ctx.Param("scientific_name")
 	scientificName, err := url.PathUnescape(rawName)
 	if err != nil {
@@ -1056,6 +1085,13 @@ func (c *Controller) GetSpeciesNotes(ctx echo.Context) error {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v2/species/{scientific_name}/notes [post]
 func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
+	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
+		return c.HandleError(ctx, errors.Newf("species notes feature is disabled").
+			Category(errors.CategoryConfiguration).
+			Component("api-species").
+			Build(), "Species notes feature is disabled", http.StatusNotFound)
+	}
+
 	rawName := ctx.Param("scientific_name")
 	scientificName, err := url.PathUnescape(rawName)
 	if err != nil {
@@ -1115,6 +1151,13 @@ func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v2/species/notes/{id} [delete]
 func (c *Controller) DeleteSpeciesNote(ctx echo.Context) error {
+	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
+		return c.HandleError(ctx, errors.Newf("species notes feature is disabled").
+			Category(errors.CategoryConfiguration).
+			Component("api-species").
+			Build(), "Species notes feature is disabled", http.StatusNotFound)
+	}
+
 	noteID := ctx.Param("id")
 	if noteID == "" {
 		return c.HandleError(ctx, errors.Newf("note ID is required").

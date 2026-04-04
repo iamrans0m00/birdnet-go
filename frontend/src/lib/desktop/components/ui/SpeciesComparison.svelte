@@ -82,7 +82,9 @@
 
   {#if isLoading}
     <div class="flex items-center gap-2 p-4 text-sm opacity-60">
-      <div class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"></div>
+      <div
+        class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
+      ></div>
       <span>{t('analytics.species.similar.loading')}</span>
     </div>
   {:else if similarSpecies.length === 0}
@@ -120,7 +122,9 @@
     <!-- Expanded guide for selected species -->
     {#if selectedSpecies && isLoadingGuide}
       <div class="flex items-center gap-2 p-4 text-sm opacity-60">
-        <div class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"></div>
+        <div
+          class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
+        ></div>
         <span>{t('analytics.species.guide.loading')}</span>
       </div>
     {:else if selectedGuide?.description}
@@ -218,7 +222,9 @@
     text-align: left;
     width: 100%;
     color: inherit;
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+      background-color 0.15s,
+      border-color 0.15s;
   }
 
   .similar-item:hover {

@@ -17,7 +17,10 @@ describe('highlightSeasonKeywords', () => {
   });
 
   it('highlights winter keywords', () => {
-    const result = highlightSeasonKeywords('The bird is commonly seen wintering in marshes.', 'winter');
+    const result = highlightSeasonKeywords(
+      'The bird is commonly seen wintering in marshes.',
+      'winter'
+    );
     expect(result).toContain('<mark class="season-highlight">wintering</mark>');
   });
 

@@ -364,7 +364,9 @@
       const locale = getLocale();
       const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
       const response = await fetch(
-        buildAppUrl(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/guide${localeParam}`),
+        buildAppUrl(
+          `/api/v2/species/${encodeURIComponent(detection.scientificName)}/guide${localeParam}`
+        ),
         { signal: guideController?.signal }
       );
       if (guideController?.signal.aborted) return;
@@ -795,21 +797,27 @@
   {:else if guideData?.description}
     <section class="mt-4" aria-labelledby="guide-heading">
       <div class="flex items-center gap-2 flex-wrap">
-        <h3 id="guide-heading" class="section-heading !mb-0">{t('analytics.species.guide.title')}</h3>
+        <h3 id="guide-heading" class="section-heading !mb-0">
+          {t('analytics.species.guide.title')}
+        </h3>
         {#if guideData.quality && guideData.quality !== 'full'}
           <span class="guide-quality-badge guide-quality-{guideData.quality}">
-            {t(`analytics.species.guide.quality${guideData.quality === 'intro_only' ? 'IntroOnly' : 'Stub'}`)}
+            {t(
+              `analytics.species.guide.quality${guideData.quality === 'intro_only' ? 'IntroOnly' : 'Stub'}`
+            )}
           </span>
         {/if}
-        {#if guideData.expectedness}
-          <span class="guide-badge guide-expectedness-{guideData.expectedness}">
-            {t(`analytics.species.guide.expectedness.${guideData.expectedness}`)}
-          </span>
-        {/if}
-        {#if guideData.current_season}
-          <span class="guide-badge guide-season">
-            {t(`analytics.species.guide.season.${guideData.current_season}`)}
-          </span>
+        {#if guideData.features?.enrichments}
+          {#if guideData.expectedness}
+            <span class="guide-badge guide-expectedness-{guideData.expectedness}">
+              {t(`analytics.species.guide.expectedness.${guideData.expectedness}`)}
+            </span>
+          {/if}
+          {#if guideData.current_season}
+            <span class="guide-badge guide-season">
+              {t(`analytics.species.guide.season.${guideData.current_season}`)}
+            </span>
+          {/if}
         {/if}
       </div>
       <div class="guide-content">
@@ -823,12 +831,16 @@
               contentClassName="guide-collapsible-content"
             >
               {#if section.body}
-                <p class="guide-section-body">{@html highlightSeasonKeywords(section.body, guideData.current_season)}</p>
+                <p class="guide-section-body">
+                  {@html highlightSeasonKeywords(section.body, guideData.current_season)}
+                </p>
               {/if}
             </CollapsibleSection>
           {:else if section.body}
             <div class="content-panel">
-              <p class="guide-section-body">{@html highlightSeasonKeywords(section.body, guideData.current_season)}</p>
+              <p class="guide-section-body">
+                {@html highlightSeasonKeywords(section.body, guideData.current_season)}
+              </p>
             </div>
           {/if}
         {/each}
@@ -861,7 +873,7 @@
           {/if}
         </div>
 
-        {#if guideData.external_links && guideData.external_links.length > 0}
+        {#if guideData.features?.enrichments && guideData.external_links && guideData.external_links.length > 0}
           <div class="external-links">
             <span class="external-links-label">{t('common.actions.learnMore')}</span>
             {#each guideData.external_links as link (link.name)}
@@ -878,14 +890,13 @@
           </div>
         {/if}
 
-        <!-- Compare with similar species button -->
-        <button
-          class="compare-button"
-          onclick={() => showComparison = !showComparison}
-        >
-          <GitCompareArrows class="h-3.5 w-3.5" />
-          {t('analytics.species.similar.compare')}
-        </button>
+        {#if guideData.features?.similar_species}
+          <!-- Compare with similar species button -->
+          <button class="compare-button" onclick={() => (showComparison = !showComparison)}>
+            <GitCompareArrows class="h-3.5 w-3.5" />
+            {t('analytics.species.similar.compare')}
+          </button>
+        {/if}
       </div>
     </section>
   {/if}
@@ -896,79 +907,81 @@
       <SpeciesComparison
         scientificName={detection.scientificName}
         commonName={detection.commonName}
-        onclose={() => showComparison = false}
+        onclose={() => (showComparison = false)}
       />
     </section>
   {/if}
 
   <!-- Species Notes -->
-  <section class="mt-4" aria-labelledby="species-notes-heading">
-    <div class="flex items-center gap-2">
-      <BookOpen class="h-4 w-4 opacity-60" />
-      <h3 id="species-notes-heading" class="section-heading !mb-0">
-        {t('analytics.species.notes.title')}
-      </h3>
-    </div>
-
-    {#if isLoadingNotes}
-      <div class="content-panel mt-2">
-        <div class="flex items-center gap-2 text-sm opacity-60">
-          <div
-            class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
-          ></div>
-        </div>
+  {#if guideData?.features?.notes !== false}
+    <section class="mt-4" aria-labelledby="species-notes-heading">
+      <div class="flex items-center gap-2">
+        <BookOpen class="h-4 w-4 opacity-60" />
+        <h3 id="species-notes-heading" class="section-heading !mb-0">
+          {t('analytics.species.notes.title')}
+        </h3>
       </div>
-    {:else}
-      {#if speciesNotes.length > 0}
-        <div class="space-y-2 mt-2" role="list" aria-label="Species notes">
-          {#each speciesNotes as note (note.id)}
-            <article class="content-panel species-note-card" role="listitem">
-              <div class="flex justify-between items-start gap-2">
-                <p class="text-sm leading-relaxed flex-1">{note.entry}</p>
-                <button
-                  class="species-note-delete"
-                  aria-label={t('analytics.species.notes.deleteConfirm')}
-                  onclick={() => deleteSpeciesNote(note.id)}
-                >
-                  <Trash2 class="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <p class="text-xs opacity-40 mt-1.5">
-                {formatLocalDateTime(new Date(note.created_at))}
-              </p>
-            </article>
-          {/each}
+
+      {#if isLoadingNotes}
+        <div class="content-panel mt-2">
+          <div class="flex items-center gap-2 text-sm opacity-60">
+            <div
+              class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
+            ></div>
+          </div>
         </div>
       {:else}
-        <p class="text-sm opacity-40 italic mt-2">
-          {t('analytics.species.notes.empty')}
-        </p>
-      {/if}
+        {#if speciesNotes.length > 0}
+          <div class="space-y-2 mt-2" role="list" aria-label="Species notes">
+            {#each speciesNotes as note (note.id)}
+              <article class="content-panel species-note-card" role="listitem">
+                <div class="flex justify-between items-start gap-2">
+                  <p class="text-sm leading-relaxed flex-1">{note.entry}</p>
+                  <button
+                    class="species-note-delete"
+                    aria-label={t('analytics.species.notes.deleteConfirm')}
+                    onclick={() => deleteSpeciesNote(note.id)}
+                  >
+                    <Trash2 class="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <p class="text-xs opacity-40 mt-1.5">
+                  {formatLocalDateTime(new Date(note.created_at))}
+                </p>
+              </article>
+            {/each}
+          </div>
+        {:else}
+          <p class="text-sm opacity-40 italic mt-2">
+            {t('analytics.species.notes.empty')}
+          </p>
+        {/if}
 
-      <!-- Add note form -->
-      <div class="mt-3 flex gap-2">
-        <textarea
-          class="species-note-input"
-          placeholder={t('analytics.species.notes.placeholder')}
-          rows="2"
-          bind:value={newNoteText}
-          onkeydown={(e: KeyboardEvent) => {
-            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault();
-              saveSpeciesNote();
-            }
-          }}
-        ></textarea>
-        <button
-          class="species-note-save"
-          disabled={!newNoteText.trim() || isSavingNote}
-          onclick={saveSpeciesNote}
-        >
-          {isSavingNote ? t('analytics.species.notes.saving') : t('analytics.species.notes.save')}
-        </button>
-      </div>
-    {/if}
-  </section>
+        <!-- Add note form -->
+        <div class="mt-3 flex gap-2">
+          <textarea
+            class="species-note-input"
+            placeholder={t('analytics.species.notes.placeholder')}
+            rows="2"
+            bind:value={newNoteText}
+            onkeydown={(e: KeyboardEvent) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                saveSpeciesNote();
+              }
+            }}
+          ></textarea>
+          <button
+            class="species-note-save"
+            disabled={!newNoteText.trim() || isSavingNote}
+            onclick={saveSpeciesNote}
+          >
+            {isSavingNote ? t('analytics.species.notes.saving') : t('analytics.species.notes.save')}
+          </button>
+        </div>
+      {/if}
+    </section>
+  {/if}
 {/snippet}
 
 {#snippet historyTab()}
@@ -1874,7 +1887,9 @@
     border: 1px solid var(--border-100);
     color: var(--color-primary);
     text-decoration: none;
-    transition: background-color 0.15s, border-color 0.15s;
+    transition:
+      background-color 0.15s,
+      border-color 0.15s;
   }
 
   .external-link-pill:hover {
@@ -1896,7 +1911,9 @@
     color: var(--color-base-content);
     cursor: pointer;
     opacity: 0.7;
-    transition: opacity 0.15s, background-color 0.15s;
+    transition:
+      opacity 0.15s,
+      background-color 0.15s;
     margin-top: 0.75rem;
   }
 
