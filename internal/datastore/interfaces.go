@@ -274,8 +274,13 @@ func New(settings *conf.Settings) Interface {
 			},
 		}
 	default:
-		// Consider handling the case where neither database is enabled
-		return nil
+		// No database explicitly enabled — default to SQLite
+		return &SQLiteStore{
+			Settings: settings,
+			DataStore: DataStore{
+				SunCalc: sunCalc,
+			},
+		}
 	}
 }
 
