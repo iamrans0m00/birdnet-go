@@ -147,6 +147,8 @@ func setDefaultConfig() {
 	viper.SetDefault("realtime.dashboard.speciesguide.enabled", true)
 	viper.SetDefault("realtime.dashboard.speciesguide.provider", "wikipedia")
 	viper.SetDefault("realtime.dashboard.speciesguide.fallbackpolicy", "all")
+	viper.SetDefault("realtime.dashboard.speciesguide.prefetchenabled", true)
+	viper.SetDefault("realtime.dashboard.speciesguide.warmtopn", 50)
 
 	viper.SetDefault("realtime.dashboard.summarylimit", 30)
 	viper.SetDefault("realtime.dashboard.locale", "en")               // Default UI locale
