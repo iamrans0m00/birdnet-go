@@ -43,6 +43,22 @@ const (
 // maxNoteEntryLength is the maximum allowed length for a species note entry.
 const maxNoteEntryLength = 10_000
 
+// maxSimilarSpeciesResults is the maximum number of similar species to return.
+const maxSimilarSpeciesResults = 5
+
+// maxGuideSummaryLen is the maximum character length for a similar species guide summary.
+const maxGuideSummaryLen = 200
+
+// relationshipSameGenus is the relationship value for species in the same genus.
+const relationshipSameGenus = "same_genus"
+
+// Taxonomy classification constants for birds.
+const (
+	taxonomyKingdomAnimalia = "Animalia"
+	taxonomyPhylumChordata  = "Chordata"
+	taxonomyClassAves       = "Aves"
+)
+
 // Expectedness represents how expected a species is in the user's area at the current time.
 type Expectedness string
 
@@ -616,9 +632,9 @@ func (c *Controller) getEBirdTaxonomy(ctx context.Context, scientificName, local
 	}
 
 	info.Taxonomy = &TaxonomyHierarchy{
-		Kingdom:       "Animalia", // All birds are in kingdom Animalia
-		Phylum:        "Chordata", // All birds are in phylum Chordata
-		Class:         "Aves",     // All entries are birds
+		Kingdom:       taxonomyKingdomAnimalia,
+		Phylum:        taxonomyPhylumChordata,
+		Class:         taxonomyClassAves,
 		Order:         speciesEntry.Order,
 		Family:        speciesEntry.FamilySciName,
 		FamilyCommon:  speciesEntry.FamilyComName,
@@ -979,10 +995,10 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 					similar = append(similar, SimilarSpeciesEntry{
 						ScientificName: sp.ScientificName,
 						CommonName:     sp.CommonName,
-						Relationship:   "same_genus",
+						Relationship:   relationshipSameGenus,
 					})
 				}
-				if len(similar) >= 5 {
+				if len(similar) >= maxSimilarSpeciesResults {
 					break
 				}
 			}
@@ -995,10 +1011,10 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 		for i := range similar {
 			guide, guideErr := gc.Get(ctx.Request().Context(), similar[i].ScientificName, guideprovider.FetchOptions{Locale: locale})
 			if guideErr == nil && guide.Description != "" {
-				// Take first 200 characters as summary.
+				// Truncate to a short summary for the similar species list.
 				summary := guide.Description
-				if len(summary) > 200 {
-					summary = summary[:200] + "…"
+				if len(summary) > maxGuideSummaryLen {
+					summary = summary[:maxGuideSummaryLen] + "…"
 				}
 				similar[i].GuideSummary = summary
 			}

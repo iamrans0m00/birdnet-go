@@ -165,7 +165,7 @@ func NewWikipediaGuideProvider() *WikipediaGuideProvider {
 // like Description, Songs and calls, and Similar species.
 // The locale in opts selects the Wikipedia language edition.
 func (p *WikipediaGuideProvider) Fetch(ctx context.Context, scientificName string, opts FetchOptions) (SpeciesGuide, error) {
-	log := GetLogger()
+	log := getLogger()
 	locale := opts.Locale
 	if locale == "" {
 		locale = defaultLocale
@@ -234,7 +234,7 @@ func (p *WikipediaGuideProvider) Fetch(ctx context.Context, scientificName strin
 // Falls back to just the intro summary if the full extract isn't available.
 // If sectionNames is nil (unsupported locale), only the intro is returned.
 func (p *WikipediaGuideProvider) buildRichDescription(ctx context.Context, title, introText, locale string, sectionNames []string) string {
-	log := GetLogger()
+	log := getLogger()
 
 	// If no section names for this locale, just return the intro.
 	if sectionNames == nil {
@@ -500,7 +500,7 @@ func (p *WikipediaGuideProvider) tripCircuitBreaker(duration time.Duration, reas
 	p.circuitFailures++
 	p.circuitLastError = reason
 
-	GetLogger().Error("Opening Wikipedia guide circuit breaker",
+	getLogger().Error("Opening Wikipedia guide circuit breaker",
 		logger.String("reason", reason),
 		logger.Duration("duration", duration),
 		logger.Int("consecutive_failures", p.circuitFailures))
@@ -512,7 +512,7 @@ func (p *WikipediaGuideProvider) resetCircuit() {
 	defer p.circuitMu.Unlock()
 
 	if p.circuitFailures > 0 {
-		GetLogger().Info("Resetting Wikipedia guide circuit breaker after successful request",
+		getLogger().Info("Resetting Wikipedia guide circuit breaker after successful request",
 			logger.Int("previous_failures", p.circuitFailures))
 	}
 

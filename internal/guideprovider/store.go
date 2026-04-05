@@ -65,7 +65,7 @@ func (s *GORMGuideStore) GetAllGuideCaches(ctx context.Context, providerName str
 		Where("provider_name = ?", providerName).
 		Find(&entries).Error
 	if err != nil {
-		GetLogger().Warn("Failed to query guide caches",
+		getLogger().Warn("Failed to query guide caches",
 			logger.String("provider", providerName),
 			logger.Any("error", err))
 		return nil, err

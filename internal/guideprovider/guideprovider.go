@@ -65,8 +65,8 @@ const defaultProviderName = WikipediaProviderName
 // defaultFallbackOrder defines providers to try in order.
 var defaultFallbackOrder = []string{WikipediaProviderName, EBirdProviderName}
 
-// GetLogger returns the package logger for the guideprovider module.
-func GetLogger() logger.Logger {
+// getLogger returns the package logger for the guideprovider module.
+func getLogger() logger.Logger {
 	return logger.Global().Module("guideprovider")
 }
 
@@ -175,7 +175,7 @@ func (c *GuideCache) WarmForSpecies(speciesNames []string) {
 		return
 	}
 
-	log := GetLogger()
+	log := getLogger()
 	log.Info("Starting guide cache warm-up",
 		logger.Int("species_count", len(speciesNames)))
 
@@ -297,7 +297,7 @@ func (c *GuideCache) triggerAsyncRefresh(scientificName string, opts FetchOption
 
 // fetchFromProviders fetches guide data from configured providers with fallback.
 func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName string, opts FetchOptions) (*SpeciesGuide, error) {
-	log := GetLogger()
+	log := getLogger()
 	settings := conf.GetSettings()
 
 	primaryProvider := defaultProviderName
@@ -443,7 +443,7 @@ func (c *GuideCache) saveToDB(guide *SpeciesGuide, providerName string) {
 		existing.CommonName == guide.CommonName &&
 		existing.ConservationStatus == guide.ConservationStatus &&
 		existing.SourceProvider == guide.SourceProvider {
-		GetLogger().Debug("Guide cache content unchanged, skipping DB write",
+		getLogger().Debug("Guide cache content unchanged, skipping DB write",
 			logger.String("species", guide.ScientificName))
 		return
 	}
@@ -462,7 +462,7 @@ func (c *GuideCache) saveToDB(guide *SpeciesGuide, providerName string) {
 	}
 
 	if err := c.store.SaveGuideCache(context.Background(), entry); err != nil {
-		GetLogger().Warn("Failed to save guide cache to database",
+		getLogger().Warn("Failed to save guide cache to database",
 			logger.String("species", guide.ScientificName),
 			logger.Any("error", err))
 	}
@@ -482,7 +482,7 @@ func (c *GuideCache) loadFromDB() {
 
 	entries, err := c.store.GetAllGuideCaches(context.Background(), providerName)
 	if err != nil {
-		GetLogger().Warn("Failed to load guide caches from database",
+		getLogger().Warn("Failed to load guide caches from database",
 			logger.Any("error", err))
 		return
 	}
@@ -494,13 +494,13 @@ func (c *GuideCache) loadFromDB() {
 		loaded++
 	}
 
-	GetLogger().Info("Loaded guide cache entries from database",
+	getLogger().Info("Loaded guide cache entries from database",
 		logger.Int("count", loaded))
 }
 
 // startCacheRefresh starts the background cache refresh routine.
 func (c *GuideCache) startCacheRefresh() {
-	log := GetLogger()
+	log := getLogger()
 	log.Info("Starting guide cache refresh routine",
 		logger.Duration("ttl", defaultCacheTTL),
 		logger.Duration("interval", refreshInterval))
@@ -527,7 +527,7 @@ func (c *GuideCache) refreshStaleEntries() {
 		return
 	}
 
-	log := GetLogger()
+	log := getLogger()
 	settings := conf.GetSettings()
 	providerName := defaultProviderName
 	if settings != nil {

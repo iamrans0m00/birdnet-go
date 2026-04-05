@@ -29,7 +29,7 @@ func NewEBirdGuideProvider(client *ebird.Client) (*EBirdGuideProvider, error) {
 // It does not provide descriptions. The opts parameter is accepted for interface
 // compatibility but locale is not used (eBird taxonomy uses English).
 func (p *EBirdGuideProvider) Fetch(ctx context.Context, scientificName string, _ FetchOptions) (SpeciesGuide, error) {
-	log := GetLogger()
+	log := getLogger()
 
 	// Get taxonomy data
 	taxonomy, err := p.client.GetTaxonomy(ctx, "en")
