@@ -3942,7 +3942,8 @@
         "appearance": "Appearance",
         "language": "Language & Regional",
         "visualContent": "Visual Content",
-        "audioPlayback": "Audio Playback"
+        "audioPlayback": "Audio Playback",
+        "speciesGuide": "Species Guide"
       },
       "appearance": {
         "title": "Appearance",
@@ -3962,6 +3963,40 @@
         "defaultGain": "Default Volume Boost",
         "defaultGainHelpText": "Initial gain applied when playing recordings. Bird sounds are often quiet, so a boost of 6-12 dB is recommended.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Species Guide",
+        "description": "Configure the species identification guide shown in detection details and species modals.",
+        "enabled": {
+          "label": "Enable Species Guide",
+          "helpText": "Show Wikipedia-powered identification guides when viewing a detection or species."
+        },
+        "sections": {
+          "title": "Guide Sections"
+        },
+        "showEnrichments": {
+          "label": "Show Enrichments",
+          "helpText": "Display seasonal context, range expectedness badges, and external links (AllAboutBirds, Xeno-canto)."
+        },
+        "showSimilarSpecies": {
+          "label": "Show Similar Species",
+          "helpText": "Show a comparison panel with same-genus species that are commonly confused."
+        },
+        "showNotes": {
+          "label": "Show Species Notes",
+          "helpText": "Show the personal notes panel where you can save observations about a species."
+        },
+        "cache": {
+          "title": "Guide Cache"
+        },
+        "preFetchEnabled": {
+          "label": "Pre-fetch Guides",
+          "helpText": "Automatically fetch guides in the background when a new species is detected, so they load instantly."
+        },
+        "warmTopN": {
+          "label": "Warm Cache on Startup",
+          "helpText": "Number of top detected species to pre-load guides for at startup. Set to 0 to disable."
+        }
       }
     },
     "restartRequired": "Some changes require a server restart to take effect. Please restart BirdNET-Go."

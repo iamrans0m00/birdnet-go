@@ -3918,7 +3918,8 @@
         "appearance": "Erscheinungsbild",
         "language": "Sprache & Region",
         "visualContent": "Visuelle Inhalte",
-        "audioPlayback": "Audiowiedergabe"
+        "audioPlayback": "Audiowiedergabe",
+        "speciesGuide": "Artenführer"
       },
       "appearance": {
         "title": "Erscheinungsbild",
@@ -3938,6 +3939,40 @@
         "defaultGain": "Standard-Lautstärkeverstärkung",
         "defaultGainHelpText": "Anfangsverstärkung bei der Wiedergabe von Aufnahmen. Vogelstimmen sind oft leise, daher wird eine Verstärkung von 6-12 dB empfohlen.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Artenführer",
+        "description": "Artenführer konfigurieren.",
+        "enabled": {
+          "label": "Artenführer aktivieren",
+          "helpText": "Wikipedia-basierte Führerinhalte anzeigen."
+        },
+        "sections": {
+          "title": "Führerabschnitte"
+        },
+        "showEnrichments": {
+          "label": "Anreicherungen anzeigen",
+          "helpText": "Saisonkontext, Verbreitungsabzeichen und externe Links anzeigen."
+        },
+        "showSimilarSpecies": {
+          "label": "Ähnliche Arten anzeigen",
+          "helpText": "Vergleichsbereich mit oft verwechselten Arten der gleichen Gattung."
+        },
+        "showNotes": {
+          "label": "Artennotizen anzeigen",
+          "helpText": "Persönliches Notizfeld für Artenbeobachtungen."
+        },
+        "cache": {
+          "title": "Guide-Cache"
+        },
+        "preFetchEnabled": {
+          "label": "Führerinhalte vorabrufen",
+          "helpText": "Inhalte automatisch im Hintergrund abrufen."
+        },
+        "warmTopN": {
+          "label": "Cache beim Start vorwärmen",
+          "helpText": "Anzahl vorgeladener Arten. 0 = deaktiviert."
+        }
       }
     },
     "restartRequired": "Einige Änderungen erfordern einen Neustart des Servers. Bitte starten Sie BirdNET-Go neu."

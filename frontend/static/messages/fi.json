@@ -3918,7 +3918,8 @@
         "appearance": "Appearance",
         "language": "Language & Regional",
         "visualContent": "Visual Content",
-        "audioPlayback": "Äänentoisto"
+        "audioPlayback": "Äänentoisto",
+        "speciesGuide": "Lajiopas"
       },
       "appearance": {
         "title": "Appearance",
@@ -3938,6 +3939,40 @@
         "defaultGain": "Oletusäänenvahvistus",
         "defaultGainHelpText": "Alkuvahvistus äänitteiden toistossa. Lintujen äänet ovat usein hiljaisia, joten 6-12 dB:n vahvistus on suositeltavaa.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Lajiopas",
+        "description": "Määritä lajiopas havainnon yksityiskohtiin.",
+        "enabled": {
+          "label": "Ota lajiopas käyttöön",
+          "helpText": "Näytä Wikipedia-pohjainen tunnistusopas."
+        },
+        "sections": {
+          "title": "Oppaan osiot"
+        },
+        "showEnrichments": {
+          "label": "Näytä rikasteet",
+          "helpText": "Näytä kausitieto, levinneisyysmerkinnät ja linkit."
+        },
+        "showSimilarSpecies": {
+          "label": "Näytä samankaltaiset lajit",
+          "helpText": "Vertailupaneeli saman suvun lajeista."
+        },
+        "showNotes": {
+          "label": "Näytä lajimuistiinpanot",
+          "helpText": "Henkilökohtainen muistiinpanopaneeli."
+        },
+        "cache": {
+          "title": "Opasvälimuisti"
+        },
+        "preFetchEnabled": {
+          "label": "Esihae oppaat",
+          "helpText": "Hae oppaat automaattisesti taustalla."
+        },
+        "warmTopN": {
+          "label": "Lämmitä välimuisti käynnistyksessä",
+          "helpText": "Kuinka monen lajin oppaat esivalmistellaan. 0 = pois."
+        }
       }
     },
     "restartRequired": "Jotkin muutokset vaativat palvelimen uudelleenkäynnistyksen astuakseen voimaan. Käynnistä BirdNET-Go uudelleen."

@@ -528,6 +528,15 @@ export interface WebServerSettings {
 }
 
 // Dashboard settings
+export interface SpeciesGuideSettings {
+  enabled?: boolean;
+  showNotes?: boolean;
+  showEnrichments?: boolean;
+  showSimilarSpecies?: boolean;
+  preFetchEnabled?: boolean;
+  warmTopN?: number;
+}
+
 export interface Dashboard {
   thumbnails: Thumbnails;
   summaryLimit: number;
@@ -539,6 +548,7 @@ export interface Dashboard {
   logoStyle?: string; // Logo display style: "gradient" or "solid"
   layout?: DashboardLayout; // Configurable dashboard element layout
   defaultAudioGain?: number; // Default playback gain in dB (0-24)
+  speciesGuide?: SpeciesGuideSettings; // Species guide feature settings
 }
 
 // Dashboard layout configuration

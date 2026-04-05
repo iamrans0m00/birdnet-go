@@ -3918,7 +3918,8 @@
         "appearance": "Aparência",
         "language": "Idioma e regional",
         "visualContent": "Conteúdo visual",
-        "audioPlayback": "Reprodução de Áudio"
+        "audioPlayback": "Reprodução de Áudio",
+        "speciesGuide": "Guia de espécies"
       },
       "appearance": {
         "title": "Aparência",
@@ -3938,6 +3939,40 @@
         "defaultGain": "Amplificação de Volume Padrão",
         "defaultGainHelpText": "Ganho inicial aplicado ao reproduzir gravações. Os sons de aves são frequentemente baixos, pelo que um reforço de 6-12 dB é recomendado.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Guia de espécies",
+        "description": "Configure o guia de identificação de espécies.",
+        "enabled": {
+          "label": "Ativar guia de espécies",
+          "helpText": "Exibir guias de identificação baseados na Wikipédia."
+        },
+        "sections": {
+          "title": "Seções do guia"
+        },
+        "showEnrichments": {
+          "label": "Mostrar enriquecimentos",
+          "helpText": "Contexto sazonal, emblemas de distribuição e links externos."
+        },
+        "showSimilarSpecies": {
+          "label": "Mostrar espécies similares",
+          "helpText": "Painel de comparação com espécies do mesmo gênero."
+        },
+        "showNotes": {
+          "label": "Mostrar notas da espécie",
+          "helpText": "Painel de notas pessoais."
+        },
+        "cache": {
+          "title": "Cache do guia"
+        },
+        "preFetchEnabled": {
+          "label": "Pré-carregar guias",
+          "helpText": "Buscar guias automaticamente em segundo plano."
+        },
+        "warmTopN": {
+          "label": "Aquecer cache na inicialização",
+          "helpText": "Número de espécies a pré-carregar. 0 = desativado."
+        }
       }
     },
     "restartRequired": "Algumas alterações requerem um reinício do servidor para terem efeito. Por favor, reinicie o BirdNET-Go."

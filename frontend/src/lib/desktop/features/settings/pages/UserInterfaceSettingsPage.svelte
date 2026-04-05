@@ -35,7 +35,8 @@
   import FlagIcon, { type FlagLocale } from '$lib/desktop/components/ui/FlagIcon.svelte';
   import { t, getLocale } from '$lib/i18n';
   import { LOCALES } from '$lib/i18n/config';
-  import { Palette, Globe, Image, Volume2 } from '@lucide/svelte';
+  import { Palette, Globe, Image, Volume2, BookOpen } from '@lucide/svelte';
+  import NumberField from '$lib/desktop/components/forms/NumberField.svelte';
   import { api, ApiError } from '$lib/utils/api';
   import { toastActions } from '$lib/stores/toast';
 
@@ -218,6 +219,13 @@
     )
   );
 
+  let speciesGuideHasChanges = $derived(
+    hasSettingsChanged(
+      { speciesGuide: store.originalData.realtime?.dashboard?.speciesGuide },
+      { speciesGuide: store.formData.realtime?.dashboard?.speciesGuide }
+    )
+  );
+
   // --- Update handlers ---
   function updateDashboardSetting(key: string, value: string | number | boolean) {
     settingsActions.updateSection('realtime', {
@@ -246,6 +254,15 @@
   function updateUILocale(locale: string) {
     settingsActions.updateSection('realtime', {
       dashboard: { ...settings.dashboard, locale },
+    });
+  }
+
+  function updateSpeciesGuideSetting(key: string, value: boolean | number) {
+    settingsActions.updateSection('realtime', {
+      dashboard: {
+        ...settings.dashboard,
+        speciesGuide: { ...settings.dashboard.speciesGuide, [key]: value },
+      },
     });
   }
 
@@ -278,6 +295,13 @@
       icon: Volume2,
       hasChanges: audioPlaybackHasChanges,
       content: audioPlaybackTabContent,
+    },
+    {
+      id: 'speciesGuide',
+      label: t('settings.userInterface.tabs.speciesGuide'),
+      icon: BookOpen,
+      hasChanges: speciesGuideHasChanges,
+      content: speciesGuideTabContent,
     },
   ]);
 </script>
@@ -634,6 +658,100 @@
                 )}
               </span>
             </SettingsNote>
+          </div>
+        </div>
+      </div>
+    </SettingsSection>
+  </div>
+{/snippet}
+
+{#snippet speciesGuideTabContent()}
+  <div class="space-y-6">
+    <SettingsSection
+      title={t('settings.userInterface.speciesGuide.title')}
+      description={t('settings.userInterface.speciesGuide.description')}
+      originalData={{ speciesGuide: store.originalData.realtime?.dashboard?.speciesGuide }}
+      currentData={{ speciesGuide: store.formData.realtime?.dashboard?.speciesGuide }}
+    >
+      <div class="space-y-6">
+        <!-- Main enable/disable -->
+        <Checkbox
+          checked={settings.dashboard.speciesGuide?.enabled ?? true}
+          label={t('settings.userInterface.speciesGuide.enabled.label')}
+          helpText={t('settings.userInterface.speciesGuide.enabled.helpText')}
+          disabled={store.isLoading || store.isSaving}
+          onchange={value => updateSpeciesGuideSetting('enabled', value)}
+        />
+
+        <div class="border-t border-[var(--color-base-200)]"></div>
+
+        <!-- Feature sections — only active when guide is enabled -->
+        <div
+          class:opacity-50={!(settings.dashboard.speciesGuide?.enabled ?? true)}
+          class="space-y-4"
+        >
+          <h4 class="text-sm font-medium text-[var(--color-base-content)]/70">
+            {t('settings.userInterface.speciesGuide.sections.title')}
+          </h4>
+
+          <Checkbox
+            checked={settings.dashboard.speciesGuide?.showEnrichments ?? true}
+            label={t('settings.userInterface.speciesGuide.showEnrichments.label')}
+            helpText={t('settings.userInterface.speciesGuide.showEnrichments.helpText')}
+            disabled={store.isLoading ||
+              store.isSaving ||
+              !(settings.dashboard.speciesGuide?.enabled ?? true)}
+            onchange={value => updateSpeciesGuideSetting('showEnrichments', value)}
+          />
+
+          <Checkbox
+            checked={settings.dashboard.speciesGuide?.showSimilarSpecies ?? true}
+            label={t('settings.userInterface.speciesGuide.showSimilarSpecies.label')}
+            helpText={t('settings.userInterface.speciesGuide.showSimilarSpecies.helpText')}
+            disabled={store.isLoading ||
+              store.isSaving ||
+              !(settings.dashboard.speciesGuide?.enabled ?? true)}
+            onchange={value => updateSpeciesGuideSetting('showSimilarSpecies', value)}
+          />
+
+          <Checkbox
+            checked={settings.dashboard.speciesGuide?.showNotes ?? true}
+            label={t('settings.userInterface.speciesGuide.showNotes.label')}
+            helpText={t('settings.userInterface.speciesGuide.showNotes.helpText')}
+            disabled={store.isLoading ||
+              store.isSaving ||
+              !(settings.dashboard.speciesGuide?.enabled ?? true)}
+            onchange={value => updateSpeciesGuideSetting('showNotes', value)}
+          />
+        </div>
+
+        <div class="border-t border-[var(--color-base-200)]"></div>
+
+        <!-- Cache warming -->
+        <div class="space-y-4">
+          <h4 class="text-sm font-medium text-[var(--color-base-content)]/70">
+            {t('settings.userInterface.speciesGuide.cache.title')}
+          </h4>
+
+          <Checkbox
+            checked={settings.dashboard.speciesGuide?.preFetchEnabled ?? true}
+            label={t('settings.userInterface.speciesGuide.preFetchEnabled.label')}
+            helpText={t('settings.userInterface.speciesGuide.preFetchEnabled.helpText')}
+            disabled={store.isLoading || store.isSaving}
+            onchange={value => updateSpeciesGuideSetting('preFetchEnabled', value)}
+          />
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6">
+            <NumberField
+              value={settings.dashboard.speciesGuide?.warmTopN ?? 50}
+              label={t('settings.userInterface.speciesGuide.warmTopN.label')}
+              helpText={t('settings.userInterface.speciesGuide.warmTopN.helpText')}
+              min={0}
+              max={500}
+              step={10}
+              disabled={store.isLoading || store.isSaving}
+              onUpdate={value => updateSpeciesGuideSetting('warmTopN', value)}
+            />
           </div>
         </div>
       </div>

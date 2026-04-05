@@ -3918,7 +3918,8 @@
         "appearance": "Apparence",
         "language": "Langue et régional",
         "visualContent": "Contenu visuel",
-        "audioPlayback": "Lecture audio"
+        "audioPlayback": "Lecture audio",
+        "speciesGuide": "Guide des espèces"
       },
       "appearance": {
         "title": "Apparence",
@@ -3938,6 +3939,40 @@
         "defaultGain": "Amplification du volume par défaut",
         "defaultGainHelpText": "Gain initial appliqué lors de la lecture des enregistrements. Les sons d'oiseaux sont souvent faibles, une amplification de 6 à 12 dB est recommandée.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Guide des espèces",
+        "description": "Configurez le guide d identification affiché dans les détails.",
+        "enabled": {
+          "label": "Activer le guide des espèces",
+          "helpText": "Afficher des guides basés sur Wikipedia."
+        },
+        "sections": {
+          "title": "Sections du guide"
+        },
+        "showEnrichments": {
+          "label": "Afficher les enrichissements",
+          "helpText": "Afficher le contexte saisonnier, les badges et les liens externes."
+        },
+        "showSimilarSpecies": {
+          "label": "Afficher les espèces similaires",
+          "helpText": "Panneau de comparaison avec les espèces du même genre."
+        },
+        "showNotes": {
+          "label": "Afficher les notes",
+          "helpText": "Panneau de notes personnelles."
+        },
+        "cache": {
+          "title": "Cache du guide"
+        },
+        "preFetchEnabled": {
+          "label": "Précharger les guides",
+          "helpText": "Récupérer automatiquement les guides en arrière-plan."
+        },
+        "warmTopN": {
+          "label": "Préchauffer le cache au démarrage",
+          "helpText": "Nombre d espèces à précharger. 0 = désactivé."
+        }
       }
     },
     "restartRequired": "Certaines modifications nécessitent un redémarrage du serveur pour prendre effet. Veuillez redémarrer BirdNET-Go."

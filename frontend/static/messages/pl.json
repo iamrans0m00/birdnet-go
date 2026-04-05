@@ -3918,7 +3918,8 @@
         "appearance": "Wygląd",
         "language": "Język i regionalne",
         "visualContent": "Treści wizualne",
-        "audioPlayback": "Odtwarzanie audio"
+        "audioPlayback": "Odtwarzanie audio",
+        "speciesGuide": "Przewodnik gatunków"
       },
       "appearance": {
         "title": "Wygląd",
@@ -3938,6 +3939,40 @@
         "defaultGain": "Domyślne wzmocnienie głośności",
         "defaultGainHelpText": "Początkowe wzmocnienie stosowane podczas odtwarzania nagrań. Dźwięki ptaków są często ciche, dlatego zalecane jest wzmocnienie 6-12 dB.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Przewodnik gatunków",
+        "description": "Skonfiguruj przewodnik identyfikacji gatunków.",
+        "enabled": {
+          "label": "Włącz przewodnik gatunków",
+          "helpText": "Wyświetlaj przewodniki identyfikacji oparte na Wikipedii."
+        },
+        "sections": {
+          "title": "Sekcje przewodnika"
+        },
+        "showEnrichments": {
+          "label": "Pokaż wzbogacenia",
+          "helpText": "Kontekst sezonowy, odznaki zasięgu i zewnętrzne linki."
+        },
+        "showSimilarSpecies": {
+          "label": "Pokaż podobne gatunki",
+          "helpText": "Panel porównania z gatunkami tego samego rodzaju."
+        },
+        "showNotes": {
+          "label": "Pokaż notatki gatunku",
+          "helpText": "Panel notatek osobistych."
+        },
+        "cache": {
+          "title": "Pamięć podręczna"
+        },
+        "preFetchEnabled": {
+          "label": "Pobierz z wyprzedzeniem",
+          "helpText": "Automatycznie pobieraj przewodniki w tle."
+        },
+        "warmTopN": {
+          "label": "Rozgrzej pamięć przy starcie",
+          "helpText": "Liczba gatunków do wstępnego załadowania. 0 = wyłączone."
+        }
       }
     },
     "restartRequired": "Niektóre zmiany wymagają ponownego uruchomienia serwera. Uruchom ponownie BirdNET-Go."

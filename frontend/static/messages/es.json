@@ -3918,7 +3918,8 @@
         "appearance": "Apariencia",
         "language": "Idioma y regional",
         "visualContent": "Contenido visual",
-        "audioPlayback": "Reproducción de audio"
+        "audioPlayback": "Reproducción de audio",
+        "speciesGuide": "Guía de especies"
       },
       "appearance": {
         "title": "Apariencia",
@@ -3938,6 +3939,40 @@
         "defaultGain": "Amplificación de volumen predeterminada",
         "defaultGainHelpText": "Ganancia inicial aplicada al reproducir grabaciones. Los sonidos de aves suelen ser suaves, por lo que se recomienda una amplificación de 6-12 dB.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Guía de especies",
+        "description": "Configura la guía de identificación de especies.",
+        "enabled": {
+          "label": "Activar guía de especies",
+          "helpText": "Mostrar guías de identificación basadas en Wikipedia."
+        },
+        "sections": {
+          "title": "Secciones de la guía"
+        },
+        "showEnrichments": {
+          "label": "Mostrar enriquecimientos",
+          "helpText": "Mostrar contexto estacional, indicadores de rango y enlaces externos."
+        },
+        "showSimilarSpecies": {
+          "label": "Mostrar especies similares",
+          "helpText": "Panel de comparación con especies del mismo género."
+        },
+        "showNotes": {
+          "label": "Mostrar notas de especie",
+          "helpText": "Panel de notas personales."
+        },
+        "cache": {
+          "title": "Caché de guías"
+        },
+        "preFetchEnabled": {
+          "label": "Precargar guías",
+          "helpText": "Obtener guías automáticamente en segundo plano."
+        },
+        "warmTopN": {
+          "label": "Precalentar caché al inicio",
+          "helpText": "Número de especies a precargar. 0 = desactivado."
+        }
       }
     },
     "restartRequired": "Algunos cambios requieren reiniciar el servidor para aplicarse. Reinicia BirdNET-Go."
