@@ -52,8 +52,14 @@
   import { t } from '$lib/i18n';
   import { loggers } from '$lib/utils/logger';
   import { safeGet } from '$lib/utils/security';
-  import { api, ApiError } from '$lib/utils/api';
+  import { api } from '$lib/utils/api';
   import { getLocalDateString } from '$lib/utils/date';
+  import {
+    buildSpeciesNameMaps,
+    resolveSpeciesDisplayNames,
+    isSpeciesInList,
+    type SpeciesNameMaps,
+  } from '$lib/utils/speciesNames';
   import {
     ArrowLeftRight,
     ChevronRight,
@@ -212,14 +218,18 @@
 
   // Search/filter/expand state is now handled inside SpeciesTable component
 
-  // Lookup map: commonName (lowercase) → scientificName, built from species API
-  let speciesScientificNameMap = $state(new Map<string, string>());
+  // Bidirectional species name lookup maps, built from species API
+  let speciesNameMaps = $state<SpeciesNameMaps>({
+    commonToScientific: new Map(),
+    scientificToCommon: new Map(),
+    allNames: [],
+  });
 
   // Scientific name predictions for taxonomy synonym autocomplete
   // Format: "ScientificName (CommonName)"
   let scientificNamePredictions = $state<string[]>([]);
 
-  // PERFORMANCE OPTIMIZATION: Derived species list
+  // Derived species list: contains both common and scientific names for bidirectional search
   let allSpecies = $derived(speciesListState.data);
 
   // Species predictions state
@@ -370,7 +380,7 @@
   let synonyms = $derived(store.formData.taxonomySynonyms ?? {});
   let synonymCount = $derived(Object.keys(synonyms).length);
   let knownScientificNames = $derived(
-    new Set(Array.from(speciesScientificNameMap.values()).map(n => n.toLowerCase()))
+    new Set(Array.from(speciesNameMaps.commonToScientific.values()).map(n => n.toLowerCase()))
   );
   let synonymBirdnetName = $state('');
   let synonymUpdatedName = $state('');
@@ -552,17 +562,10 @@
       }
       const data = await api.get<SpeciesListResponse>('/api/v2/species/all');
       const speciesList = data.species ?? [];
-      speciesListState.data = speciesList.map(s => s.commonName || s.label);
 
-      // Build lookup map: commonName (lowercase) → scientificName
-      const map = new Map<string, string>();
-      for (const s of speciesList) {
-        const name = s.commonName || s.label;
-        if (s.scientificName) {
-          map.set(name.toLowerCase(), s.scientificName);
-        }
-      }
-      speciesScientificNameMap = map;
+      // Build bidirectional maps and combined name list
+      speciesNameMaps = buildSpeciesNameMaps(speciesList);
+      speciesListState.data = speciesNameMaps.allNames;
 
       // Build scientific name predictions for taxonomy synonym autocomplete
       scientificNamePredictions = speciesList
@@ -570,14 +573,10 @@
         .map(s => `${s.scientificName} (${s.commonName || s.label})`);
     } catch (error) {
       logger.error('Failed to load species data:', error);
-      // Provide specific error messages based on status code
-      if (error instanceof ApiError) {
-        speciesListState.error = t('settings.species.errors.speciesLoadFailed');
-      } else {
-        speciesListState.error = t('settings.species.errors.speciesLoadFailed');
-      }
+      speciesListState.error = t('settings.species.errors.speciesLoadFailed');
       speciesListState.data = [];
-      speciesScientificNameMap = new Map();
+      // Preserve last-successful speciesNameMaps so alias-aware display/dedup
+      // continues working with stale data rather than silently breaking.
     } finally {
       speciesListState.loading = false;
     }
@@ -640,19 +639,31 @@
       });
 
       // Cross-reference with include/exclude and config lists (using captured values)
+      const threshold = response.threshold;
+
+      // Check if a species (by common or scientific name) is in a name set.
+      // Handles users who add species by scientific name to include/config lists.
+      const isInNameSet = (
+        nameSet: Set<string>,
+        commonName: string,
+        scientificName: string
+      ): boolean =>
+        nameSet.has(commonName.toLowerCase()) || nameSet.has(scientificName.toLowerCase());
+
       const includeSet = new Set(currentInclude.map(s => s.toLowerCase()));
       const configKeys = new Set(Object.keys(currentConfig).map(s => s.toLowerCase()));
-      const threshold = response.threshold;
 
       // Filter species that pass the threshold OR are manually included
       const mappedSpecies: ActiveSpecies[] = response.species
-        .filter(s => s.score >= threshold || includeSet.has(s.commonName.toLowerCase()))
+        .filter(
+          s => s.score >= threshold || isInNameSet(includeSet, s.commonName, s.scientificName)
+        )
         .map(s => ({
           commonName: s.commonName,
           scientificName: s.scientificName,
           score: s.score,
-          isManuallyIncluded: includeSet.has(s.commonName.toLowerCase()),
-          hasCustomConfig: configKeys.has(s.commonName.toLowerCase()),
+          isManuallyIncluded: isInNameSet(includeSet, s.commonName, s.scientificName),
+          hasCustomConfig: isInNameSet(configKeys, s.commonName, s.scientificName),
         }));
 
       // Sort by score descending
@@ -786,11 +797,11 @@
       }
 
       const inputLower = input.toLowerCase();
-      const includeSet = new Set(settings.include.map(s => s.toLowerCase())); // Use Set with lowercase for case-insensitive comparison
       includePredictions = allSpecies
         .filter(
           species =>
-            species.toLowerCase().includes(inputLower) && !includeSet.has(species.toLowerCase())
+            species.toLowerCase().includes(inputLower) &&
+            !isSpeciesInList(species, settings.include, speciesNameMaps)
         )
         .slice(0, 10);
     }, 150); // Debounce by 150ms
@@ -805,11 +816,11 @@
       }
 
       const inputLower = input.toLowerCase();
-      const excludeSet = new Set(settings.exclude.map(s => s.toLowerCase())); // Use Set with lowercase for case-insensitive comparison
       excludePredictions = allSpecies
         .filter(
           species =>
-            species.toLowerCase().includes(inputLower) && !excludeSet.has(species.toLowerCase())
+            species.toLowerCase().includes(inputLower) &&
+            !isSpeciesInList(species, settings.exclude, speciesNameMaps)
         )
         .slice(0, 10);
     }, 150); // Debounce by 150ms
@@ -824,19 +835,22 @@
       }
 
       const inputLower = input.toLowerCase();
-      const existingConfigs = new Set(Object.keys(settings.config).map(s => s.toLowerCase())); // Use Set
+      // Exclude the currently-editing species from the collision check so its
+      // own alias remains selectable during rename operations.
+      const existingConfigKeys = Object.keys(settings.config).filter(key => key !== editingSpecies);
       configPredictions = allSpecies
-        .filter(species => {
-          const speciesLower = species.toLowerCase();
-          return speciesLower.includes(inputLower) && !existingConfigs.has(speciesLower);
-        })
+        .filter(
+          species =>
+            species.toLowerCase().includes(inputLower) &&
+            !isSpeciesInList(species, existingConfigKeys, speciesNameMaps)
+        )
         .slice(0, 10);
     }, 150); // Debounce by 150ms
   }
 
   // Species management functions
   function addIncludeSpecies(species: string) {
-    if (!species.trim() || settings.include.includes(species)) return;
+    if (!species.trim() || isSpeciesInList(species, settings.include, speciesNameMaps)) return;
 
     const updatedSpecies = [...settings.include, species];
     settingsActions.updateSection('realtime', {
@@ -860,7 +874,7 @@
   }
 
   function addExcludeSpecies(species: string) {
-    if (!species.trim() || settings.exclude.includes(species)) return;
+    if (!species.trim() || isSpeciesInList(species, settings.exclude, speciesNameMaps)) return;
 
     const updatedSpecies = [...settings.exclude, species];
     settingsActions.updateSection('realtime', {
@@ -945,14 +959,16 @@
     }
 
     let updatedConfig = { ...settings.config };
+    // Exclude the currently-editing entry so renaming to its own alias is allowed
+    const existingConfigKeys = Object.keys(updatedConfig).filter(key => key !== editingSpecies);
+
+    // Check alias collision for both create and rename operations
+    if (isSpeciesInList(species, existingConfigKeys, speciesNameMaps)) {
+      toastActions.error(t('settings.species.duplicateConfigError', { species }));
+      return;
+    }
 
     if (editingSpecies && editingSpecies !== species) {
-      // Check if new species name already exists
-      if (species in updatedConfig) {
-        // Prevent overwriting existing configuration
-        toastActions.error(t('settings.species.duplicateConfigError', { species }));
-        return;
-      }
       // Rename: delete old entry and create new
       // eslint-disable-next-line security/detect-object-injection -- editingSpecies is controlled component state
       delete updatedConfig[editingSpecies];
@@ -1232,7 +1248,8 @@
     species={settings.include}
     icon={CirclePlus}
     iconColorClass="emerald"
-    scientificNameMap={speciesScientificNameMap}
+    scientificNameMap={speciesNameMaps.commonToScientific}
+    scientificToCommonMap={speciesNameMaps.scientificToCommon}
     predictions={includePredictions}
     bind:inputValue={includeInputValue}
     inputLabel={t('settings.species.addSpeciesToIncludeLabel')}
@@ -1252,7 +1269,8 @@
     species={settings.exclude}
     icon={CircleMinus}
     iconColorClass="red"
-    scientificNameMap={speciesScientificNameMap}
+    scientificNameMap={speciesNameMaps.commonToScientific}
+    scientificToCommonMap={speciesNameMaps.scientificToCommon}
     predictions={excludePredictions}
     bind:inputValue={excludeInputValue}
     inputLabel={t('settings.species.addSpeciesToExcludeLabel')}
@@ -1574,11 +1592,12 @@
             </thead>
             <tbody>
               {#each Object.entries(settings.config) as [species, config] (species)}
+                {@const resolved = resolveSpeciesDisplayNames(species, speciesNameMaps)}
                 <tr
                   class="border-b last:border-b-0 border-[var(--border-100)]/50 hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors"
                 >
                   <td class="py-2.5 px-3">
-                    <span class="font-medium text-sm">{species}</span>
+                    <span class="font-medium text-sm">{resolved.displayCommonName}</span>
                     {#if config.actions?.length > 0}
                       <span
                         class="ml-2 inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-teal-500/15 text-teal-600 dark:text-teal-400"
@@ -1588,9 +1607,7 @@
                     {/if}
                   </td>
                   <td class="py-2.5 px-3">
-                    <span class="text-xs text-muted italic"
-                      >{speciesScientificNameMap.get(species.toLowerCase()) ?? ''}</span
-                    >
+                    <span class="text-xs text-muted italic">{resolved.displayScientificName}</span>
                   </td>
                   <td class="py-2.5 px-3">
                     <div class="flex items-center gap-2">
