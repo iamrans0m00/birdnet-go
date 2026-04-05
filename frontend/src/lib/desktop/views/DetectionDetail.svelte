@@ -875,7 +875,7 @@
 
         {#if guideData.features?.enrichments && guideData.external_links && guideData.external_links.length > 0}
           <div class="external-links">
-            <span class="external-links-label">{t('common.actions.learnMore')}</span>
+            <span class="external-links-label">{t('common.buttons.learnMore')}</span>
             {#each guideData.external_links as link (link.name)}
               <a
                 href={link.url}

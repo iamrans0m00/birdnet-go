@@ -180,7 +180,7 @@
 <Modal
   isOpen={isOpen && displaySpecies !== null}
   title={displaySpecies?.common_name ?? ''}
-  size="md"
+  size="2xl"
   type="default"
   onClose={handleClose}
   className="sm:modal-middle"
@@ -304,7 +304,7 @@
 
           {#if guideData.features?.enrichments && guideData.external_links && guideData.external_links.length > 0}
             <div class="flex items-center flex-wrap gap-2 mt-3">
-              <span class="text-[0.6875rem] opacity-50">{t('common.actions.learnMore')}</span>
+              <span class="text-[0.6875rem] opacity-50">{t('common.buttons.learnMore')}</span>
               {#each guideData.external_links as link (link.name)}
                 <a
                   href={link.url}
