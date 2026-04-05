@@ -35,7 +35,7 @@ func (s *GORMGuideStore) GetGuideCache(ctx context.Context, scientificName, prov
 		First(&entry).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
+		return nil, nil //nolint:nilnil // record not found is not an error; nil entry is the expected signal
 	}
 	if err != nil {
 		return nil, err

@@ -50,6 +50,7 @@ type Controller struct {
 	Settings            *conf.Settings
 	BirdImageCache      *imageprovider.BirdImageCache
 	GuideCache          *guideprovider.GuideCache
+	guideCacheMu        sync.RWMutex // protects GuideCache for hot-reload
 	SunCalc             *suncalc.SunCalc
 	Processor           *processor.Processor
 	EBirdClient         *ebird.Client
@@ -161,6 +162,23 @@ func WithGuideCache(gc *guideprovider.GuideCache) Option {
 	return func(c *Controller) {
 		c.GuideCache = gc
 	}
+}
+
+// GetGuideCache returns the current guide cache pointer (thread-safe).
+func (c *Controller) GetGuideCache() *guideprovider.GuideCache {
+	c.guideCacheMu.RLock()
+	defer c.guideCacheMu.RUnlock()
+	return c.GuideCache
+}
+
+// SetGuideCache replaces the guide cache (thread-safe). The old cache is closed if non-nil.
+func (c *Controller) SetGuideCache(gc *guideprovider.GuideCache) {
+	c.guideCacheMu.Lock()
+	defer c.guideCacheMu.Unlock()
+	if c.GuideCache != nil {
+		c.GuideCache.Close()
+	}
+	c.GuideCache = gc
 }
 
 // WithV2Manager sets the v2 database manager for the controller.

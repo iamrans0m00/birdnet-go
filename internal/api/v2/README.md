@@ -125,17 +125,17 @@ Lightweight connectivity check. Returns a minimal response with no database quer
 
 ### Integrations (`integrations.go`)
 
-| Method | Route                                        | Handler                         | Auth | Description                           |
-| ------ | -------------------------------------------- | ------------------------------- | ---- | ------------------------------------- |
-| GET    | `/integrations/mqtt/status`                  | `GetMQTTStatus`                 | ✅   | MQTT connection status                |
-| POST   | `/integrations/mqtt/test`                    | `TestMQTTConnection`            | ✅   | Test MQTT connection                  |
-| POST   | `/integrations/mqtt/homeassistant/discovery` | `TriggerHomeAssistantDiscovery` | ✅   | Trigger Home Assistant MQTT discovery |
-| GET    | `/integrations/mqtt/tls/certificate`         | `GetMQTTTLSCertificate`         | ✅   | Get MQTT TLS certificate status       |
-| POST   | `/integrations/mqtt/tls/certificate`         | `UploadMQTTTLSCertificate`      | ✅   | Upload MQTT TLS certificates          |
-| DELETE | `/integrations/mqtt/tls/certificate`         | `DeleteMQTTTLSCertificate`      | ✅   | Remove MQTT TLS certificates          |
-| GET    | `/integrations/birdweather/status`           | `GetBirdWeatherStatus`          | ✅   | BirdWeather integration status        |
-| POST   | `/integrations/birdweather/test`             | `TestBirdWeatherConnection`     | ✅   | Test BirdWeather connection           |
-| POST   | `/integrations/weather/test`                 | `TestWeatherConnection`         | ✅   | Test weather provider connection      |
+| Method | Route                                        | Handler                         | Auth | Description                                    |
+| ------ | -------------------------------------------- | ------------------------------- | ---- | ---------------------------------------------- |
+| GET    | `/integrations/mqtt/status`                  | `GetMQTTStatus`                 | ✅   | MQTT connection status                         |
+| POST   | `/integrations/mqtt/test`                    | `TestMQTTConnection`            | ✅   | Test MQTT connection                           |
+| POST   | `/integrations/mqtt/homeassistant/discovery` | `TriggerHomeAssistantDiscovery` | ✅   | Trigger Home Assistant MQTT discovery          |
+| GET    | `/integrations/mqtt/tls/certificate`         | `GetMQTTTLSCertificate`         | ✅   | Get MQTT TLS certificate status                |
+| POST   | `/integrations/mqtt/tls/certificate`         | `UploadMQTTTLSCertificate`      | ✅   | Upload MQTT TLS certificates                   |
+| DELETE | `/integrations/mqtt/tls/certificate`         | `DeleteMQTTTLSCertificate`      | ✅   | Remove MQTT TLS certificates                   |
+| GET    | `/integrations/birdweather/status`           | `GetBirdWeatherStatus`          | ✅   | BirdWeather integration status                 |
+| POST   | `/integrations/birdweather/test`             | `TestBirdWeatherConnection`     | ✅   | Test BirdWeather connection                    |
+| POST   | `/integrations/weather/test`                 | `TestWeatherConnection`         | ✅   | Test weather provider connection               |
 | POST   | `/integrations/ebird/test`                   | `TestEBirdConnection`           | ✅   | Test eBird API connectivity and authentication |
 
 ### Media (`media.go`)
@@ -210,17 +210,130 @@ Lightweight connectivity check. Returns a minimal response with no database quer
 
 ### Species (`species.go`)
 
-| Method | Route                      | Handler               | Auth | Description                                                       |
-| ------ | -------------------------- | --------------------- | ---- | ----------------------------------------------------------------- |
-| GET    | `/species`                 | `GetSpeciesInfo`      | ❌   | Get extended species information including rarity status          |
-| GET    | `/species/all`             | `GetAllSpecies`       | ❌   | Get all BirdNET species labels (not filtered by location)         |
-| GET    | `/species/taxonomy`        | `GetSpeciesTaxonomy`  | ❌   | Get detailed taxonomy data with subspecies and hierarchy          |
-| GET    | `/species/:code/thumbnail` | `GetSpeciesThumbnail` | ❌   | Get bird thumbnail image by species code (redirects to image URL) |
-| GET    | `/species/:scientific_name/guide` | `GetSpeciesGuide` | ❌   | Get species guide text (description, conservation status, quality, expectedness, season, external links) |
-| GET    | `/species/:scientific_name/similar` | `GetSimilarSpecies` | ❌   | Get similar species (same genus) with optional guide summaries |
-| GET    | `/species/:scientific_name/notes` | `GetSpeciesNotes` | ❌   | Get user-authored notes for a species |
-| POST   | `/species/:scientific_name/notes` | `CreateSpeciesNote` | ✅   | Create a new species note |
-| DELETE | `/species/notes/:id` | `DeleteSpeciesNote` | ✅   | Delete a species note by ID |
+| Method | Route                               | Handler               | Auth | Description                                                                                              |
+| ------ | ----------------------------------- | --------------------- | ---- | -------------------------------------------------------------------------------------------------------- |
+| GET    | `/species`                          | `GetSpeciesInfo`      | ❌   | Get extended species information including rarity status                                                 |
+| GET    | `/species/all`                      | `GetAllSpecies`       | ❌   | Get all BirdNET species labels (not filtered by location)                                                |
+| GET    | `/species/taxonomy`                 | `GetSpeciesTaxonomy`  | ❌   | Get detailed taxonomy data with subspecies and hierarchy                                                 |
+| GET    | `/species/:code/thumbnail`          | `GetSpeciesThumbnail` | ❌   | Get bird thumbnail image by species code (redirects to image URL)                                        |
+| GET    | `/species/:scientific_name/guide`   | `GetSpeciesGuide`     | ❌   | Get species guide text (description, conservation status, quality, expectedness, season, external links) |
+| GET    | `/species/:scientific_name/similar` | `GetSimilarSpecies`   | ❌   | Get similar species (same genus) with optional guide summaries                                           |
+| GET    | `/species/:scientific_name/notes`   | `GetSpeciesNotes`     | ❌   | Get user-authored notes for a species                                                                    |
+| POST   | `/species/:scientific_name/notes`   | `CreateSpeciesNote`   | ✅   | Create a new species note                                                                                |
+| DELETE | `/species/notes/:id`                | `DeleteSpeciesNote`   | ✅   | Delete a species note by ID                                                                              |
+
+#### GET /api/v2/species/:scientific_name/guide
+
+Returns species guide information from Wikipedia (or configured provider) with two-tier caching (memory + SQLite). Supports locale-specific Wikipedia editions.
+
+**Query Parameters:**
+
+| Param    | Type   | Required | Description                                              |
+| -------- | ------ | -------- | -------------------------------------------------------- |
+| `locale` | string | No       | Wikipedia language code (e.g. `de`, `fr`). Default: `en` |
+
+**Response:**
+
+```json
+{
+  "scientific_name": "Turdus merula",
+  "common_name": "Common blackbird",
+  "description": "The common blackbird is a species of true thrush.\n\n## Description\nThe adult male is...",
+  "conservation_status": "",
+  "quality": "full",
+  "expectedness": "expected",
+  "current_season": "spring",
+  "external_links": [
+    {
+      "name": "Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Common_blackbird"
+    }
+  ],
+  "features": {
+    "notes": true,
+    "enrichments": true,
+    "similar_species": true
+  },
+  "source": {
+    "provider": "wikipedia",
+    "url": "https://en.wikipedia.org/wiki/Common_blackbird",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/"
+  },
+  "partial": false,
+  "cached_at": "2026-04-04T12:00:00Z"
+}
+```
+
+**Quality values:** `full` (has structured sections), `intro_only` (summary paragraph only), `stub` (metadata only).
+
+**Expectedness values:** `expected`, `uncommon`, `rare`, `unexpected`. Derived from BirdNET's probable species scores for the current date and location.
+
+**Error responses:** `400` invalid name, `404` guide feature disabled or species not found, `503` guide cache not available.
+
+#### GET /api/v2/species/:scientific_name/similar
+
+Returns up to 5 species in the same genus from BirdNET's label list, with optional guide summaries.
+
+**Query Parameters:**
+
+| Param    | Type   | Required | Description                                 |
+| -------- | ------ | -------- | ------------------------------------------- |
+| `locale` | string | No       | Wikipedia language code for guide summaries |
+
+**Response:**
+
+```json
+{
+  "scientific_name": "Turdus merula",
+  "genus": "Turdus",
+  "similar": [
+    {
+      "scientific_name": "Turdus philomelos",
+      "common_name": "Song Thrush",
+      "relationship": "same_genus",
+      "guide_summary": "The song thrush is a thrush..."
+    }
+  ]
+}
+```
+
+#### GET /api/v2/species/:scientific_name/notes
+
+Returns all user-authored notes for a species.
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "entry": "Heard singing from the oak tree at dawn",
+    "created_at": "2026-04-04T08:30:00Z",
+    "updated_at": "2026-04-04T08:30:00Z"
+  }
+]
+```
+
+#### POST /api/v2/species/:scientific_name/notes
+
+Creates a new species note. Requires authentication. Maximum note length: 10,000 characters.
+
+**Request Body:**
+
+```json
+{
+  "entry": "Heard singing from the oak tree at dawn"
+}
+```
+
+**Response:** `201 Created` with the created `SpeciesNoteResponse`.
+
+#### DELETE /api/v2/species/notes/:id
+
+Deletes a species note by ID. Requires authentication.
+
+**Response:** `200 OK` with `{"message": "Note deleted successfully"}`.
 
 ### Server-Sent Events (`sse.go`)
 
@@ -262,14 +375,14 @@ Lightweight connectivity check. Returns a minimal response with no database quer
 
 ### HLS Streaming (`audio_hls.go`)
 
-| Method | Route                                            | Handler            | Auth                 | Description                    |
-| ------ | ------------------------------------------------ | ------------------ | -------------------- | ------------------------------ |
-| POST   | `/streams/hls/:sourceID/start`                   | `StartHLSStream`   | ✅                   | Start HLS stream for source    |
-| POST   | `/streams/hls/:sourceID/stop`                    | `StopHLSStream`    | ✅                   | Stop HLS stream                |
-| POST   | `/streams/hls/heartbeat`                         | `HLSHeartbeat`     | ✅ publicLiveAudio   | Keep HLS stream alive          |
-| GET    | `/streams/hls/status`                            | `GetHLSStatus`     | ✅ publicLiveAudio   | Get status of all HLS streams  |
-| GET    | `/streams/hls/t/:streamToken/playlist.m3u8`      | `ServeHLSPlaylist` | 🔑 token             | Get HLS playlist via token     |
-| GET    | `/streams/hls/t/:streamToken/*`                  | `ServeHLSContent`  | 🔑 token             | Serve HLS segments via token   |
+| Method | Route                                       | Handler            | Auth               | Description                   |
+| ------ | ------------------------------------------- | ------------------ | ------------------ | ----------------------------- |
+| POST   | `/streams/hls/:sourceID/start`              | `StartHLSStream`   | ✅                 | Start HLS stream for source   |
+| POST   | `/streams/hls/:sourceID/stop`               | `StopHLSStream`    | ✅                 | Stop HLS stream               |
+| POST   | `/streams/hls/heartbeat`                    | `HLSHeartbeat`     | ✅ publicLiveAudio | Keep HLS stream alive         |
+| GET    | `/streams/hls/status`                       | `GetHLSStatus`     | ✅ publicLiveAudio | Get status of all HLS streams |
+| GET    | `/streams/hls/t/:streamToken/playlist.m3u8` | `ServeHLSPlaylist` | 🔑 token           | Get HLS playlist via token    |
+| GET    | `/streams/hls/t/:streamToken/*`             | `ServeHLSContent`  | 🔑 token           | Serve HLS segments via token  |
 
 **Token-Based Authentication:**
 
@@ -907,7 +1020,6 @@ Updates are sent only when changes are detected, reducing bandwidth compared to 
 ### Integration Tips
 
 1. **Choose the Right Endpoint**:
-
    - Use SSE (`/streams/health/stream`) for real-time monitoring dashboards
    - Use REST polling (`/streams/status`) for periodic background checks
    - Use REST (`/streams/health/:url`) for on-demand detailed diagnostics

@@ -1886,6 +1886,7 @@ var settingsChangeChecks = []settingsChangeCheck{
 	{"Push notifications", "reconfigure_push_notifications", pushNotificationSettingsChanged, "Reconfiguring push notification providers...", notification.MsgSettingsReconfiguringPushNotifications, "info", toastDurationMedium},
 	{"Quiet hours", schedule.SignalReconfigureQuietHours, quietHoursSettingsChanged, "Updating quiet hours schedule...", "", "info", toastDurationShort},
 	{"Web server", "", webserverSettingsChanged, "Web server settings changed. Restart required to apply.", notification.MsgSettingsWebserverRestart, "warning", toastDurationExtended},
+	{"Species Guide", "reconfigure_species_guide", speciesGuideSettingsChanged, "Reconfiguring species guide...", "", "info", toastDurationShort},
 }
 
 // handleSettingsChanges checks if important settings have changed and triggers appropriate actions
@@ -2199,6 +2200,13 @@ func webserverSettingsChanged(oldSettings, currentSettings *conf.Settings) bool 
 	}
 
 	return false
+}
+
+// speciesGuideSettingsChanged checks if species guide enabled/provider settings changed.
+func speciesGuideSettingsChanged(oldSettings, currentSettings *conf.Settings) bool {
+	old := oldSettings.Realtime.Dashboard.SpeciesGuide
+	cur := currentSettings.Realtime.Dashboard.SpeciesGuide
+	return old.Enabled != cur.Enabled || old.Provider != cur.Provider
 }
 
 // LocaleData represents a locale with its code and full name

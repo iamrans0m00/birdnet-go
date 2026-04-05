@@ -40,6 +40,9 @@ const (
 	RarityThresholdRare       = 0.05
 )
 
+// maxNoteEntryLength is the maximum allowed length for a species note entry.
+const maxNoteEntryLength = 10_000
+
 // Expectedness represents how expected a species is in the user's area at the current time.
 type Expectedness string
 
@@ -637,7 +640,7 @@ func (c *Controller) getEBirdTaxonomy(ctx context.Context, scientificName, local
 
 // findDetailedSubspecies finds all subspecies with detailed information
 func (c *Controller) findDetailedSubspecies(taxonomy []ebird.TaxonomyEntry, speciesCode string) []SubspeciesInfo {
-	var subspecies []SubspeciesInfo
+	var subspecies []SubspeciesInfo //nolint:prealloc // subspecies count requires full scan to determine
 
 	for i := range taxonomy {
 		// Check if this entry reports as our species and is a subspecies category
@@ -809,8 +812,9 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 			Build(), "Species guide feature is disabled", http.StatusNotFound)
 	}
 
-	// Check if guide cache is available
-	if c.GuideCache == nil {
+	// Check if guide cache is available (read under lock for hot-reload safety).
+	gc := c.GetGuideCache()
+	if gc == nil {
 		return c.HandleError(ctx, errors.Newf("species guide not available").
 			Category(errors.CategoryConfiguration).
 			Component("api-species").
@@ -839,7 +843,7 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 	locale := strings.TrimSpace(ctx.QueryParam("locale"))
 
 	// Fetch guide from cache (memory → DB → providers)
-	guide, err := c.GuideCache.Get(ctx.Request().Context(), scientificName, guideprovider.FetchOptions{Locale: locale})
+	guide, err := gc.Get(ctx.Request().Context(), scientificName, guideprovider.FetchOptions{Locale: locale})
 	if err != nil {
 		if errors.Is(err, guideprovider.ErrGuideNotFound) {
 			return c.HandleError(ctx, err, "Species guide not found", http.StatusNotFound)
@@ -881,20 +885,21 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 		response.CurrentSeason = computeCurrentSeason(latitude, now)
 		response.ExternalLinks = buildExternalLinks(guide.CommonName)
 
-		if bn := c.Processor.GetBirdNET(); bn != nil {
-			speciesLabel := scientificName + "_" + guide.CommonName
-			speciesScores, scoreErr := bn.GetProbableSpecies(now, 0.0)
-			if scoreErr == nil {
-				found := false
-				for _, ss := range speciesScores {
-					if ss.Label == speciesLabel {
-						response.Expectedness = scoreToExpectedness(ss.Score)
-						found = true
-						break
+		if c.Processor != nil {
+			if bn := c.Processor.GetBirdNET(); bn != nil {
+				speciesScores, scoreErr := bn.GetProbableSpecies(now, 0.0)
+				if scoreErr == nil {
+					found := false
+					for _, ss := range speciesScores {
+						if detection.ParseSpeciesString(ss.Label).ScientificName == scientificName {
+							response.Expectedness = scoreToExpectedness(ss.Score)
+							found = true
+							break
+						}
 					}
-				}
-				if !found {
-					response.Expectedness = ExpectednessUnexpected
+					if !found {
+						response.Expectedness = ExpectednessUnexpected
+					}
 				}
 			}
 		}
@@ -962,32 +967,33 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 
 	// Find same-genus species from BirdNET labels.
 	var similar []SimilarSpeciesEntry
-	bn := c.Processor.GetBirdNET()
-	if bn != nil {
-		genusPrefix := genus + " "
-		for _, label := range bn.Settings.BirdNET.Labels {
-			sp := detection.ParseSpeciesString(label)
-			if sp.ScientificName == scientificName {
-				continue // skip self
-			}
-			if strings.HasPrefix(sp.ScientificName, genusPrefix) {
-				similar = append(similar, SimilarSpeciesEntry{
-					ScientificName: sp.ScientificName,
-					CommonName:     sp.CommonName,
-					Relationship:   "same_genus",
-				})
-			}
-			if len(similar) >= 5 {
-				break
+	if c.Processor != nil {
+		if bn := c.Processor.GetBirdNET(); bn != nil {
+			genusPrefix := genus + " "
+			for _, label := range bn.Settings.BirdNET.Labels {
+				sp := detection.ParseSpeciesString(label)
+				if sp.ScientificName == scientificName {
+					continue // skip self
+				}
+				if strings.HasPrefix(sp.ScientificName, genusPrefix) {
+					similar = append(similar, SimilarSpeciesEntry{
+						ScientificName: sp.ScientificName,
+						CommonName:     sp.CommonName,
+						Relationship:   "same_genus",
+					})
+				}
+				if len(similar) >= 5 {
+					break
+				}
 			}
 		}
 	}
 
 	// Optionally fetch short guide summaries for each similar species.
 	locale := strings.TrimSpace(ctx.QueryParam("locale"))
-	if c.GuideCache != nil && len(similar) > 0 {
+	if gc := c.GetGuideCache(); gc != nil && len(similar) > 0 {
 		for i := range similar {
-			guide, guideErr := c.GuideCache.Get(ctx.Request().Context(), similar[i].ScientificName, guideprovider.FetchOptions{Locale: locale})
+			guide, guideErr := gc.Get(ctx.Request().Context(), similar[i].ScientificName, guideprovider.FetchOptions{Locale: locale})
 			if guideErr == nil && guide.Description != "" {
 				// Take first 200 characters as summary.
 				summary := guide.Description
@@ -1123,6 +1129,12 @@ func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
 			Category(errors.CategoryValidation).
 			Component("api-species").
 			Build(), "Note entry is required", http.StatusBadRequest)
+	}
+	if len(entry) > maxNoteEntryLength {
+		return c.HandleError(ctx, errors.Newf("note entry exceeds maximum length of %d characters", maxNoteEntryLength).
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Note entry too long", http.StatusBadRequest)
 	}
 
 	note := &datastore.SpeciesNote{

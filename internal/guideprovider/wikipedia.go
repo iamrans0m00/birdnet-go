@@ -25,6 +25,9 @@ const (
 	// Default locale for Wikipedia API requests.
 	defaultLocale = "en"
 
+	// sectionNameCanto is the localized section heading used in Spanish, Portuguese, and Italian.
+	sectionNameCanto = "Canto"
+
 	// User-Agent following Wikimedia policy
 	wikiUserAgent = "BirdNETGo/1.0 (https://github.com/tphakala/birdnet-go) Go-HTTP-Client"
 
@@ -64,11 +67,11 @@ var identificationSections = []string{
 var localizedSectionNames = map[string][]string{
 	"de": {"Beschreibung", "Merkmale", "Stimme", "Aussehen", "Verwechslungsmöglichkeiten", "Ähnliche Arten"},
 	"fr": {"Description", "Chant et cris", "Voix", "Plumage", "Espèces similaires"},
-	"es": {"Descripción", "Voz", "Canto", "Vocalización", "Especies similares"},
+	"es": {"Descripción", "Voz", sectionNameCanto, "Vocalización", "Especies similares"},
 	"nl": {"Beschrijving", "Geluid", "Stem", "Herkenning"},
 	"pl": {"Opis", "Wygląd", "Głos", "Odgłosy"},
-	"pt": {"Descrição", "Vocalização", "Canto", "Voz"},
-	"it": {"Descrizione", "Voce", "Canto", "Piumaggio"},
+	"pt": {"Descrição", "Vocalização", sectionNameCanto, "Voz"},
+	"it": {"Descrizione", "Voce", sectionNameCanto, "Piumaggio"},
 	"sv": {"Utseende", "Läte", "Kännetecken"},
 	"da": {"Udseende", "Stemme", "Kendetegn"},
 	"fi": {"Kuvaus", "Ääntelyt", "Ulkonäkö"},
@@ -279,7 +282,7 @@ func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title, locale
 	encodedTitle := url.PathEscape(strings.ReplaceAll(title, " ", "_"))
 	apiURL := fmt.Sprintf("%s/%s", baseURL, encodedTitle)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, http.NoBody)
 	if err != nil {
 		return nil, errors.Newf("creating request: %w", err).
 			Component("guideprovider").
@@ -297,7 +300,7 @@ func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title, locale
 			Category(errors.CategoryNetwork).
 			Build()
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // response body close errors are not actionable after successful read
 
 	if err := p.handleHTTPError(resp); err != nil {
 		return nil, err
@@ -353,7 +356,7 @@ func (p *WikipediaGuideProvider) fetchFullExtract(ctx context.Context, title, lo
 	}
 	apiURL := baseURL + "?" + params.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, http.NoBody)
 	if err != nil {
 		return "", errors.Newf("creating extract request: %w", err).
 			Component("guideprovider").
@@ -378,7 +381,7 @@ func (p *WikipediaGuideProvider) fetchFullExtract(ctx context.Context, title, lo
 			Category(errors.CategoryNetwork).
 			Build()
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // response body close errors are not actionable after successful read
 
 	if resp.StatusCode != http.StatusOK {
 		return "", errors.Newf("extract API returned status %d", resp.StatusCode).
@@ -478,7 +481,7 @@ func (p *WikipediaGuideProvider) handleHTTPError(resp *http.Response) error {
 }
 
 // isCircuitOpen checks if the circuit breaker is blocking requests.
-func (p *WikipediaGuideProvider) isCircuitOpen() (bool, string) {
+func (p *WikipediaGuideProvider) isCircuitOpen() (open bool, reason string) {
 	p.circuitMu.RLock()
 	defer p.circuitMu.RUnlock()
 

@@ -3,6 +3,7 @@ package guideprovider
 
 import (
 	"context"
+	"maps"
 	"sync"
 	"time"
 
@@ -288,7 +289,7 @@ func (c *GuideCache) triggerAsyncRefresh(scientificName string, opts FetchOption
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*providerTimeout)
 		defer cancel()
-		c.sfGroup.Do(scientificName, func() (any, error) {
+		_, _, _ = c.sfGroup.Do(scientificName, func() (any, error) {
 			return c.fetchFromProviders(ctx, scientificName, opts)
 		})
 	}()
@@ -336,9 +337,7 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 	if fallbackPolicy == fallbackPolicyAll {
 		c.mu.RLock()
 		providers := make(map[string]GuideProvider, len(c.providers))
-		for k, v := range c.providers {
-			providers[k] = v
-		}
+		maps.Copy(providers, c.providers)
 		c.mu.RUnlock()
 
 		for _, name := range defaultFallbackOrder {
@@ -361,7 +360,7 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 			if primaryResult == nil {
 				primaryResult = &guide
 			} else {
-				merged := mergeGuides(*primaryResult, guide)
+				merged := mergeGuides(primaryResult, &guide)
 				primaryResult = &merged
 			}
 		}
@@ -387,8 +386,8 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 }
 
 // mergeGuides merges two guide results, with primary taking precedence.
-func mergeGuides(primary, secondary SpeciesGuide) SpeciesGuide {
-	result := primary
+func mergeGuides(primary, secondary *SpeciesGuide) SpeciesGuide {
+	result := *primary
 	if result.Description == "" {
 		result.Description = secondary.Description
 	}

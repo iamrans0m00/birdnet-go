@@ -17,7 +17,7 @@
   interface Props {
     species: SpeciesData;
     className?: string;
-    onClick?: (species: SpeciesData) => void;
+    onClick?: (_species: SpeciesData) => void;
   }
 
   let { species, className = '', onClick }: Props = $props();
@@ -40,7 +40,7 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_tabindex -- role="button" and tabindex are conditionally set together when onClick is provided -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   class={cn(
     'card bg-[var(--color-base-200)]',

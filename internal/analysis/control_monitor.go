@@ -235,6 +235,8 @@ func (cm *ControlMonitor) handleControlSignal(signal string) {
 		cm.handleQuietHoursStopSoundCard()
 	case schedule.SignalQuietHoursStartSoundCard:
 		cm.handleQuietHoursStartSoundCard()
+	case "reconfigure_species_guide":
+		cm.handleReconfigureSpeciesGuide()
 	default:
 		GetLogger().Warn("Received unknown control signal", logger.String("signal", signal))
 	}
@@ -782,5 +784,37 @@ func (cm *ControlMonitor) handleQuietHoursStartSoundCard() {
 		GetLogger().Info("Quiet hours: sound card restart signal sent")
 	default:
 		GetLogger().Warn("Quiet hours: restart channel full, could not signal sound card restart")
+	}
+}
+
+// handleReconfigureSpeciesGuide re-initializes the species guide cache when the
+// feature is enabled or disabled via the settings UI (hot-reload support).
+func (cm *ControlMonitor) handleReconfigureSpeciesGuide() {
+	if cm.apiController == nil {
+		return
+	}
+
+	settings := conf.GetSettings()
+	if settings == nil {
+		return
+	}
+
+	// Re-initialize with current settings (closes old cache inside SetGuideCache).
+	newCache := initGuideCacheIfNeeded(settings, cm.apiController.DS, cm.apiController.DS)
+	cm.apiController.SetGuideCache(newCache)
+
+	// Re-wire the processor pre-fetch callback if applicable.
+	if cm.proc != nil {
+		if newCache != nil && settings.Realtime.Dashboard.SpeciesGuide.PreFetchEnabled {
+			cm.proc.SetGuidePreFetch(newCache.PreFetch)
+		} else {
+			cm.proc.SetGuidePreFetch(nil)
+		}
+	}
+
+	if newCache != nil {
+		GetLogger().Info("Species guide cache reconfigured and started")
+	} else {
+		GetLogger().Info("Species guide cache disabled")
 	}
 }

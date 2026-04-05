@@ -1,7 +1,6 @@
 package guideprovider
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const wikiTypeStandard = "standard"
+
 func TestWikipediaGuideProvider_Fetch_Success(t *testing.T) {
 	t.Parallel()
 
@@ -21,14 +22,16 @@ func TestWikipediaGuideProvider_Fetch_Success(t *testing.T) {
 	// REST summary endpoint
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		response := wikipediaSummaryResponse{
-			Type:    "standard",
+			Type:    wikiTypeStandard,
 			Title:   "Common blackbird",
 			Extract: "The common blackbird is a species of true thrush.",
 		}
 		response.ContentURLs.Desktop.Page = "https://en.wikipedia.org/wiki/Common_blackbird"
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	})
 
 	// Action API extract endpoint
@@ -47,14 +50,16 @@ func TestWikipediaGuideProvider_Fetch_Success(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	})
 
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
 	provider := newTestWikipediaProvider(server.URL)
-	guide, err := provider.Fetch(context.Background(), "Turdus merula", FetchOptions{})
+	guide, err := provider.Fetch(t.Context(), "Turdus merula", FetchOptions{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "Common blackbird", guide.CommonName)
@@ -81,13 +86,15 @@ func TestWikipediaGuideProvider_Fetch_FallbackToSummary(t *testing.T) {
 	// REST summary endpoint
 	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		response := wikipediaSummaryResponse{
-			Type:    "standard",
+			Type:    wikiTypeStandard,
 			Title:   "Test bird",
 			Extract: "A short summary about a bird.",
 		}
 		response.ContentURLs.Desktop.Page = "https://en.wikipedia.org/wiki/Test_bird"
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	})
 
 	// Action API returns error
@@ -99,7 +106,7 @@ func TestWikipediaGuideProvider_Fetch_FallbackToSummary(t *testing.T) {
 	defer server.Close()
 
 	provider := newTestWikipediaProvider(server.URL)
-	guide, err := provider.Fetch(context.Background(), "Test species", FetchOptions{})
+	guide, err := provider.Fetch(t.Context(), "Test species", FetchOptions{})
 	require.NoError(t, err)
 
 	// Should fall back to the summary extract.
@@ -115,7 +122,7 @@ func TestWikipediaGuideProvider_Fetch_NotFound(t *testing.T) {
 	defer server.Close()
 
 	provider := newTestWikipediaProvider(server.URL)
-	_, err := provider.Fetch(context.Background(), "Nonexistent species", FetchOptions{})
+	_, err := provider.Fetch(t.Context(), "Nonexistent species", FetchOptions{})
 	assert.ErrorIs(t, err, ErrGuideNotFound)
 }
 
@@ -128,12 +135,14 @@ func TestWikipediaGuideProvider_Fetch_Disambiguation(t *testing.T) {
 			Title: "Blackbird",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}))
 	defer server.Close()
 
 	provider := newTestWikipediaProvider(server.URL)
-	_, err := provider.Fetch(context.Background(), "Blackbird", FetchOptions{})
+	_, err := provider.Fetch(t.Context(), "Blackbird", FetchOptions{})
 	assert.ErrorIs(t, err, ErrGuideNotFound)
 }
 
@@ -146,8 +155,8 @@ func TestWikipediaGuideProvider_Fetch_RateLimited(t *testing.T) {
 	defer server.Close()
 
 	provider := newTestWikipediaProvider(server.URL)
-	_, err := provider.fetchSummary(context.Background(), "Turdus merula", "en")
-	assert.Error(t, err)
+	_, err := provider.fetchSummary(t.Context(), "Turdus merula", "en")
+	require.Error(t, err)
 
 	// Circuit breaker should be tripped
 	open, reason := provider.isCircuitOpen()
@@ -160,17 +169,19 @@ func TestWikipediaGuideProvider_Fetch_EmptyExtract(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		response := wikipediaSummaryResponse{
-			Type:    "standard",
+			Type:    wikiTypeStandard,
 			Title:   "Some page",
 			Extract: "",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}))
 	defer server.Close()
 
 	provider := newTestWikipediaProvider(server.URL)
-	_, err := provider.Fetch(context.Background(), "Empty page", FetchOptions{})
+	_, err := provider.Fetch(t.Context(), "Empty page", FetchOptions{})
 	assert.ErrorIs(t, err, ErrGuideNotFound)
 }
 
@@ -199,7 +210,7 @@ func TestWikipediaGuideProvider_CircuitBreaker(t *testing.T) {
 	open, _ = provider.isCircuitOpen()
 	assert.False(t, open)
 	assert.Equal(t, 0, provider.circuitFailures)
-	assert.Equal(t, "", provider.circuitLastError)
+	assert.Empty(t, provider.circuitLastError)
 }
 
 func TestParseSections(t *testing.T) {

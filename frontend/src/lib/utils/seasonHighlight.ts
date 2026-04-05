@@ -58,14 +58,25 @@ const seasonKeywords: Record<string, string[]> = {
   dry2: ['dry', 'drought', 'migration', 'foraging'],
 };
 
+/** Escapes special HTML characters to prevent XSS when used with {@html}. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /**
  * Wraps season-relevant keywords in `<mark class="season-highlight">` tags.
- * Returns the original text if no season is provided or no keywords match.
+ * Always HTML-escapes the input so the result is safe for use with {@html}.
  */
 export function highlightSeasonKeywords(text: string, currentSeason: string | undefined): string {
-  if (!currentSeason || !text) return text;
+  if (!text) return '';
+  const escaped = escapeHtml(text);
 
-  if (!Object.hasOwn(seasonKeywords, currentSeason)) return text;
+  if (!currentSeason || !Object.hasOwn(seasonKeywords, currentSeason)) return escaped;
   // eslint-disable-next-line security/detect-object-injection -- validated via Object.hasOwn above
   const keywords = seasonKeywords[currentSeason];
 
@@ -74,5 +85,5 @@ export function highlightSeasonKeywords(text: string, currentSeason: string | un
   // eslint-disable-next-line security/detect-non-literal-regexp
   const pattern = new RegExp(`\\b(${keywords.join('|')})\\b`, 'gi');
 
-  return text.replace(pattern, '<mark class="season-highlight">$1</mark>');
+  return escaped.replace(pattern, '<mark class="season-highlight">$1</mark>');
 }

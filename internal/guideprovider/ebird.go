@@ -44,18 +44,18 @@ func (p *EBirdGuideProvider) Fetch(ctx context.Context, scientificName string, _
 	}
 
 	// Search for the species in the taxonomy
-	for _, entry := range taxonomy {
-		if entry.ScientificName == scientificName {
+	for i := range taxonomy {
+		if taxonomy[i].ScientificName == scientificName {
 			guide := SpeciesGuide{
 				ScientificName: scientificName,
-				CommonName:     entry.CommonName,
+				CommonName:     taxonomy[i].CommonName,
 				SourceProvider: EBirdProviderName,
 				Partial:        true, // eBird provides no descriptions
 			}
 
 			// Set conservation status for extinct species
-			if entry.Extinct {
-				guide.ConservationStatus = fmt.Sprintf("Extinct (%d)", entry.ExtinctYear)
+			if taxonomy[i].Extinct {
+				guide.ConservationStatus = fmt.Sprintf("Extinct (%d)", taxonomy[i].ExtinctYear)
 			}
 
 			return guide, nil
