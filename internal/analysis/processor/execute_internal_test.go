@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tphakala/birdnet-go/internal/datastore"
 	"github.com/tphakala/birdnet-go/internal/detection"
+	"github.com/tphakala/birdnet-go/internal/errors"
 )
 
 const osWindows = "windows"
@@ -27,6 +29,11 @@ const osWindows = "windows"
 // os.Rename to atomically place the script at its final path. This avoids ETXTBSY
 // ("text file busy") on Linux CI runners with overlayfs, where the kernel may
 // retain an internal write reference after Close, causing exec to fail.
+//
+// After renaming, the function verifies the script is exec-ready by running
+// "/bin/sh -n" (syntax check only) with retry+backoff. On overlayfs the rename
+// itself can trigger a copy-up that briefly holds a kernel write reference,
+// so the retry is the real safety net.
 func createTestScript(t *testing.T, name, content string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -49,7 +56,38 @@ func createTestScript(t *testing.T, name, content string) string {
 
 	require.NoError(t, os.Rename(tmpPath, scriptPath))
 
+	// Verify the script is exec-ready. On overlayfs the rename can trigger a
+	// copy-up that briefly holds a kernel write reference, causing ETXTBSY on
+	// the first exec attempt. We retry with exponential backoff.
+	waitForExecReady(t, scriptPath)
+
 	return scriptPath
+}
+
+// waitForExecReady retries a lightweight exec of the script until it succeeds
+// or a timeout is reached. This drains any lingering kernel write references
+// from overlayfs copy-up that cause ETXTBSY.
+func waitForExecReady(t *testing.T, scriptPath string) {
+	t.Helper()
+	backoff := 5 * time.Millisecond
+	deadline := time.Now().Add(500 * time.Millisecond)
+	for {
+		// "/bin/sh -n" parses the script without executing it.
+		out, err := exec.Command("/bin/sh", "-n", scriptPath).CombinedOutput() //nolint:gosec // test helper, path is controlled
+		if err == nil {
+			return
+		}
+		if !errors.Is(err, syscall.ETXTBSY) {
+			// Syntax error or other issue — fail immediately so the test
+			// gets a clear message instead of a mysterious ETXTBSY later.
+			require.NoError(t, err, "script syntax check failed: %s", string(out))
+		}
+		if time.Now().After(deadline) {
+			require.NoError(t, err, "script still ETXTBSY after 500ms of retries")
+		}
+		time.Sleep(backoff)
+		backoff *= 2
+	}
 }
 
 // readFileEventually polls until the file at path is readable and non-empty,
