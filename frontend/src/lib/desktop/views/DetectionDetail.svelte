@@ -33,6 +33,7 @@
   import { highlightSeasonKeywords } from '$lib/utils/seasonHighlight';
   import { hasReviewPermission, isAuthenticated } from '$lib/utils/auth';
   import { formatLocalDateTime } from '$lib/utils/date';
+  import { api } from '$lib/utils/api';
   import { buildAppUrl } from '$lib/utils/urlHelpers';
   import { loggers } from '$lib/utils/logger';
   import {
@@ -407,20 +408,12 @@
     if (!detection?.scientificName || !newNoteText.trim()) return;
     isSavingNote = true;
     try {
-      const response = await fetch(
-        buildAppUrl(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`),
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entry: newNoteText.trim() }),
-        }
+      await api.post(
+        `/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`,
+        { entry: newNoteText.trim() }
       );
-      if (response.ok) {
-        newNoteText = '';
-        await fetchSpeciesNotes();
-      } else {
-        logger.error('Failed to save species note', { status: response.status });
-      }
+      newNoteText = '';
+      await fetchSpeciesNotes();
     } catch (err) {
       logger.error('Error saving species note', { error: err });
     } finally {
@@ -431,14 +424,8 @@
   // Delete a species note
   async function deleteSpeciesNote(noteId: number) {
     try {
-      const response = await fetch(buildAppUrl(`/api/v2/species/notes/${noteId}`), {
-        method: 'DELETE',
-      });
-      if (response.ok) {
-        await fetchSpeciesNotes();
-      } else {
-        logger.error('Failed to delete species note', { status: response.status });
-      }
+      await api.delete(`/api/v2/species/notes/${noteId}`);
+      await fetchSpeciesNotes();
     } catch (err) {
       logger.error('Error deleting species note', { error: err });
     }
@@ -962,6 +949,7 @@
           <textarea
             class="species-note-input"
             placeholder={t('analytics.species.notes.placeholder')}
+            aria-label={t('analytics.species.notes.placeholder')}
             rows="2"
             bind:value={newNoteText}
             onkeydown={(e: KeyboardEvent) => {

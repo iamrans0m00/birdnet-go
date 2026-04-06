@@ -370,7 +370,7 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 	if primaryResult != nil {
 		primaryResult.CachedAt = time.Now()
 		c.dataMap.Store(scientificName, primaryResult)
-		c.saveToDB(primaryResult, primaryProvider)
+		c.saveToDB(ctx, primaryResult, primaryProvider)
 		return primaryResult, nil
 	}
 
@@ -381,7 +381,7 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 		CachedAt:       time.Now(),
 	}
 	c.dataMap.Store(scientificName, negative)
-	c.saveToDB(negative, primaryProvider)
+	c.saveToDB(ctx, negative, primaryProvider)
 	return nil, ErrGuideNotFound
 }
 
@@ -431,13 +431,13 @@ func dbEntryToGuide(entry *GuideCacheEntry) *SpeciesGuide {
 
 // saveToDB persists a guide entry to the database.
 // Skips the write if the existing entry has identical content (content diffing).
-func (c *GuideCache) saveToDB(guide *SpeciesGuide, providerName string) {
+func (c *GuideCache) saveToDB(ctx context.Context, guide *SpeciesGuide, providerName string) {
 	if c.store == nil {
 		return
 	}
 
 	// Content diffing: skip write if existing DB entry has identical description.
-	existing, err := c.store.GetGuideCache(context.Background(), guide.ScientificName, providerName)
+	existing, err := c.store.GetGuideCache(ctx, guide.ScientificName, providerName)
 	if err == nil && existing != nil &&
 		existing.Description == guide.Description &&
 		existing.CommonName == guide.CommonName &&
@@ -461,7 +461,7 @@ func (c *GuideCache) saveToDB(guide *SpeciesGuide, providerName string) {
 		CachedAt:           guide.CachedAt,
 	}
 
-	if err := c.store.SaveGuideCache(context.Background(), entry); err != nil {
+	if err := c.store.SaveGuideCache(ctx, entry); err != nil {
 		getLogger().Warn("Failed to save guide cache to database",
 			logger.String("species", guide.ScientificName),
 			logger.Any("error", err))

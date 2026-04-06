@@ -59,6 +59,7 @@ A comprehensive collection of reusable Svelte 5 components for the BirdNET-Go de
 - [MultiStageOperation](#multistageoperation) - Multi-step operation handler
 - [NotificationBell](#notificationbell) - Notification indicator
 - [SearchBox](#searchbox) - Search input with functionality
+- [SpeciesComparison](#speciescomparison) - Side-by-side similar species comparison
 
 ### Utilities
 
@@ -499,6 +500,37 @@ export function handleBirdImageError(e: Event): void;
 
 - Bird-specific error handling
 - Automatic placeholder fallback
+
+---
+
+### SpeciesComparison
+
+Side-by-side comparison of a species with similar/same-genus species. Fetches similar species from the API, displays them in a list, and allows selecting one to view its guide details alongside the original.
+
+#### Props
+
+| Prop             | Type       | Required | Description                          |
+| ---------------- | ---------- | -------- | ------------------------------------ |
+| `scientificName` | `string`   | Yes      | Scientific name of the focal species |
+| `commonName`     | `string`   | Yes      | Common name of the focal species     |
+| `onclose`        | `() => void` | Yes   | Callback when panel is closed        |
+
+#### Usage
+
+```svelte
+<SpeciesComparison
+  scientificName="Turdus merula"
+  commonName="Eurasian Blackbird"
+  onclose={() => (showComparison = false)}
+/>
+```
+
+**Features:**
+
+- Fetches similar species via `/api/v2/species/:name/similar`
+- Locale-aware guide content
+- Collapsible guide sections for selected species
+- Loading and empty states
 
 ---
 

@@ -982,7 +982,7 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 	}
 
 	// Find same-genus species from BirdNET labels.
-	var similar []SimilarSpeciesEntry
+	similar := make([]SimilarSpeciesEntry, 0, maxSimilarSpeciesResults)
 	if c.Processor != nil {
 		if bn := c.Processor.GetBirdNET(); bn != nil {
 			genusPrefix := genus + " "

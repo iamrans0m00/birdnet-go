@@ -7,6 +7,7 @@
   import { t, getLocale } from '$lib/i18n';
   import { parseLocalDateString } from '$lib/utils/date';
   import { loggers } from '$lib/utils/logger';
+  import { api } from '$lib/utils/api';
   import { buildAppUrl } from '$lib/utils/urlHelpers';
   import {
     parseGuideDescription,
@@ -128,18 +129,12 @@
     if (!displaySpecies?.scientific_name || !newNoteText.trim()) return;
     isSavingNote = true;
     try {
-      const response = await fetch(
-        buildAppUrl(`/api/v2/species/${encodeURIComponent(displaySpecies.scientific_name)}/notes`),
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entry: newNoteText.trim() }),
-        }
+      await api.post(
+        `/api/v2/species/${encodeURIComponent(displaySpecies.scientific_name)}/notes`,
+        { entry: newNoteText.trim() }
       );
-      if (response.ok) {
-        newNoteText = '';
-        await fetchSpeciesNotes(displaySpecies.scientific_name);
-      }
+      newNoteText = '';
+      await fetchSpeciesNotes(displaySpecies.scientific_name);
     } catch (err) {
       logger.error('Error saving species note', { error: err });
     } finally {
@@ -150,12 +145,8 @@
   async function deleteSpeciesNote(noteId: number) {
     if (!displaySpecies?.scientific_name) return;
     try {
-      const response = await fetch(buildAppUrl(`/api/v2/species/notes/${noteId}`), {
-        method: 'DELETE',
-      });
-      if (response.ok) {
-        await fetchSpeciesNotes(displaySpecies.scientific_name);
-      }
+      await api.delete(`/api/v2/species/notes/${noteId}`);
+      await fetchSpeciesNotes(displaySpecies.scientific_name);
     } catch (err) {
       logger.error('Error deleting species note', { error: err });
     }
@@ -379,6 +370,7 @@
               type="text"
               class="flex-1 text-sm px-3 py-1.5 rounded-lg border border-[var(--border-100)] bg-[var(--color-base-100)] text-[var(--color-base-content)] focus:outline-none focus:border-[var(--color-primary)]"
               placeholder={t('analytics.species.notes.placeholder')}
+              aria-label={t('analytics.species.notes.placeholder')}
               bind:value={newNoteText}
               onkeydown={(e: KeyboardEvent) => {
                 if (e.key === 'Enter') {
