@@ -474,7 +474,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 				c.Settings = &conf.Settings{}
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
-				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = "none"
+				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
 				cache := guideprovider.NewGuideCache(nil)
 				// Register a provider that always returns not found
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
@@ -492,7 +492,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 				c.Settings = &conf.Settings{}
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
-				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = "none"
+				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
 				cache := guideprovider.NewGuideCache(nil)
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
 					guide: guideprovider.SpeciesGuide{
@@ -518,7 +518,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 				c.Settings = &conf.Settings{}
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
-				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = "none"
+				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
 				cache := guideprovider.NewGuideCache(nil)
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
 					guide: guideprovider.SpeciesGuide{

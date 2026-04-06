@@ -51,7 +51,8 @@ const (
 	refreshDelay        = 2 * time.Second    // Delay between refreshing individual entries
 	negativeEntryMarker = "__NOT_FOUND__"    // Sentinel marker for negative cache entries
 
-	fallbackPolicyAll = "all" // Fallback policy to try all providers
+	FallbackPolicyAll  = "all"  // Fallback policy to try all providers
+	FallbackPolicyNone = "none" // Fallback policy to disable fallback
 
 	providerTimeout = 10 * time.Second // Per-provider fetch timeout
 
@@ -301,7 +302,7 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 	settings := conf.GetSettings()
 
 	primaryProvider := defaultProviderName
-	fallbackPolicy := fallbackPolicyAll
+	fallbackPolicy := FallbackPolicyAll
 	if settings != nil {
 		primaryProvider = settings.Realtime.Dashboard.SpeciesGuide.Provider
 		fallbackPolicy = settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy
@@ -334,7 +335,7 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 	}
 
 	// Try fallback providers if policy allows
-	if fallbackPolicy == fallbackPolicyAll {
+	if fallbackPolicy == FallbackPolicyAll {
 		c.mu.RLock()
 		providers := make(map[string]GuideProvider, len(c.providers))
 		maps.Copy(providers, c.providers)
