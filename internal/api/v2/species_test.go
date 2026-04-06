@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -538,7 +539,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			e := echo.New()
-			req := httptest.NewRequest(http.MethodGet, "/api/v2/species/"+tt.scientificName+"/guide", http.NoBody)
+			req := httptest.NewRequest(http.MethodGet, "/api/v2/species/"+url.PathEscape(tt.scientificName)+"/guide", http.NoBody)
 			rec := httptest.NewRecorder()
 			ctx := e.NewContext(req, rec)
 			ctx.SetParamNames("scientific_name")
@@ -713,7 +714,7 @@ func TestGetSpeciesNotes(t *testing.T) {
 		ctx.SetParamNames("scientific_name")
 		ctx.SetParamValues("")
 
-		c := &Controller{Echo: e, Group: e.Group("/api/v2")}
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), Settings: &conf.Settings{}}
 		err := c.GetSpeciesNotes(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -736,7 +737,7 @@ func TestGetSpeciesNotes(t *testing.T) {
 		ctx.SetParamNames("scientific_name")
 		ctx.SetParamValues("Turdus merula")
 
-		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS}
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS, Settings: &conf.Settings{}}
 		err := c.GetSpeciesNotes(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, rec.Code)
@@ -767,7 +768,7 @@ func TestCreateSpeciesNote(t *testing.T) {
 		ctx.SetParamNames("scientific_name")
 		ctx.SetParamValues("Turdus merula")
 
-		c := &Controller{Echo: e, Group: e.Group("/api/v2")}
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), Settings: &conf.Settings{}}
 		err := c.CreateSpeciesNote(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -794,7 +795,7 @@ func TestCreateSpeciesNote(t *testing.T) {
 		ctx.SetParamNames("scientific_name")
 		ctx.SetParamValues("Turdus merula")
 
-		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS}
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS, Settings: &conf.Settings{}}
 		err := c.CreateSpeciesNote(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusCreated, rec.Code)
@@ -817,7 +818,7 @@ func TestDeleteSpeciesNote(t *testing.T) {
 		ctx.SetParamNames("id")
 		ctx.SetParamValues("")
 
-		c := &Controller{Echo: e, Group: e.Group("/api/v2")}
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), Settings: &conf.Settings{}}
 		err := c.DeleteSpeciesNote(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -837,7 +838,7 @@ func TestDeleteSpeciesNote(t *testing.T) {
 		ctx.SetParamNames("id")
 		ctx.SetParamValues("42")
 
-		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS}
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS, Settings: &conf.Settings{}}
 		err := c.DeleteSpeciesNote(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, http.StatusNoContent, rec.Code)
