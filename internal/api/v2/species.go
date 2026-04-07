@@ -11,6 +11,8 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/tphakala/birdnet-go/internal/classifier"
+	"github.com/tphakala/birdnet-go/internal/conf"
+	"github.com/tphakala/birdnet-go/internal/datastore"
 	"github.com/tphakala/birdnet-go/internal/detection"
 	"github.com/tphakala/birdnet-go/internal/ebird"
 	"github.com/tphakala/birdnet-go/internal/errors"
@@ -932,9 +934,9 @@ type SimilarSpeciesEntry struct {
 
 // SimilarSpeciesResponse is the response for the similar species endpoint.
 type SimilarSpeciesResponse struct {
-	ScientificName string                 `json:"scientific_name"`
-	Genus          string                 `json:"genus"`
-	Similar        []SimilarSpeciesEntry  `json:"similar"`
+	ScientificName string                `json:"scientific_name"`
+	Genus          string                `json:"genus"`
+	Similar        []SimilarSpeciesEntry `json:"similar"`
 }
 
 // GetSimilarSpecies returns species that are similar or related to the given species.
