@@ -13,7 +13,7 @@ type GuideProviderMetrics struct {
 	cacheHitRatio    prometheus.Gauge
 
 	// Wikipedia API metrics
-	wikipediaAPILatency    *prometheus.HistogramVec
+	wikipediaAPILatency       *prometheus.HistogramVec
 	wikipediaAPIRequestsTotal *prometheus.CounterVec
 
 	// Database operation metrics
@@ -145,4 +145,11 @@ func (m *GuideProviderMetrics) RecordWikipediaAPICall(endpoint, result string, d
 func (m *GuideProviderMetrics) RecordDBOperation(operation, status string, duration float64) {
 	m.dbOperationsTotal.WithLabelValues(operation, status).Inc()
 	m.dbOperationDuration.WithLabelValues(operation).Observe(duration)
+}
+
+// UpdateCacheHitRatio updates the cache hit ratio gauge.
+func (m *GuideProviderMetrics) UpdateCacheHitRatio(hits, misses float64) {
+	if hits+misses > 0 {
+		m.cacheHitRatio.Set(hits / (hits + misses))
+	}
 }
