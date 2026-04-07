@@ -9,26 +9,25 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/tphakala/birdnet-go/internal/birdnet"
+	"github.com/tphakala/birdnet-go/internal/classifier"
 	"github.com/tphakala/birdnet-go/internal/diskmanager"
 	"github.com/tphakala/birdnet-go/internal/observability/metrics"
 )
 
 // Metrics holds all the metric collectors for the application.
 type Metrics struct {
-	registry       *prometheus.Registry
-	MQTT           *metrics.MQTTMetrics
-	BirdNET        *metrics.BirdNETMetrics
-	ImageProvider  *metrics.ImageProviderMetrics
-	DiskManager    *metrics.DiskManagerMetrics
-	Weather        *metrics.WeatherMetrics
-	SunCalc        *metrics.SunCalcMetrics
-	Datastore      *metrics.DatastoreMetrics
-	MyAudio        *metrics.MyAudioMetrics
-	SoundLevel     *metrics.SoundLevelMetrics
-	HTTP           *metrics.HTTPMetrics
-	Notification   *metrics.NotificationMetrics
-	GuideProvider  *metrics.GuideProviderMetrics
+	registry      *prometheus.Registry
+	MQTT          *metrics.MQTTMetrics
+	BirdNET       *metrics.BirdNETMetrics
+	ImageProvider *metrics.ImageProviderMetrics
+	DiskManager   *metrics.DiskManagerMetrics
+	Weather       *metrics.WeatherMetrics
+	SunCalc       *metrics.SunCalcMetrics
+	Datastore     *metrics.DatastoreMetrics
+	MyAudio       *metrics.MyAudioMetrics
+	SoundLevel    *metrics.SoundLevelMetrics
+	HTTP          *metrics.HTTPMetrics
+	Notification  *metrics.NotificationMetrics
 }
 
 // NewMetrics creates a new instance of Metrics, initializing all metric collectors.
@@ -91,25 +90,19 @@ func NewMetrics() (*Metrics, error) {
 		return nil, fmt.Errorf("failed to create Notification metrics: %w", err)
 	}
 
-	guideProviderMetrics, err := metrics.NewGuideProviderMetrics(registry)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create GuideProvider metrics: %w", err)
-	}
-
 	m := &Metrics{
-		registry:       registry,
-		MQTT:           mqttMetrics,
-		BirdNET:        birdnetMetrics,
-		ImageProvider:  imageProviderMetrics,
-		DiskManager:    diskManagerMetrics,
-		Weather:        weatherMetrics,
-		SunCalc:        sunCalcMetrics,
-		Datastore:      datastoreMetrics,
-		MyAudio:        myAudioMetrics,
-		SoundLevel:     soundLevelMetrics,
-		HTTP:           httpMetrics,
-		Notification:   notificationMetrics,
-		GuideProvider:  guideProviderMetrics,
+		registry:      registry,
+		MQTT:          mqttMetrics,
+		BirdNET:       birdnetMetrics,
+		ImageProvider: imageProviderMetrics,
+		DiskManager:   diskManagerMetrics,
+		Weather:       weatherMetrics,
+		SunCalc:       sunCalcMetrics,
+		Datastore:     datastoreMetrics,
+		MyAudio:       myAudioMetrics,
+		SoundLevel:    soundLevelMetrics,
+		HTTP:          httpMetrics,
+		Notification:  notificationMetrics,
 	}
 
 	// Initialize tracing with metrics
@@ -137,5 +130,5 @@ func (m *Metrics) metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 // initializeTracing sets up the birdnet tracing system with metrics
 func initializeTracing(birdnetMetrics *metrics.BirdNETMetrics) {
-	birdnet.SetMetrics(birdnetMetrics)
+	classifier.SetMetrics(birdnetMetrics)
 }

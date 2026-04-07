@@ -663,6 +663,7 @@ func (s *testLegacyInterface) GetAllHourlyWeather() ([]datastore.HourlyWeather, 
 func (s *testLegacyInterface) Open() error                                         { return nil }
 func (s *testLegacyInterface) Close() error                                        { return nil }
 func (s *testLegacyInterface) Save(_ *datastore.Note, _ []datastore.Results) error { return nil }
+func (s *testLegacyInterface) EnsureModelRegistered(_ detection.ModelInfo) error   { return nil }
 func (s *testLegacyInterface) Delete(_ string) error                               { return nil }
 func (s *testLegacyInterface) Get(_ string) (datastore.Note, error)                { return datastore.Note{}, nil }
 func (s *testLegacyInterface) SetMetrics(_ *datastore.Metrics)                     {}
@@ -728,8 +729,9 @@ func (s *testLegacyInterface) GetImageCache(_ datastore.ImageCacheQuery) (*datas
 func (s *testLegacyInterface) GetImageCacheBatch(_ string, _ []string) (map[string]*datastore.ImageCache, error) {
 	return nil, nil //nolint:nilnil // stub
 }
-func (s *testLegacyInterface) SaveImageCache(_ *datastore.ImageCache) error { return nil }
-func (s *testLegacyInterface) GetLockedNotesClipPaths() ([]string, error)   { return nil, nil }
+func (s *testLegacyInterface) SaveImageCache(_ *datastore.ImageCache) error        { return nil }
+func (s *testLegacyInterface) GetLockedNotesClipPaths() ([]string, error)          { return nil, nil }
+func (s *testLegacyInterface) ClearNoteClipPathsByNames(_ []string) (int64, error) { return 0, nil }
 func (s *testLegacyInterface) CountHourlyDetections(_, _ string, _ int) (int64, error) {
 	return 0, nil
 }
@@ -761,7 +763,7 @@ func (s *testLegacyInterface) SearchDetections(_ *datastore.SearchFilters) ([]da
 	return nil, 0, nil
 }
 func (s *testLegacyInterface) SaveDynamicThreshold(_ *datastore.DynamicThreshold) error { return nil }
-func (s *testLegacyInterface) GetDynamicThreshold(_ string) (*datastore.DynamicThreshold, error) {
+func (s *testLegacyInterface) GetDynamicThreshold(_, _ string) (*datastore.DynamicThreshold, error) {
 	return nil, nil //nolint:nilnil // stub
 }
 func (s *testLegacyInterface) DeleteDynamicThreshold(_ string) error { return nil }

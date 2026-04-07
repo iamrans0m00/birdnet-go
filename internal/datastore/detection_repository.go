@@ -360,6 +360,7 @@ func NoteFromResult(result *detection.Result) Note {
 		Occurrence: result.Occurrence,
 		Verified:   result.Verified,
 		Locked:     result.Locked,
+		Model:      result.Model,
 	}
 }
 
@@ -422,7 +423,13 @@ func (r *detectionRepository) noteToResult(note *Note) (*detection.Result, error
 		Occurrence:     note.Occurrence,
 		Verified:       note.Verified,
 		Locked:         note.Locked,
-		Model:          detection.DefaultModelInfo(),
+	}
+
+	// Use the note's model info if populated, otherwise fall back to default.
+	if note.Model.Name != "" {
+		result.Model = note.Model
+	} else {
+		result.Model = detection.DefaultModelInfo()
 	}
 
 	// Convert comments
@@ -464,14 +471,14 @@ func (r *detectionRepository) convertFilters(filters *DetectionFilters) (Advance
 	}
 
 	legacy := AdvancedSearchFilters{
-		TextQuery:     filters.Query,
-		Species:       filters.Species,
-		TimeOfDay:     filters.TimeOfDay,
-		Location:      filters.Location,
-		Limit:         filters.Limit,
-		Offset:        filters.Offset,
-		SortAscending: filters.SortAscending,
-		Verified:      filters.Verified,
+		TextQuery:        filters.Query,
+		Species:          filters.Species,
+		TimeOfDay:        filters.TimeOfDay,
+		Location:         filters.Location,
+		Limit:            filters.Limit,
+		Offset:           filters.Offset,
+		SortAscending:    filters.SortAscending,
+		Verified:         filters.Verified,
 		Locked:           filters.Locked,
 		MinID:            filters.MinID,
 		CursorPagination: filters.CursorPagination,

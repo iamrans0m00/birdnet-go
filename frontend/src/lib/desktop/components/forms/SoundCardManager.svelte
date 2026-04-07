@@ -14,11 +14,14 @@
   @component
 -->
 <script lang="ts">
-  import { Plus, Volume2, RefreshCw, ChevronDown } from '@lucide/svelte';
+  import { Plus, Mic, RefreshCw, ChevronDown } from '@lucide/svelte';
+  import { untrack } from 'svelte';
   import { slide } from 'svelte/transition';
   import { t } from '$lib/i18n';
   import { loggers } from '$lib/utils/logger';
   import { toastActions } from '$lib/stores/toast';
+  import { api } from '$lib/utils/api';
+  import { cn } from '$lib/utils/cn';
   import SoundCardCard from './SoundCardCard.svelte';
   import SelectDropdown from './SelectDropdown.svelte';
   import TextInput from './TextInput.svelte';
@@ -47,17 +50,47 @@
       passes?: number;
     }>;
   }
-  import { cn } from '$lib/utils/cn';
 
   const logger = loggers.audio;
 
-  // Model options — use $derived to re-translate on locale change
-  const modelOptions = $derived([
-    { value: '', label: t('settings.audio.soundCards.models.birdnetDefault') },
-    { value: 'birdnet', label: t('settings.audio.soundCards.models.birdnet') },
-    { value: 'perch_v2', label: t('settings.audio.soundCards.models.perchV2') },
-    { value: 'bat', label: t('settings.audio.soundCards.models.bat') },
-  ]);
+  // Fetch available models from backend API
+  interface BackendModel {
+    id: string;
+    name: string;
+  }
+
+  let availableModels = $state<BackendModel[]>([]);
+
+  $effect(() => {
+    const controller = new AbortController();
+
+    untrack(() => {
+      api
+        .get<BackendModel[]>('/api/v2/models', { signal: controller.signal })
+        .then(data => {
+          if (Array.isArray(data)) {
+            availableModels = data;
+          } else {
+            logger.warn('Fetched models response is not an array', {
+              component: 'SoundCardManager',
+            });
+          }
+        })
+        .catch((err: unknown) => {
+          if (err instanceof Error && err.name !== 'AbortError') {
+            logger.error('Failed to fetch models', err, {
+              component: 'SoundCardManager',
+              action: 'fetchModels',
+            });
+          }
+        });
+    });
+
+    return () => controller.abort();
+  });
+
+  // Model options — dynamically loaded from enabled models in config
+  const modelOptions = $derived(availableModels.map(m => ({ value: m.id, label: m.name })));
 
   interface Props {
     sources: AudioSourceConfig[];
@@ -82,7 +115,7 @@
   let newName = $state('');
   let newDevice = $state('');
   let newGain = $state(0);
-  let newModel = $state('');
+  let newModels = $state<string[]>([]);
   let newEqualizer = $state<LocalEqualizerSettings>({ enabled: false, filters: [] });
   let newQuietHours = $state<QuietHoursConfig>({ ...defaultQuietHoursConfig });
   let showNewEqualizer = $state(false);
@@ -103,7 +136,7 @@
     newName = '';
     newDevice = '';
     newGain = 0;
-    newModel = '';
+    newModels = [];
     newEqualizer = { enabled: false, filters: [] };
     newQuietHours = { ...defaultQuietHoursConfig };
     showNewEqualizer = false;
@@ -157,7 +190,7 @@
       name: trimmedName,
       device: newDevice,
       gain: newGain,
-      model: newModel,
+      models: newModels,
       equalizer: transformedEqualizer,
       quietHours: newQuietHours,
     };
@@ -223,7 +256,7 @@
   {#if sources.length > 0}
     <div class="flex items-center justify-between p-3 bg-[var(--color-base-200)] rounded-lg">
       <div class="flex items-center gap-2">
-        <Volume2 class="size-4 text-[var(--color-base-content)]/70" />
+        <Mic class="size-4 text-[var(--color-base-content)]/70" />
         <span class="text-sm font-medium">
           {t('settings.audio.soundCards.summary', { count: sources.length })}
         </span>
@@ -244,7 +277,7 @@
   <!-- Source Cards -->
   {#if sources.length === 0 && !showAddForm}
     <EmptyState
-      icon={Volume2}
+      icon={Mic}
       title={t('settings.audio.soundCards.emptyState.title')}
       description={t('settings.audio.soundCards.emptyState.description')}
       hints={[
@@ -268,6 +301,7 @@
           {source}
           {index}
           {audioDevices}
+          {modelOptions}
           {disabled}
           onUpdate={updatedSource => updateSource(index, updatedSource)}
           onDelete={() => deleteSource(index)}
@@ -341,14 +375,16 @@
                 step={1}
                 unit=" dB"
                 {disabled}
+                className="h-full [&>input]:my-auto"
               />
 
               <SelectDropdown
-                value={newModel}
+                value={newModels}
                 label={t('settings.audio.soundCards.modelLabel')}
                 options={modelOptions}
+                multiple={true}
                 {disabled}
-                onChange={value => (newModel = value as string)}
+                onChange={value => (newModels = value as string[])}
                 groupBy={false}
                 menuSize="sm"
               />

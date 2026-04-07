@@ -20,8 +20,8 @@ import (
 	"github.com/tphakala/birdnet-go/internal/audiocore"
 	"github.com/tphakala/birdnet-go/internal/audiocore/buffer"
 	"github.com/tphakala/birdnet-go/internal/audiocore/convert"
-	"github.com/tphakala/birdnet-go/internal/birdnet"
 	"github.com/tphakala/birdnet-go/internal/birdweather"
+	"github.com/tphakala/birdnet-go/internal/classifier"
 	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/datastore"
 	"github.com/tphakala/birdnet-go/internal/detection"
@@ -59,7 +59,7 @@ type Processor struct {
 	Settings            *conf.Settings
 	Ds                  datastore.Interface           // Legacy - to be removed after migration
 	Repo                datastore.DetectionRepository // New - preferred for detection operations
-	Bn                  *birdnet.BirdNET
+	Bn                  *classifier.Orchestrator
 	log                 logger.Logger // Logger inherited from analysis package with "processor" child module
 	BwClient            *birdweather.BwClient
 	bwClientMutex       sync.RWMutex // Mutex to protect BwClient access
@@ -136,7 +136,7 @@ type Processor struct {
 	sunCalc               *suncalc.SunCalc // Injected sun calculator for daylight determination
 
 	// Cached taxonomy database (lazy-loaded, shared across init functions)
-	taxonomyDB     *birdnet.TaxonomyDatabase
+	taxonomyDB     *classifier.TaxonomyDatabase
 	taxonomyDBOnce sync.Once
 
 	// Guide pre-fetch callback (optional, injected by api_service)
@@ -157,6 +157,7 @@ type PendingDetection struct {
 	Detection       Detections // The detection data
 	Confidence      float64    // Confidence level of the detection
 	Source          string     // Audio source of the detection, RTSP URL or audio card name
+	ModelID         string     // Identifies which classifier model produced this detection
 	FirstDetected   time.Time  // Back-dated time for audio clip extraction (startTime from analysis buffer)
 	CreatedAt       time.Time  // Real wall-clock time when detection was first created (for display)
 	AudioCapturedAt time.Time  // Wall-clock time when the most recent audio chunk was captured (updated on each hit; for spectrogram overlay)
@@ -168,10 +169,11 @@ type PendingDetection struct {
 }
 
 // pendingDetectionKey creates a composite key for the pendingDetections map
-// that includes the source ID to prevent cross-source data corruption when
-// multiple audio sources detect the same species concurrently.
-func pendingDetectionKey(sourceID, speciesName string) string {
-	return sourceID + ":" + speciesName
+// that includes the source ID and model ID to prevent cross-source and
+// cross-model data corruption when multiple audio sources or models detect
+// the same species concurrently.
+func pendingDetectionKey(sourceID, speciesName, modelID string) string {
+	return sourceID + ":" + speciesName + ":" + modelID
 }
 
 // suggestLevelForDisabledFilter provides smart recommendations for filter levels
@@ -389,7 +391,7 @@ func (p *Processor) initDynamicThresholds(settings *conf.Settings) {
 // New creates a new Processor with the given dependencies.
 // The parentLog parameter should be the analysis package logger, which will be used to create
 // a child logger with ".processor" suffix for hierarchical logging (e.g., "analysis.processor").
-func New(settings *conf.Settings, ds datastore.Interface, bn *birdnet.BirdNET, metrics *observability.Metrics, birdImageCache *imageprovider.BirdImageCache, parentLog logger.Logger) *Processor {
+func New(settings *conf.Settings, ds datastore.Interface, bn *classifier.Orchestrator, metrics *observability.Metrics, birdImageCache *imageprovider.BirdImageCache, parentLog logger.Logger) *Processor {
 	// Create child logger from parent for hierarchical logging
 	var procLog logger.Logger
 	if parentLog != nil {
@@ -547,7 +549,7 @@ func (p *Processor) startDetectionProcessor() {
 		logger.String("operation", "detection_processor_startup"))
 	go func() {
 		// ResultsQueue is fed by analysis.ProcessData()
-		for item := range birdnet.ResultsQueue {
+		for item := range classifier.ResultsQueue {
 			// Pass by value since we own the data (see queue.go ownership comment)
 			p.processDetections(item)
 		}
@@ -561,10 +563,11 @@ func (p *Processor) startDetectionProcessor() {
 // with new or higher-confidence instances and setting an appropriate flush deadline.
 //
 //nolint:gocritic // hugeParam: Pass by value is intentional - avoids pointer dereferencing in hot path
-func (p *Processor) processDetections(item birdnet.Results) {
+func (p *Processor) processDetections(item classifier.Results) {
 	// Add structured logging for detection pipeline entry
 	GetLogger().Debug("Processing detections from queue",
 		logger.String("source", item.Source.DisplayName),
+		logger.String("model_id", item.ModelID),
 		logger.Time("start_time", item.StartTime),
 		logger.Int("results_count", len(item.Results)),
 		logger.Int64("elapsed_time_ms", item.ElapsedTime.Milliseconds()),
@@ -595,7 +598,7 @@ func (p *Processor) processDetections(item birdnet.Results) {
 		p.pendingMutex.Lock()
 
 		now := time.Now()
-		mapKey := pendingDetectionKey(item.Source.ID, commonName)
+		mapKey := pendingDetectionKey(item.Source.ID, commonName, item.ModelID)
 
 		if existing, exists := p.pendingDetections[mapKey]; exists {
 			// Update the existing detection if it's already in pendingDetections map
@@ -623,12 +626,14 @@ func (p *Processor) processDetections(item birdnet.Results) {
 				logger.String("species", commonName),
 				logger.Float64("confidence", confidence),
 				logger.String("source", item.Source.DisplayName),
+				logger.String("model_id", item.ModelID),
 				logger.Time("flush_deadline", now.Add(detectionWindow)),
 				logger.String("operation", "create_pending_detection"))
 			p.pendingDetections[mapKey] = PendingDetection{
 				Detection:       det,
 				Confidence:      confidence,
 				Source:          item.Source.ID,
+				ModelID:         item.ModelID,
 				FirstDetected:   item.StartTime,
 				CreatedAt:       now,
 				AudioCapturedAt: item.AudioCapturedAt,
@@ -646,7 +651,7 @@ func (p *Processor) processDetections(item birdnet.Results) {
 		}
 
 		// Update the dynamic threshold for this species if enabled
-		p.updateDynamicThreshold(commonName, confidence)
+		p.updateDynamicThreshold(item.ModelID, commonName, confidence)
 
 		// Unlock the mutex to allow other goroutines to access shared resources
 		p.pendingMutex.Unlock()
@@ -662,7 +667,7 @@ func (p *Processor) processDetections(item birdnet.Results) {
 // processResults processes the results from the BirdNET prediction and returns a list of detections.
 //
 //nolint:gocritic // hugeParam: Pass by value is intentional - avoids pointer dereferencing in hot path
-func (p *Processor) processResults(item birdnet.Results) []Detections {
+func (p *Processor) processResults(item classifier.Results) []Detections {
 	// Pre-allocate slice with capacity for all results
 	detections := make([]Detections, 0, len(item.Results))
 
@@ -702,7 +707,7 @@ func (p *Processor) processResults(item birdnet.Results) []Detections {
 		baseThreshold := p.getBaseConfidenceThreshold(commonName, scientificName)
 
 		// Check if detection should be filtered
-		shouldSkip, _ := p.shouldFilterDetection(result, commonName, scientificName, speciesLowercase, baseThreshold, item.Source.ID)
+		shouldSkip, _ := p.shouldFilterDetection(result, commonName, scientificName, speciesLowercase, baseThreshold, item.Source.ID, item.ModelID)
 		if shouldSkip {
 			continue
 		}
@@ -718,12 +723,13 @@ func (p *Processor) processResults(item birdnet.Results) []Detections {
 // parseAndValidateSpecies parses species information and validates it
 //
 //nolint:gocritic // hugeParam: Pass by value is intentional - avoids pointer dereferencing in hot path
-func (p *Processor) parseAndValidateSpecies(result datastore.Results, item birdnet.Results) (scientificName, commonName, speciesCode, speciesLowercase string) {
+func (p *Processor) parseAndValidateSpecies(result datastore.Results, item classifier.Results) (scientificName, commonName, speciesCode, speciesLowercase string) {
 	// Use BirdNET's EnrichResultWithTaxonomy to get species information
 	scientificName, commonName, speciesCode = p.Bn.EnrichResultWithTaxonomy(result.Species)
 
-	// Skip processing if we couldn't parse the species properly (either name missing)
-	if commonName == "" || scientificName == "" {
+	// Skip processing if scientific name is missing. Common name may be empty
+	// for models like Perch v2 that return scientific-name-only labels.
+	if scientificName == "" {
 		if p.Settings.Debug {
 			GetLogger().Debug("Skipping species with invalid format",
 				logger.String("species", result.Species),
@@ -731,6 +737,11 @@ func (p *Processor) parseAndValidateSpecies(result datastore.Results, item birdn
 				logger.String("operation", "species_format_validation"))
 		}
 		return "", "", "", ""
+	}
+
+	// Use scientific name as fallback when common name is not available.
+	if commonName == "" {
+		commonName = scientificName
 	}
 
 	// Log placeholder taxonomy codes if using custom model
@@ -754,7 +765,7 @@ func (p *Processor) parseAndValidateSpecies(result datastore.Results, item birdn
 }
 
 // shouldFilterDetection checks if a detection should be filtered out
-func (p *Processor) shouldFilterDetection(result datastore.Results, commonName, scientificName, speciesLowercase string, baseThreshold float32, source string) (shouldFilter bool, confidenceThreshold float32) {
+func (p *Processor) shouldFilterDetection(result datastore.Results, commonName, scientificName, speciesLowercase string, baseThreshold float32, source, modelID string) (shouldFilter bool, confidenceThreshold float32) {
 	// Check human detection privacy filter
 	if strings.Contains(strings.ToLower(commonName), speciesHuman) && result.Confidence > baseThreshold {
 		return true, 0 // Filter out human detections for privacy
@@ -782,7 +793,7 @@ func (p *Processor) shouldFilterDetection(result datastore.Results, commonName, 
 		// Use lookupSpeciesConfig to support both common name and scientific name lookups
 		config, exists := lookupSpeciesConfig(p.Settings.Realtime.Species.Config, commonName, scientificName)
 		isCustomThreshold := exists && config.Threshold > 0
-		confidenceThreshold = p.getAdjustedConfidenceThreshold(speciesLowercase, baseThreshold, isCustomThreshold)
+		confidenceThreshold = p.getAdjustedConfidenceThreshold(modelID, speciesLowercase, baseThreshold, isCustomThreshold)
 	} else {
 		confidenceThreshold = baseThreshold
 	}
@@ -795,6 +806,7 @@ func (p *Processor) shouldFilterDetection(result datastore.Results, commonName, 
 				logger.Float32("confidence", result.Confidence),
 				logger.Float32("threshold", confidenceThreshold),
 				logger.String("source", p.getDisplayNameForSource(source)),
+				logger.String("model_id", modelID),
 				logger.String("operation", "confidence_filter"))
 		}
 		return true, confidenceThreshold
@@ -829,7 +841,7 @@ func isSpeciesExcluded(commonName, scientificName string, excludeList []string) 
 // createDetection creates a detection object with all necessary information
 //
 //nolint:gocritic // hugeParam: Pass by value is intentional - avoids pointer dereferencing in hot path
-func (p *Processor) createDetection(item birdnet.Results, result datastore.Results, scientificName, commonName, speciesCode string) Detections {
+func (p *Processor) createDetection(item classifier.Results, result datastore.Results, scientificName, commonName, speciesCode string) Detections {
 	// Create file name for audio clip
 	clipName := p.generateClipName(scientificName, result.Confidence)
 
@@ -855,7 +867,8 @@ func (p *Processor) createDetection(item birdnet.Results, result datastore.Resul
 		scientificName, commonName, speciesCode,
 		float64(result.Confidence),
 		item.Source, clipName,
-		item.ElapsedTime, occurrence)
+		item.ElapsedTime, occurrence,
+		item.ModelID)
 
 	// Convert additional results from datastore.Results to detection.AdditionalResult.
 	// Exclude the primary species since it's already stored as Detection.LabelID.
@@ -888,7 +901,8 @@ func (p *Processor) createDetectionResult(
 	scientificName, commonName, speciesCode string,
 	confidence float64,
 	source datastore.AudioSource, clipName string,
-	elapsedTime time.Duration, occurrence float64) detection.Result {
+	elapsedTime time.Duration, occurrence float64,
+	modelID string) detection.Result {
 
 	// Resolve audio source info from registry
 	audioSource := p.resolveAudioSource(source)
@@ -912,7 +926,7 @@ func (p *Processor) createDetectionResult(
 		ClipName:       clipName,
 		ProcessingTime: elapsedTime,
 		Occurrence:     math.Max(0.0, math.Min(1.0, occurrence)),
-		Model:          detection.DefaultModelInfo(),
+		Model:          classifier.DetectionModelInfoForID(modelID),
 	}
 }
 
@@ -1010,7 +1024,7 @@ func (p *Processor) syncSpeciesTrackerIfNeeded() {
 // handleDogDetection handles the detection of dog barks and updates the last detection timestamp.
 //
 //nolint:gocritic // hugeParam: Pass by value is intentional - avoids pointer dereferencing in hot path
-func (p *Processor) handleDogDetection(item birdnet.Results, speciesLowercase string, result datastore.Results) {
+func (p *Processor) handleDogDetection(item classifier.Results, speciesLowercase string, result datastore.Results) {
 	if p.Settings.Realtime.DogBarkFilter.Enabled && strings.Contains(speciesLowercase, speciesDog) &&
 		result.Confidence > p.Settings.Realtime.DogBarkFilter.Confidence {
 		GetLogger().Info("dog detection filtered",
@@ -1027,7 +1041,7 @@ func (p *Processor) handleDogDetection(item birdnet.Results, speciesLowercase st
 // handleHumanDetection handles the detection of human vocalizations and updates the last detection timestamp.
 //
 //nolint:gocritic // hugeParam: Pass by value is intentional - avoids pointer dereferencing in hot path
-func (p *Processor) handleHumanDetection(item birdnet.Results, speciesLowercase string, result datastore.Results) {
+func (p *Processor) handleHumanDetection(item classifier.Results, speciesLowercase string, result datastore.Results) {
 	// only check this if privacy filter is enabled
 	if p.Settings.Realtime.PrivacyFilter.Enabled && strings.Contains(speciesLowercase, "human ") &&
 		result.Confidence > p.Settings.Realtime.PrivacyFilter.Confidence {
@@ -1185,6 +1199,7 @@ func (p *Processor) processApprovedDetection(item *PendingDetection, speciesName
 	GetLogger().Info("approving detection",
 		logger.String("species", speciesName),
 		logger.String("source", p.getDisplayNameForSource(item.Source)),
+		logger.String("model_id", item.ModelID),
 		logger.Int("match_count", item.Count),
 		logger.Float64("confidence", item.Confidence),
 		logger.String("operation", "approve_detection"))
@@ -1193,7 +1208,7 @@ func (p *Processor) processApprovedDetection(item *PendingDetection, speciesName
 	// This is the correct place for learning - only approved detections should affect thresholds,
 	// not pending detections that may later be discarded as false positives.
 	// Note: speciesName is already lowercase (lowered in flushPendingDetections)
-	p.LearnFromApprovedDetection(speciesName, item.Detection.Result.Species.ScientificName, confidence)
+	p.LearnFromApprovedDetection(item.ModelID, speciesName, item.Detection.Result.Species.ScientificName, confidence)
 
 	p.normalizeDetectionTimes(item)
 
@@ -1378,6 +1393,7 @@ func (p *Processor) flushPendingDetections(minDetections int) (pendingCount, flu
 		GetLogger().Info("Flushing detection",
 			logger.String("species", speciesName),
 			logger.String("source", p.getDisplayNameForSource(item.Source)),
+			logger.String("model_id", item.ModelID),
 			logger.Bool("deadline_reached", true),
 			logger.Int("count", item.Count),
 			logger.Int("required", minDetections),
@@ -1410,6 +1426,7 @@ func (p *Processor) flushPendingDetections(minDetections int) (pendingCount, flu
 					LastUpdated:     item.LastUpdated.Unix(),
 					Source:          p.getDisplayNameForSource(item.Source),
 					SourceID:        item.Source,
+					ModelID:         item.ModelID,
 					HitCount:        item.Count,
 				})
 			}
@@ -1891,12 +1908,12 @@ func (p *Processor) GetJobQueueStats() jobqueue.JobStatsSnapshot {
 // GetBn returns the BirdNET instance
 //
 // Deprecated: Use GetBirdNET instead
-func (p *Processor) GetBn() *birdnet.BirdNET {
+func (p *Processor) GetBn() *classifier.Orchestrator {
 	return p.Bn
 }
 
 // GetBirdNET returns the BirdNET instance
-func (p *Processor) GetBirdNET() *birdnet.BirdNET {
+func (p *Processor) GetBirdNET() *classifier.Orchestrator {
 	return p.Bn
 }
 

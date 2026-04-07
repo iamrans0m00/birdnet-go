@@ -17,12 +17,14 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/patrickmn/go-cache"
+	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/mem"
 	"github.com/tphakala/birdnet-go/internal/alerting"
 	"github.com/tphakala/birdnet-go/internal/analysis/processor"
 	"github.com/tphakala/birdnet-go/internal/api/auth"
 	"github.com/tphakala/birdnet-go/internal/audiocore"
 	"github.com/tphakala/birdnet-go/internal/audiocore/engine"
-	"github.com/tphakala/birdnet-go/internal/birdnet"
+	"github.com/tphakala/birdnet-go/internal/classifier"
 	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/datastore"
 	"github.com/tphakala/birdnet-go/internal/guideprovider"
@@ -54,7 +56,7 @@ type Controller struct {
 	SunCalc             *suncalc.SunCalc
 	Processor           *processor.Processor
 	EBirdClient         *ebird.Client
-	TaxonomyDB          *birdnet.TaxonomyDatabase
+	TaxonomyDB          *classifier.TaxonomyDatabase
 	controlChan         chan string
 	shutdownRequester   ShutdownRequester // programmatic shutdown trigger (e.g., for restart)
 	shutdownMu          sync.RWMutex      // protects shutdownRequester
@@ -201,6 +203,12 @@ func WithAudioEngine(e *engine.AudioEngine) Option {
 func parseIPFromHeader(headerValue string) string {
 	if headerValue == "" {
 		return ""
+	}
+	// Strip IPv6 zone ID (e.g., %wlan0) before parsing.
+	// net.ParseIP does not handle zone identifiers, and iOS Safari
+	// commonly connects via IPv6 link-local addresses with zone IDs.
+	if before, _, found := strings.Cut(headerValue, "%"); found {
+		headerValue = before
 	}
 	ip := net.ParseIP(headerValue)
 	if ip != nil {
@@ -406,7 +414,7 @@ func NewWithOptions(e *echo.Echo, ds datastore.Interface, settings *conf.Setting
 	c.apiLogger = logger.Global().Module("api")
 
 	// Load local taxonomy database for fast species lookups
-	taxonomyDB, err := birdnet.LoadTaxonomyDatabase()
+	taxonomyDB, err := classifier.LoadTaxonomyDatabase()
 	if err != nil {
 		c.logWarnIfEnabled("Failed to load taxonomy database", logger.Error(err))
 		c.logWarnIfEnabled("Species taxonomy lookups will fall back to eBird API")
@@ -604,6 +612,7 @@ func (c *Controller) initRoutes() {
 		{"species routes", c.initSpeciesRoutes},
 		{"dynamic threshold routes", c.initDynamicThresholdRoutes},
 		{"alert routes", c.initAlertRoutes},
+		{"model routes", c.initModelRoutes},
 		{"insights routes", c.initInsightsRoutes},
 		{"tls routes", c.initTLSRoutes},
 	}
@@ -675,22 +684,37 @@ func (c *Controller) HealthCheck(ctx echo.Context) error {
 	// Add system metrics
 	systemMetrics := make(map[string]any)
 
-	// Add placeholder CPU usage (would be implemented with actual metrics in production)
-	systemMetrics["cpu_usage"] = 0.0
+	// CPU usage from cached background sampler
+	cpuPercent := GetCachedCPUUsage()
+	if len(cpuPercent) > 0 {
+		systemMetrics["cpu_usage"] = cpuPercent[0]
+	} else {
+		systemMetrics["cpu_usage"] = 0.0
+	}
 
-	// Add placeholder memory usage
+	// Memory usage via gopsutil
 	memoryMetrics := map[string]any{
 		"used_percent": 0.0,
 		"total_mb":     0.0,
 		"used_mb":      0.0,
 	}
+	if memInfo, err := mem.VirtualMemory(); err == nil {
+		memoryMetrics["used_percent"] = memInfo.UsedPercent
+		memoryMetrics["total_mb"] = float64(memInfo.Total) / 1024 / 1024
+		memoryMetrics["used_mb"] = float64(memInfo.Used) / 1024 / 1024
+	}
 	systemMetrics["memory"] = memoryMetrics
 
-	// Add placeholder disk space
+	// Disk usage via gopsutil (root partition)
 	diskMetrics := map[string]any{
 		"total_gb":     0.0,
 		"free_gb":      0.0,
 		"used_percent": 0.0,
+	}
+	if diskInfo, err := disk.Usage("/"); err == nil {
+		diskMetrics["total_gb"] = float64(diskInfo.Total) / 1024 / 1024 / 1024
+		diskMetrics["free_gb"] = float64(diskInfo.Free) / 1024 / 1024 / 1024
+		diskMetrics["used_percent"] = diskInfo.UsedPercent
 	}
 	systemMetrics["disk_space"] = diskMetrics
 

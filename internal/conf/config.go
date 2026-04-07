@@ -93,6 +93,7 @@ type AudioSourceConfig struct {
 	Device     string             `yaml:"device" json:"device" mapstructure:"device"`                              // Required: ALSA device ID (e.g., "sysdefault", "hw:0,0", "Loopback")
 	Gain       float64            `yaml:"gain" json:"gain" mapstructure:"gain"`                                    // Input gain in dB (0 = no adjustment)
 	Model      string             `yaml:"model,omitempty" json:"model,omitempty" mapstructure:"model"`             // AI model: "" or "birdnet" (default), "perch_v2", "bat" (future)
+	Models     []string           `yaml:"models,omitempty" json:"models,omitempty" mapstructure:"models"`          // Model IDs for this source (e.g., ["birdnet", "perch_v2"])
 	Equalizer  *EqualizerSettings `yaml:"equalizer,omitempty" json:"equalizer,omitempty" mapstructure:"equalizer"` // Per-source EQ (nil = use global)
 	QuietHours QuietHoursConfig   `yaml:"quietHours" json:"quietHours" mapstructure:"quietHours"`                  // Per-source quiet hours
 }
@@ -560,11 +561,12 @@ const DefaultTransport = "tcp"
 
 // StreamConfig represents a single audio stream source
 type StreamConfig struct {
-	Name       string           `yaml:"name" json:"name" mapstructure:"name"`                   // Required: descriptive name like "Front Yard"
-	URL        string           `yaml:"url" json:"url" mapstructure:"url"`                      // Required: stream URL
-	Type       string           `yaml:"type" json:"type" mapstructure:"type"`                   // Stream type: rtsp, http, hls, rtmp, udp
-	Transport  string           `yaml:"transport" json:"transport" mapstructure:"transport"`    // Transport: tcp or udp (for RTSP/RTMP)
-	QuietHours QuietHoursConfig `yaml:"quietHours" json:"quietHours" mapstructure:"quietHours"` // Quiet hours configuration
+	Name       string           `yaml:"name" json:"name" mapstructure:"name"`                           // Required: descriptive name like "Front Yard"
+	URL        string           `yaml:"url" json:"url" mapstructure:"url"`                              // Required: stream URL
+	Type       string           `yaml:"type" json:"type" mapstructure:"type"`                           // Stream type: rtsp, http, hls, rtmp, udp
+	Transport  string           `yaml:"transport" json:"transport" mapstructure:"transport"`            // Transport: tcp or udp (for RTSP/RTMP)
+	QuietHours QuietHoursConfig `yaml:"quietHours" json:"quietHours" mapstructure:"quietHours"`         // Quiet hours configuration
+	Models     []string         `yaml:"models,omitempty" json:"models,omitempty" mapstructure:"models"` // Model IDs for this stream (e.g., ["birdnet", "perch_v2"])
 }
 
 // RTSPSettings contains settings for audio streaming (supports multiple protocols).
@@ -1112,6 +1114,7 @@ type InputConfig struct {
 }
 
 type BirdNETConfig struct {
+	Version            string              `yaml:"version,omitempty" json:"version,omitempty"`                 // model version: "2.4", "3.0"
 	Debug              bool                `yaml:"debug" json:"debug"`                                         // true to enable debug mode
 	Sensitivity        float64             `yaml:"sensitivity" json:"sensitivity"`                             // birdnet analysis sigmoid sensitivity
 	Threshold          float64             `yaml:"threshold" json:"threshold"`                                 // threshold for prediction confidence to report
@@ -1137,6 +1140,19 @@ type RangeFilterSettings struct {
 	Threshold   float32   `yaml:"threshold" json:"threshold"` // rangefilter species occurrence threshold
 	Species     []string  `yaml:"-" json:"species,omitempty"` // list of included species, runtime value
 	LastUpdated time.Time `yaml:"-" json:"lastUpdated"`       // last time the species list was updated, runtime value
+}
+
+// PerchConfig holds configuration for the Google Perch v2 model.
+type PerchConfig struct {
+	Enabled   bool    `yaml:"enabled" json:"enabled"`                         // true to load Perch at startup
+	ModelPath string  `yaml:"modelpath,omitempty" json:"modelPath,omitempty"` // path to Perch v2 ONNX model file
+	LabelPath string  `yaml:"labelpath,omitempty" json:"labelPath,omitempty"` // path to Perch v2 label CSV file
+	Threshold float64 `yaml:"threshold" json:"threshold"`                     // confidence threshold for detections
+}
+
+// ModelsConfig holds global model enablement settings.
+type ModelsConfig struct {
+	Enabled []string `yaml:"enabled" json:"enabled"` // list of model IDs to load (e.g., "birdnet", "perch_v2")
 }
 
 // BasicAuth holds settings for the password authentication
@@ -1454,6 +1470,8 @@ type Settings struct {
 	} `yaml:"main" json:"main"`
 
 	BirdNET BirdNETConfig `yaml:"birdnet" json:"birdnet"` // BirdNET configuration
+	Perch   PerchConfig   `yaml:"perch" json:"perch"`     // Perch v2 model configuration
+	Models  ModelsConfig  `yaml:"models" json:"models"`   // Global model enablement
 
 	TaxonomySynonyms map[string]string `yaml:"taxonomySynonyms" json:"taxonomySynonyms" mapstructure:"taxonomySynonyms"` // Optional scientific-name synonym overrides merged with built-ins
 
@@ -1508,6 +1526,19 @@ var (
 	once             sync.Once
 	settingsMutex    sync.RWMutex
 )
+
+// persistMigration saves the config file after a successful migration.
+func persistMigration(settings *Settings, label string) {
+	configFile := viper.ConfigFileUsed()
+	if configFile == "" {
+		return
+	}
+	if err := SaveYAMLConfig(configFile, settings); err != nil {
+		GetLogger().Warn("Failed to save migrated "+label+" config", logger.Error(err))
+	} else {
+		GetLogger().Info("Saved migrated "+label+" configuration", logger.String("path", configFile))
+	}
+}
 
 // Load reads the configuration file and environment variables into GlobalConfig.
 //
@@ -1582,14 +1613,17 @@ func Load() (*Settings, error) {
 
 	// Migrate legacy single audio source to new multi-source format
 	if settings.MigrateAudioSourceConfig() {
-		configFile := viper.ConfigFileUsed()
-		if configFile != "" {
-			if err := SaveYAMLConfig(configFile, settings); err != nil {
-				GetLogger().Warn("Failed to save migrated audio source config", logger.Error(err))
-			} else {
-				GetLogger().Info("Saved migrated audio source configuration", logger.String("path", configFile))
-			}
-		}
+		persistMigration(settings, "audio source")
+	}
+
+	// Migrate per-source model field (model -> models)
+	if settings.MigrateSourceModels() {
+		persistMigration(settings, "source models")
+	}
+
+	// Validate multi-model configuration
+	if err := settings.applyModelValidation(); err != nil {
+		return nil, err
 	}
 
 	// Migrate dashboard layout for existing installations
@@ -2063,6 +2097,123 @@ func (s *Settings) MigrateAudioSourceConfig() bool {
 	return true
 }
 
+// MigrateSourceModels migrates the legacy singular Model field to the new
+// Models list on AudioSourceConfig and StreamConfig. Sources with neither
+// Model nor Models set default to ["birdnet"]. Returns true if any migration
+// occurred.
+func (s *Settings) MigrateSourceModels() bool {
+	migrated := false
+
+	for i := range s.Realtime.Audio.Sources {
+		src := &s.Realtime.Audio.Sources[i]
+		if len(src.Models) > 0 {
+			continue
+		}
+		if src.Model != "" {
+			src.Models = []string{src.Model}
+			src.Model = ""
+		} else {
+			src.Models = []string{"birdnet"}
+		}
+		migrated = true
+	}
+
+	for i := range s.Realtime.RTSP.Streams {
+		stream := &s.Realtime.RTSP.Streams[i]
+		if len(stream.Models) > 0 {
+			continue
+		}
+		stream.Models = []string{"birdnet"}
+		migrated = true
+	}
+
+	return migrated
+}
+
+// ValidateModelConfig checks model-related configuration for errors and
+// warnings. Returns a slice of warning/error strings. Fatal errors are
+// prefixed with "error:"; non-fatal issues with "warning:".
+// knownIDs is the set of recognized config-level model identifiers; callers
+// should pass classifier.KnownConfigIDs() when available, or a hardcoded
+// fallback during early config loading.
+func (s *Settings) ValidateModelConfig(knownIDs map[string]bool) []string {
+	var issues []string
+
+	enabledSet := make(map[string]bool, len(s.Models.Enabled))
+	for _, id := range s.Models.Enabled {
+		enabledSet[strings.ToLower(id)] = true
+	}
+
+	for _, id := range s.Models.Enabled {
+		if !knownIDs[strings.ToLower(id)] {
+			issues = append(issues, "warning: unknown model ID in models.enabled: "+id)
+		}
+	}
+
+	if enabledSet["perch_v2"] && !s.Perch.Enabled {
+		issues = append(issues, "error: perch_v2 in models.enabled but perch.enabled is false")
+	}
+
+	if s.Perch.Enabled && !enabledSet["perch_v2"] {
+		issues = append(issues, "warning: perch.enabled is true but 'perch_v2' is not in models.enabled")
+	}
+
+	if s.Perch.Enabled {
+		if s.Perch.ModelPath == "" {
+			issues = append(issues, "error: perch.enabled is true but perch.modelpath is empty")
+		}
+		if s.Perch.LabelPath == "" {
+			issues = append(issues, "error: perch.enabled is true but perch.labelpath is empty")
+		}
+	}
+
+	for i := range s.Realtime.Audio.Sources {
+		src := &s.Realtime.Audio.Sources[i]
+		for _, modelID := range src.Models {
+			if !enabledSet[strings.ToLower(modelID)] {
+				issues = append(issues, "warning: source \""+src.Name+"\" references model \""+modelID+"\" not in models.enabled")
+			}
+		}
+	}
+	for i := range s.Realtime.RTSP.Streams {
+		stream := &s.Realtime.RTSP.Streams[i]
+		for _, modelID := range stream.Models {
+			if !enabledSet[strings.ToLower(modelID)] {
+				issues = append(issues, "warning: stream \""+stream.Name+"\" references model \""+modelID+"\" not in models.enabled")
+			}
+		}
+	}
+
+	return issues
+}
+
+// applyModelValidation runs ValidateModelConfig and either returns an error
+// for fatal issues or appends warnings to ValidationWarnings. All fatal
+// errors are collected and returned together so the user can fix them in
+// one pass.
+func (s *Settings) applyModelValidation() error {
+	// Default known IDs — matches classifier.KnownConfigIDs() at compile time.
+	// This fallback is used during config loading before the classifier package
+	// is available. The orchestrator re-validates with the authoritative list.
+	knownIDs := map[string]bool{"birdnet": true, "perch_v2": true}
+	modelIssues := s.ValidateModelConfig(knownIDs)
+	var fatalErrors []string
+	for _, issue := range modelIssues {
+		if strings.HasPrefix(issue, "error:") {
+			fatalErrors = append(fatalErrors, strings.TrimPrefix(issue, "error: "))
+		} else {
+			GetLogger().Warn("model configuration issue", logger.String("issue", issue))
+			s.ValidationWarnings = append(s.ValidationWarnings, issue)
+		}
+	}
+	if len(fatalErrors) > 0 {
+		return errors.Newf("model configuration: %s", strings.Join(fatalErrors, "; ")).
+			Category(errors.CategoryValidation).
+			Build()
+	}
+	return nil
+}
+
 // MigrateLocationConfigured sets LocationConfigured to true for existing configs
 // that have non-zero coordinates but predate the explicit flag. This provides
 // backward compatibility so that existing users don't lose location-dependent
@@ -2468,11 +2619,6 @@ func (w *WundergroundSettings) ValidateWunderground() error {
 	}
 	if w.StationID == "" {
 		return fmt.Errorf("wunderground.stationId is required when provider is wunderground")
-	}
-	// Validate units
-	validUnits := map[string]bool{"m": true, "e": true, "h": true}
-	if !validUnits[w.Units] {
-		return fmt.Errorf("wunderground.units must be one of [m, e, h], got: %s", w.Units)
 	}
 	return nil
 }

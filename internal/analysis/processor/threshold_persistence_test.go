@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/datastore"
+	"github.com/tphakala/birdnet-go/internal/detection"
 	"github.com/tphakala/birdnet-go/internal/errors"
 	"gorm.io/gorm"
 )
@@ -40,14 +41,15 @@ type MockDatastore struct {
 
 // Implement all required methods from datastore.Interface
 
-func (m *MockDatastore) Open() error                                     { return nil }
-func (m *MockDatastore) Close() error                                    { return nil }
-func (m *MockDatastore) Save(*datastore.Note, []datastore.Results) error { return nil }
-func (m *MockDatastore) Delete(string) error                             { return nil }
-func (m *MockDatastore) Get(string) (datastore.Note, error)              { return datastore.Note{}, nil }
-func (m *MockDatastore) SetMetrics(*datastore.Metrics)                   {}
-func (m *MockDatastore) SetSunCalcMetrics(any)                           {}
-func (m *MockDatastore) Optimize(context.Context) error                  { return nil }
+func (m *MockDatastore) Open() error                                       { return nil }
+func (m *MockDatastore) Close() error                                      { return nil }
+func (m *MockDatastore) Save(*datastore.Note, []datastore.Results) error   { return nil }
+func (m *MockDatastore) EnsureModelRegistered(_ detection.ModelInfo) error { return nil }
+func (m *MockDatastore) Delete(string) error                               { return nil }
+func (m *MockDatastore) Get(string) (datastore.Note, error)                { return datastore.Note{}, nil }
+func (m *MockDatastore) SetMetrics(*datastore.Metrics)                     {}
+func (m *MockDatastore) SetSunCalcMetrics(any)                             {}
+func (m *MockDatastore) Optimize(context.Context) error                    { return nil }
 func (m *MockDatastore) GetAllNotes() ([]datastore.Note, error) {
 	return make([]datastore.Note, 0), nil
 }
@@ -133,6 +135,7 @@ func (m *MockDatastore) GetAllImageCaches(string) ([]datastore.ImageCache, error
 	return make([]datastore.ImageCache, 0), nil
 }
 func (m *MockDatastore) GetLockedNotesClipPaths() ([]string, error)               { return make([]string, 0), nil }
+func (m *MockDatastore) ClearNoteClipPathsByNames(_ []string) (int64, error)      { return 0, nil }
 func (m *MockDatastore) CountHourlyDetections(string, string, int) (int64, error) { return 0, nil }
 func (m *MockDatastore) GetSpeciesSummaryData(context.Context, string, string) ([]datastore.SpeciesSummaryData, error) {
 	return make([]datastore.SpeciesSummaryData, 0), nil
@@ -174,7 +177,12 @@ func (m *MockDatastore) SaveDynamicThreshold(threshold *datastore.DynamicThresho
 	return nil
 }
 
-func (m *MockDatastore) GetDynamicThreshold(speciesName string) (*datastore.DynamicThreshold, error) {
+func (m *MockDatastore) GetDynamicThreshold(speciesName, modelName string) (*datastore.DynamicThreshold, error) {
+	key := speciesName + ":" + modelName
+	if threshold, exists := m.thresholds[key]; exists {
+		return threshold, nil
+	}
+	// Fall back to species-only lookup for backward compatibility in tests
 	if threshold, exists := m.thresholds[speciesName]; exists {
 		return threshold, nil
 	}
@@ -429,6 +437,7 @@ func TestLoadDynamicThresholdsFromDB(t *testing.T) {
 		mockDs.thresholds = map[string]*datastore.DynamicThreshold{
 			"american crow": {
 				SpeciesName:   "american crow",
+				ModelName:     "BirdNET",
 				Level:         1,
 				CurrentValue:  0.75,
 				BaseThreshold: 0.7,
@@ -440,6 +449,7 @@ func TestLoadDynamicThresholdsFromDB(t *testing.T) {
 			},
 			"blue jay": {
 				SpeciesName:   "blue jay",
+				ModelName:     "BirdNET",
 				Level:         2,
 				CurrentValue:  0.8,
 				BaseThreshold: 0.7,
@@ -456,16 +466,18 @@ func TestLoadDynamicThresholdsFromDB(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, p.DynamicThresholds, 2)
 
-		// Verify american crow threshold
-		crowThreshold := p.DynamicThresholds["american crow"]
+		// Verify american crow threshold (composite key: "BirdNET:american crow")
+		crowKey := dynamicThresholdKey("BirdNET", "american crow")
+		crowThreshold := p.DynamicThresholds[crowKey]
 		require.NotNil(t, crowThreshold)
 		assert.Equal(t, 1, crowThreshold.Level)
 		assert.InDelta(t, 0.75, crowThreshold.CurrentValue, 0.001)
 		assert.Equal(t, 5, crowThreshold.HighConfCount)
 		assert.Equal(t, 48, crowThreshold.ValidHours)
 
-		// Verify blue jay threshold
-		jayThreshold := p.DynamicThresholds["blue jay"]
+		// Verify blue jay threshold (composite key: "BirdNET:blue jay")
+		jayKey := dynamicThresholdKey("BirdNET", "blue jay")
+		jayThreshold := p.DynamicThresholds[jayKey]
 		require.NotNil(t, jayThreshold)
 		assert.Equal(t, 2, jayThreshold.Level)
 		assert.InDelta(t, 0.8, jayThreshold.CurrentValue, 0.001)
@@ -480,12 +492,14 @@ func TestLoadDynamicThresholdsFromDB(t *testing.T) {
 		mockDs.thresholds = map[string]*datastore.DynamicThreshold{
 			"american crow": {
 				SpeciesName:  "american crow",
+				ModelName:    "BirdNET",
 				Level:        1,
 				CurrentValue: 0.75,
 				ExpiresAt:    now.Add(24 * time.Hour), // Valid
 			},
 			"blue jay": {
 				SpeciesName:  "blue jay",
+				ModelName:    "BirdNET",
 				Level:        2,
 				CurrentValue: 0.8,
 				ExpiresAt:    now.Add(-1 * time.Hour), // Expired
@@ -496,8 +510,10 @@ func TestLoadDynamicThresholdsFromDB(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Len(t, p.DynamicThresholds, 1, "Should only load non-expired threshold")
-		assert.Contains(t, p.DynamicThresholds, "american crow")
-		assert.NotContains(t, p.DynamicThresholds, "blue jay")
+		crowKey := dynamicThresholdKey("BirdNET", "american crow")
+		jayKey := dynamicThresholdKey("BirdNET", "blue jay")
+		assert.Contains(t, p.DynamicThresholds, crowKey)
+		assert.NotContains(t, p.DynamicThresholds, jayKey)
 	})
 }
 
@@ -508,15 +524,17 @@ func TestPersistDynamicThresholds(t *testing.T) {
 		mockDs := p.Ds.(*MockDatastore)
 
 		now := time.Now()
-		// Add thresholds to in-memory map
-		p.DynamicThresholds["american crow"] = &DynamicThreshold{
+		// Add thresholds to in-memory map using composite keys
+		crowKey := dynamicThresholdKey("BirdNET", "american crow")
+		jayKey := dynamicThresholdKey("BirdNET", "blue jay")
+		p.DynamicThresholds[crowKey] = &DynamicThreshold{
 			Level:         1,
 			CurrentValue:  0.75,
 			Timer:         now.Add(24 * time.Hour),
 			HighConfCount: 5,
 			ValidHours:    48,
 		}
-		p.DynamicThresholds["blue jay"] = &DynamicThreshold{
+		p.DynamicThresholds[jayKey] = &DynamicThreshold{
 			Level:         2,
 			CurrentValue:  0.8,
 			Timer:         now.Add(48 * time.Hour),
@@ -530,12 +548,13 @@ func TestPersistDynamicThresholds(t *testing.T) {
 		assert.True(t, mockDs.batchSaveCalled)
 		assert.Len(t, mockDs.thresholds, 2)
 
-		// Verify saved thresholds
+		// Verify saved thresholds (BatchSave stores by species name)
 		savedCrow := mockDs.thresholds["american crow"]
 		require.NotNil(t, savedCrow)
 		assert.Equal(t, 1, savedCrow.Level)
 		assert.InDelta(t, 0.75, savedCrow.CurrentValue, 0.001)
 		assert.Equal(t, 5, savedCrow.HighConfCount)
+		assert.Equal(t, "BirdNET", savedCrow.ModelName, "ModelName should be persisted")
 	})
 
 	t.Run("EmptyThresholdsMap", func(t *testing.T) {
@@ -553,12 +572,14 @@ func TestPersistDynamicThresholds(t *testing.T) {
 		mockDs := p.Ds.(*MockDatastore)
 
 		now := time.Now()
-		p.DynamicThresholds["american crow"] = &DynamicThreshold{
+		crowKey := dynamicThresholdKey("BirdNET", "american crow")
+		jayKey := dynamicThresholdKey("BirdNET", "blue jay")
+		p.DynamicThresholds[crowKey] = &DynamicThreshold{
 			Level:        1,
 			CurrentValue: 0.75,
 			Timer:        now.Add(24 * time.Hour), // Valid
 		}
-		p.DynamicThresholds["blue jay"] = &DynamicThreshold{
+		p.DynamicThresholds[jayKey] = &DynamicThreshold{
 			Level:        2,
 			CurrentValue: 0.8,
 			Timer:        now.Add(-1 * time.Hour), // Expired
@@ -568,8 +589,8 @@ func TestPersistDynamicThresholds(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Len(t, p.DynamicThresholds, 1, "Expired threshold should be removed from memory")
-		assert.Contains(t, p.DynamicThresholds, "american crow")
-		assert.NotContains(t, p.DynamicThresholds, "blue jay")
+		assert.Contains(t, p.DynamicThresholds, crowKey)
+		assert.NotContains(t, p.DynamicThresholds, jayKey)
 
 		// Only valid threshold should be saved to database
 		assert.Len(t, mockDs.thresholds, 1)
@@ -584,7 +605,8 @@ func TestFlushDynamicThresholds(t *testing.T) {
 		mockDs := p.Ds.(*MockDatastore)
 
 		now := time.Now()
-		p.DynamicThresholds["american crow"] = &DynamicThreshold{
+		crowKey := dynamicThresholdKey("BirdNET", "american crow")
+		p.DynamicThresholds[crowKey] = &DynamicThreshold{
 			Level:        1,
 			CurrentValue: 0.75,
 			Timer:        now.Add(24 * time.Hour),
@@ -676,7 +698,8 @@ func TestBatchSaveWithBaseThreshold(t *testing.T) {
 		}
 
 		now := time.Now()
-		p.DynamicThresholds["american crow"] = &DynamicThreshold{
+		crowKey := dynamicThresholdKey("BirdNET", "american crow")
+		p.DynamicThresholds[crowKey] = &DynamicThreshold{
 			Level:        1,
 			CurrentValue: 0.75,
 			Timer:        now.Add(24 * time.Hour),
@@ -686,7 +709,7 @@ func TestBatchSaveWithBaseThreshold(t *testing.T) {
 
 		require.NoError(t, err)
 
-		// Verify base threshold was calculated and saved
+		// Verify base threshold was calculated and saved (BatchSave stores by species name)
 		savedThreshold := mockDs.thresholds["american crow"]
 		require.NotNil(t, savedThreshold)
 		assert.InDelta(t, 0.65, savedThreshold.BaseThreshold, 0.001, "Base threshold should match custom config")

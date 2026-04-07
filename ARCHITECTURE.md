@@ -165,7 +165,7 @@ Both models work together to provide accurate, location-aware bird identificatio
 **Package Structure:**
 
 ```
-internal/birdnet/
+internal/classifier/
 ├── birdnet.go              # Main BirdNET struct and initialization
 ├── analyze.go              # Audio analysis and species detection
 ├── range_filter.go         # Geographic range filtering
@@ -178,20 +178,37 @@ internal/birdnet/
 └── queue.go                # Analysis queue management
 ```
 
+**Inference Backend (`internal/inference/`):**
+
+The inference package defines `Classifier` and `RangeFilter` interfaces with backend-specific implementations in sub-packages:
+
+```text
+internal/inference/
+├── backend.go              # Classifier and RangeFilter interfaces
+├── tflite/                 # TFLite backend (via go-tflite)
+│   ├── classifier.go       # Species classification
+│   ├── rangefilter.go      # Geographic range filtering
+│   └── threads.go          # Thread count auto-detection
+└── onnx/                   # ONNX backend (build tag: onnx)
+    ├── classifier.go       # ONNX species classification
+    └── rangefilter.go      # ONNX range filtering
+```
+
 **TensorFlow Lite Integration via go-tflite:**
 
 BirdNET-Go uses the `github.com/tphakala/go-tflite` library for TensorFlow Lite integration:
 
 ```go
-// internal/birdnet/birdnet.go
+// internal/inference/tflite/classifier.go
 import (
-    tflite "github.com/tphakala/go-tflite"
+    tflitelib "github.com/tphakala/go-tflite"
     "github.com/tphakala/go-tflite/delegates/xnnpack"
 )
 
+// The BirdNET struct holds inference.Classifier and inference.RangeFilter interfaces
 type BirdNET struct {
-    AnalysisInterpreter *tflite.Interpreter  // Species identification model
-    RangeInterpreter    *tflite.Interpreter  // Geographic filtering model
+    classifier       inference.Classifier   // Species identification backend
+    rangeFilter      inference.RangeFilter  // Geographic filtering backend
     // ...
 }
 ```
@@ -1047,7 +1064,7 @@ mockery --config .mockery.yaml
 task test
 
 # Specific package
-go test -v ./internal/birdnet/...
+go test -v ./internal/classifier/...
 
 # With coverage
 go test -race -coverprofile=coverage.out ./...

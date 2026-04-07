@@ -20,7 +20,6 @@
   import AudioPlayer from '$lib/desktop/components/media/AudioPlayer.svelte';
   import SpeciesBadges from '$lib/desktop/components/modals/SpeciesBadges.svelte';
   import ErrorAlert from '$lib/desktop/components/ui/ErrorAlert.svelte';
-  import LoadingSpinner from '$lib/desktop/components/ui/LoadingSpinner.svelte';
   import { handleBirdImageError } from '$lib/desktop/components/ui/image-utils.js';
   import CollapsibleSection from '$lib/desktop/components/ui/CollapsibleSection.svelte';
   import { t, getLocale } from '$lib/i18n';
@@ -1032,10 +1031,56 @@
   </div>
 
   {#if isLoadingDetection}
-    <!-- Loading skeleton -->
-    <div class="surface-card p-8">
-      <div class="flex justify-center items-center h-64" aria-label="Loading detection details">
-        <LoadingSpinner size="lg" />
+    <!-- Loading skeleton matching real layout structure (decorative, AT uses live region above) -->
+    <div class="detection-hero-grid" aria-hidden="true">
+      <!-- Identity card skeleton -->
+      <div class="hero-card hero-identity-card">
+        <div class="skeleton-line w-20 h-3 mb-4"></div>
+        <div class="hero-identity-row">
+          <div class="hero-thumbnail skeleton-block"></div>
+          <div class="hero-species">
+            <div class="skeleton-line w-48 h-6 mb-2"></div>
+            <div class="skeleton-line w-32 h-4 mb-3"></div>
+            <div class="flex gap-2">
+              <div class="skeleton-line w-16 h-5 rounded-full"></div>
+              <div class="skeleton-line w-16 h-5 rounded-full"></div>
+            </div>
+          </div>
+          <div class="hero-confidence">
+            <div class="skeleton-block w-20 h-20 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Metadata card skeleton -->
+      <div class="hero-card hero-metadata-card">
+        <div class="skeleton-line w-24 h-3 mb-4"></div>
+        <div class="space-y-3">
+          <div class="skeleton-line w-28 h-5"></div>
+          <div class="skeleton-line w-20 h-4"></div>
+          <div class="skeleton-line w-full h-12 mt-4"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Media section skeleton -->
+    <div class="surface-card">
+      <div class="p-5 md:p-6">
+        <div class="skeleton-line w-32 h-4 mb-4"></div>
+        <div class="skeleton-block w-full" style:aspect-ratio="2 / 1"></div>
+      </div>
+    </div>
+    <!-- Tabs skeleton -->
+    <div class="surface-card">
+      <div class="p-5 md:p-6">
+        <div class="flex gap-4 mb-6">
+          <div class="skeleton-line w-20 h-8 rounded-md"></div>
+          <div class="skeleton-line w-20 h-8 rounded-md"></div>
+          <div class="skeleton-line w-20 h-8 rounded-md"></div>
+        </div>
+        <div class="space-y-3">
+          <div class="skeleton-line w-full h-4"></div>
+          <div class="skeleton-line w-3/4 h-4"></div>
+          <div class="skeleton-line w-1/2 h-4"></div>
+        </div>
       </div>
     </div>
   {:else if detectionError}
@@ -1752,244 +1797,33 @@
     font-style: italic;
   }
 
-  /* ----- Species Guide ----- */
-  .guide-content {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  :global(.guide-collapsible) {
-    background: var(--color-base-200) !important;
-    box-shadow: none !important;
-    border-radius: 0.75rem;
-  }
-
-  :global(.guide-collapsible-title) {
-    font-size: 0.8125rem !important;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    min-height: 2.25rem !important;
-    padding: 0.5rem 1rem !important;
-  }
-
-  :global(.guide-collapsible-content) {
-    padding: 0 1rem 0.75rem !important;
-  }
-
-  .guide-section-body {
-    font-size: 0.875rem;
-    line-height: 1.65;
-    color: var(--color-base-content);
-    opacity: 0.85;
-  }
-
-  .guide-attribution {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-size: 0.6875rem;
-    color: var(--color-base-content);
-    opacity: 0.4;
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border-100);
-  }
-
-  /* ----- Guide Quality Badge ----- */
-  .guide-quality-badge {
-    font-size: 0.625rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 0.125rem 0.5rem;
-    border-radius: 9999px;
-    line-height: 1.4;
-  }
-
-  .guide-quality-intro_only {
-    background: var(--color-warning, #f59e0b);
-    color: var(--color-warning-content, #fff);
-    opacity: 0.8;
-  }
-
-  .guide-quality-stub {
+  /* ----- Skeleton loading primitives ----- */
+  .skeleton-line,
+  .skeleton-block {
     background: var(--color-base-300);
-    color: var(--color-base-content);
-    opacity: 0.6;
+    border-radius: var(--radius-selector);
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
   }
 
-  /* ----- Guide Badges (Expectedness + Season) ----- */
-  .guide-badge {
-    font-size: 0.625rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    padding: 0.125rem 0.5rem;
-    border-radius: 9999px;
-    line-height: 1.4;
+  .skeleton-block {
+    border-radius: var(--radius-box);
   }
 
-  .guide-expectedness-expected {
-    background: color-mix(in srgb, var(--color-success, #22c55e) 20%, transparent);
-    color: var(--color-success, #22c55e);
+  @keyframes skeleton-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.5;
+    }
   }
 
-  .guide-expectedness-uncommon {
-    background: color-mix(in srgb, var(--color-warning, #f59e0b) 20%, transparent);
-    color: var(--color-warning, #f59e0b);
-  }
-
-  .guide-expectedness-rare {
-    background: color-mix(in srgb, var(--color-error, #ef4444) 20%, transparent);
-    color: var(--color-error, #ef4444);
-  }
-
-  .guide-expectedness-unexpected {
-    background: color-mix(in srgb, var(--color-error, #ef4444) 30%, transparent);
-    color: var(--color-error, #ef4444);
-    font-weight: 700;
-  }
-
-  .guide-season {
-    background: var(--color-base-200);
-    color: var(--color-base-content);
-    opacity: 0.7;
-  }
-
-  /* ----- External Links ----- */
-  .external-links {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
-  }
-
-  .external-links-label {
-    font-size: 0.6875rem;
-    opacity: 0.5;
-  }
-
-  .external-link-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    font-size: 0.6875rem;
-    font-weight: 500;
-    padding: 0.2rem 0.625rem;
-    border-radius: 9999px;
-    border: 1px solid var(--border-100);
-    color: var(--color-primary);
-    text-decoration: none;
-    transition:
-      background-color 0.15s,
-      border-color 0.15s;
-  }
-
-  .external-link-pill:hover {
-    background: color-mix(in srgb, var(--color-primary) 8%, transparent);
-    border-color: var(--color-primary);
-  }
-
-  /* ----- Compare Button ----- */
-  .compare-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    font-size: 0.6875rem;
-    font-weight: 500;
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
-    border: 1px solid var(--border-100);
-    background: var(--color-base-100);
-    color: var(--color-base-content);
-    cursor: pointer;
-    opacity: 0.7;
-    transition:
-      opacity 0.15s,
-      background-color 0.15s;
-    margin-top: 0.75rem;
-  }
-
-  .compare-button:hover {
-    opacity: 1;
-    background: var(--color-base-200);
-  }
-
-  /* ----- Seasonal Keyword Highlight ----- */
-  :global(.season-highlight) {
-    background: color-mix(in srgb, var(--color-primary, #3b82f6) 15%, transparent);
-    color: inherit;
-    padding: 0 0.125rem;
-    border-radius: 0.125rem;
-  }
-
-  /* ----- Species Notes ----- */
-  .species-note-card {
-    transition: background-color 0.15s;
-  }
-
-  .species-note-card:hover .species-note-delete {
-    opacity: 0.5;
-  }
-
-  .species-note-delete {
-    opacity: 0;
-    padding: 0.25rem;
-    border-radius: 0.375rem;
-    color: var(--color-error, #ef4444);
-    transition: opacity 0.15s;
-    cursor: pointer;
-    background: none;
-    border: none;
-  }
-
-  .species-note-delete:hover {
-    opacity: 1 !important;
-    background: var(--color-error, #ef4444);
-    color: white;
-  }
-
-  .species-note-input {
-    flex: 1;
-    font-size: 0.875rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.5rem;
-    border: 1px solid var(--border-100);
-    background: var(--color-base-100);
-    color: var(--color-base-content);
-    resize: vertical;
-    min-height: 2.5rem;
-  }
-
-  .species-note-input:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 20%, transparent);
-  }
-
-  .species-note-save {
-    align-self: flex-end;
-    font-size: 0.75rem;
-    font-weight: 600;
-    padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
-    background: var(--color-primary);
-    color: var(--color-primary-content);
-    border: none;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: opacity 0.15s;
-  }
-
-  .species-note-save:hover:not(:disabled) {
-    opacity: 0.9;
-  }
-
-  .species-note-save:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton-line,
+    .skeleton-block {
+      animation: none;
+    }
   }
 </style>

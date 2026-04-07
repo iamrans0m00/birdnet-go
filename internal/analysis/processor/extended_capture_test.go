@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/tphakala/birdnet-go/internal/birdnet"
+	"github.com/tphakala/birdnet-go/internal/classifier"
 	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/detection"
 )
@@ -126,7 +126,7 @@ func TestResolveExtendedCaptureFilter(t *testing.T) {
 func TestResolveExtendedCaptureFilter_WithTaxonomy(t *testing.T) {
 	t.Parallel()
 
-	db, err := birdnet.LoadTaxonomyDatabase()
+	db, err := classifier.LoadTaxonomyDatabase()
 	require.NoError(t, err)
 
 	// Resolve "Strigidae" (owl family) via taxonomy DB
@@ -141,7 +141,7 @@ func TestResolveExtendedCaptureFilter_WithTaxonomy(t *testing.T) {
 func TestResolveExtendedCaptureFilter_WithGenus(t *testing.T) {
 	t.Parallel()
 
-	db, err := birdnet.LoadTaxonomyDatabase()
+	db, err := classifier.LoadTaxonomyDatabase()
 	require.NoError(t, err)
 
 	// Resolve "Strix" (genus) via taxonomy DB — should include Tawny Owl, Ural Owl, etc.
@@ -173,7 +173,7 @@ func TestExtendedCapture_FlushDeadlineExtension(t *testing.T) {
 
 	species := "tawny owl"
 	sourceID := "test_source"
-	mapKey := pendingDetectionKey(sourceID, species)
+	mapKey := pendingDetectionKey(sourceID, species, "")
 	now := time.Now()
 
 	// First detection: should get minimum 15s deadline
@@ -259,7 +259,7 @@ func TestExtendedCapture_EndToEnd_ContinuousSession(t *testing.T) {
 
 	species := "strix uralensis"
 	sourceID := "test_mic"
-	mapKey := pendingDetectionKey(sourceID, species)
+	mapKey := pendingDetectionKey(sourceID, species, "")
 	detectionWindow := 9 * time.Second // 15 - 6
 
 	// Simulate 20 detections over 2 minutes
@@ -325,7 +325,7 @@ func TestExtendedCapture_MultiSource_Independence(t *testing.T) {
 	now := time.Now()
 
 	// Source A detection
-	keyA := pendingDetectionKey("mic_a", species)
+	keyA := pendingDetectionKey("mic_a", species, "")
 	p.pendingDetections[keyA] = PendingDetection{
 		Source: "mic_a", FirstDetected: now, Count: 1,
 		FlushDeadline: now.Add(9 * time.Second),
@@ -333,7 +333,7 @@ func TestExtendedCapture_MultiSource_Independence(t *testing.T) {
 	p.applyExtendedCapture(keyA, now, 9*time.Second)
 
 	// Source B detection 5 seconds later
-	keyB := pendingDetectionKey("mic_b", species)
+	keyB := pendingDetectionKey("mic_b", species, "")
 	p.pendingDetections[keyB] = PendingDetection{
 		Source: "mic_b", FirstDetected: now.Add(5 * time.Second), Count: 1,
 		FlushDeadline: now.Add(14 * time.Second),

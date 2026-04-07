@@ -449,14 +449,25 @@ func (ds *Datastore) GetDatabaseStats() (*datastore.DatabaseStats, error) {
 	return stats, nil
 }
 
+// EnsureModelRegistered creates the model entry in ai_models if it doesn't exist.
+func (ds *Datastore) EnsureModelRegistered(info detection.ModelInfo) error {
+	ctx := context.Background()
+	_, err := ds.model.GetOrCreate(ctx, info.Name, info.Version, info.Variant, entities.ModelTypeBird, info.ClassifierPath)
+	return err
+}
+
 // Save saves a note with its results atomically.
 // The detection and its predictions are saved in a single transaction to prevent
 // partial writes (e.g., detection saved but predictions failed).
 func (ds *Datastore) Save(note *datastore.Note, results []datastore.Results) error {
 	ctx := context.Background()
 
-	// Get or create default model first (needed for model-specific labels)
-	modelInfo := detection.DefaultModelInfo()
+	// Use the model info from the note if available, otherwise fall back to the default.
+	// This allows multi-model detections to be attributed to the correct model.
+	modelInfo := note.Model
+	if modelInfo.Name == "" {
+		modelInfo = detection.DefaultModelInfo()
+	}
 	model, err := ds.model.GetOrCreate(ctx, modelInfo.Name, modelInfo.Version, modelInfo.Variant, entities.ModelTypeBird, modelInfo.ClassifierPath)
 	if err != nil {
 		return fmt.Errorf("failed to get/create model: %w", err)
@@ -745,7 +756,7 @@ func (ds *Datastore) detectionToNote(det *entities.Detection) datastore.Note {
 		}
 	}
 
-	return datastore.Note{
+	note := datastore.Note{
 		ID:             det.ID,
 		Date:           dateStr,
 		Time:           timeStr,
@@ -764,6 +775,18 @@ func (ds *Datastore) detectionToNote(det *entities.Detection) datastore.Note {
 		Verified:       verified,
 		Locked:         locked,
 	}
+
+	// Populate model info from preloaded Model entity
+	if det.Model != nil {
+		note.Model = detection.ModelInfo{
+			Name:           det.Model.Name,
+			Version:        det.Model.Version,
+			Variant:        det.Model.Variant,
+			ClassifierPath: det.Model.ClassifierPath,
+		}
+	}
+
+	return note
 }
 
 // detectionsToNotes converts multiple detections to notes.
@@ -1875,7 +1898,7 @@ func (ds *Datastore) SearchDetections(filters *datastore.SearchFilters) ([]datas
 	return records, int(total), nil
 }
 
-// loadDetectionRelations loads Label, Source, Review, and Lock for detections.
+// loadDetectionRelations loads Label, Source, Model, Review, Lock, and Comments for detections.
 // Uses batch queries to minimize database round-trips.
 func (ds *Datastore) loadDetectionRelations(ctx context.Context, dets []*entities.Detection) error {
 	if len(dets) == 0 {
@@ -1886,10 +1909,12 @@ func (ds *Datastore) loadDetectionRelations(ctx context.Context, dets []*entitie
 	detectionIDs := make([]uint, len(dets))
 	labelIDSet := make(map[uint]struct{})
 	sourceIDSet := make(map[uint]struct{})
+	modelIDSet := make(map[uint]struct{})
 
 	for i, det := range dets {
 		detectionIDs[i] = det.ID
 		labelIDSet[det.LabelID] = struct{}{}
+		modelIDSet[det.ModelID] = struct{}{}
 		if det.SourceID != nil {
 			sourceIDSet[*det.SourceID] = struct{}{}
 		}
@@ -1915,6 +1940,16 @@ func (ds *Datastore) loadDetectionRelations(ctx context.Context, dets []*entitie
 		sourceMap, err = ds.source.GetByIDs(ctx, sourceIDs)
 		if err != nil {
 			return fmt.Errorf("load sources: %w", err)
+		}
+	}
+
+	modelIDs := slices.Collect(maps.Keys(modelIDSet))
+	var modelMap map[uint]*entities.AIModel
+	if ds.model != nil {
+		var err error
+		modelMap, err = ds.model.GetByIDs(ctx, modelIDs)
+		if err != nil {
+			return fmt.Errorf("load models: %w", err)
 		}
 	}
 
@@ -1951,6 +1986,9 @@ func (ds *Datastore) loadDetectionRelations(ctx context.Context, dets []*entitie
 		}
 		if comments, ok := commentMap[det.ID]; ok {
 			det.Comments = comments
+		}
+		if model, ok := modelMap[det.ModelID]; ok {
+			det.Model = model
 		}
 	}
 
@@ -2022,6 +2060,34 @@ func (ds *Datastore) IsNoteLocked(noteID string) (bool, error) {
 func (ds *Datastore) GetLockedNotesClipPaths() ([]string, error) {
 	ctx := context.Background()
 	return ds.detection.GetLockedClipPaths(ctx)
+}
+
+// ClearNoteClipPathsByNames clears the clip_name field for detections matching the given filenames.
+// Updates are batched to stay within SQLite's parameter limit (999).
+func (ds *Datastore) ClearNoteClipPathsByNames(clipNames []string) (int64, error) {
+	if len(clipNames) == 0 {
+		return 0, nil
+	}
+
+	const batchSize = 500
+	var totalAffected int64
+	ctx := context.Background()
+
+	for i := 0; i < len(clipNames); i += batchSize {
+		end := min(i+batchSize, len(clipNames))
+		batch := clipNames[i:end]
+
+		result := ds.manager.DB().WithContext(ctx).
+			Table("detections").
+			Where("clip_name IN ?", batch).
+			Update("clip_name", nil)
+		if result.Error != nil {
+			return totalAffected, fmt.Errorf("failed to clear clip paths for %d names: %w", len(batch), result.Error)
+		}
+		totalAffected += result.RowsAffected
+	}
+
+	return totalAffected, nil
 }
 
 // ============================================================
@@ -2566,8 +2632,10 @@ func (ds *Datastore) SaveDynamicThreshold(threshold *datastore.DynamicThreshold)
 	return ds.threshold.SaveDynamicThreshold(ctx, v2Threshold)
 }
 
-// GetDynamicThreshold retrieves a dynamic threshold by scientific name.
-func (ds *Datastore) GetDynamicThreshold(speciesName string) (*datastore.DynamicThreshold, error) {
+// GetDynamicThreshold retrieves a dynamic threshold by scientific name and model.
+// Note: modelName is accepted for interface compatibility but not used in the v2 schema
+// because v2 thresholds are scoped through LabelID (which is already per-model).
+func (ds *Datastore) GetDynamicThreshold(speciesName, _ string) (*datastore.DynamicThreshold, error) {
 	if ds.threshold == nil {
 		return nil, fmt.Errorf("threshold repository not configured")
 	}

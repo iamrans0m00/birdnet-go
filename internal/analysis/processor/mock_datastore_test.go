@@ -139,8 +139,9 @@ func (m *ActionMockDatastore) SetSaveError(err error) {
 // Implement remaining datastore.Interface methods as no-ops or stubs.
 // These are not needed for action execution tests.
 
-func (m *ActionMockDatastore) Open() error  { return nil }
-func (m *ActionMockDatastore) Close() error { return nil }
+func (m *ActionMockDatastore) Open() error                                       { return nil }
+func (m *ActionMockDatastore) Close() error                                      { return nil }
+func (m *ActionMockDatastore) EnsureModelRegistered(_ detection.ModelInfo) error { return nil }
 func (m *ActionMockDatastore) Delete(_ string) error {
 	return nil
 }
@@ -260,6 +261,9 @@ func (m *ActionMockDatastore) GetAllImageCaches(_ string) ([]datastore.ImageCach
 func (m *ActionMockDatastore) GetLockedNotesClipPaths() ([]string, error) {
 	return nil, nil
 }
+func (m *ActionMockDatastore) ClearNoteClipPathsByNames(_ []string) (int64, error) {
+	return 0, nil
+}
 func (m *ActionMockDatastore) CountHourlyDetections(_, _ string, _ int) (int64, error) {
 	return 0, nil
 }
@@ -293,7 +297,7 @@ func (m *ActionMockDatastore) SearchDetections(_ *datastore.SearchFilters) ([]da
 func (m *ActionMockDatastore) SaveDynamicThreshold(_ *datastore.DynamicThreshold) error {
 	return nil
 }
-func (m *ActionMockDatastore) GetDynamicThreshold(_ string) (*datastore.DynamicThreshold, error) {
+func (m *ActionMockDatastore) GetDynamicThreshold(_, _ string) (*datastore.DynamicThreshold, error) {
 	// Returns ErrNoteReviewNotFound as a generic "not found" sentinel.
 	// This stub method is not exercised by action execution tests.
 	return nil, datastore.ErrNoteReviewNotFound

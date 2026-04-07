@@ -25,6 +25,7 @@ const (
 type DynamicThresholdResponse struct {
 	SpeciesName    string    `json:"speciesName"`
 	ScientificName string    `json:"scientificName"`
+	ModelName      string    `json:"modelName,omitempty"`
 	Level          int       `json:"level"`
 	CurrentValue   float64   `json:"currentValue"`
 	BaseThreshold  float64   `json:"baseThreshold"`
@@ -40,6 +41,7 @@ type DynamicThresholdResponse struct {
 type ThresholdEventResponse struct {
 	ID            uint      `json:"id"`
 	SpeciesName   string    `json:"speciesName"`
+	ModelName     string    `json:"modelName,omitempty"`
 	PreviousLevel int       `json:"previousLevel"`
 	NewLevel      int       `json:"newLevel"`
 	PreviousValue float64   `json:"previousValue"`
@@ -195,9 +197,12 @@ func (c *Controller) addDatabaseThresholds(thresholdMap map[string]*DynamicThres
 	now := time.Now()
 	for i := range dbThresholds {
 		dt := &dbThresholds[i]
-		thresholdMap[strings.ToLower(dt.SpeciesName)] = &DynamicThresholdResponse{
+		// Use composite key to prevent overwrite when multiple models have thresholds for the same species.
+		mapKey := strings.ToLower(dt.ModelName) + ":" + strings.ToLower(dt.SpeciesName)
+		thresholdMap[mapKey] = &DynamicThresholdResponse{
 			SpeciesName:    dt.SpeciesName,
 			ScientificName: dt.ScientificName,
+			ModelName:      dt.ModelName,
 			Level:          dt.Level,
 			CurrentValue:   dt.CurrentValue,
 			BaseThreshold:  dt.BaseThreshold,
@@ -221,7 +226,7 @@ func (c *Controller) addMemoryThresholds(thresholdMap map[string]*DynamicThresho
 	baseThreshold := c.Settings.BirdNET.Threshold
 
 	for _, dt := range memoryData {
-		key := strings.ToLower(dt.SpeciesName)
+		key := strings.ToLower(dt.ModelName) + ":" + strings.ToLower(dt.SpeciesName)
 		if existing, exists := thresholdMap[key]; exists {
 			// Update existing entry with in-memory values
 			applyMemoryOverlay(existing, dt.Level, dt.HighConfCount, dt.CurrentValue, dt.ExpiresAt, dt.IsActive, dt.ScientificName)
@@ -230,6 +235,7 @@ func (c *Controller) addMemoryThresholds(thresholdMap map[string]*DynamicThresho
 			thresholdMap[key] = &DynamicThresholdResponse{
 				SpeciesName:    dt.SpeciesName,
 				ScientificName: dt.ScientificName,
+				ModelName:      dt.ModelName,
 				Level:          dt.Level,
 				CurrentValue:   dt.CurrentValue,
 				BaseThreshold:  float64(baseThreshold),
@@ -286,8 +292,9 @@ func (c *Controller) GetDynamicThreshold(ctx echo.Context) error {
 		return err
 	}
 
-	// Try to get from database
-	dt, err := c.DS.GetDynamicThreshold(species)
+	// Try to get from database; optional model query param scopes the lookup
+	model := ctx.QueryParam("model")
+	dt, err := c.DS.GetDynamicThreshold(species, model)
 	if err != nil {
 		return c.handleErrorWithNotFound(ctx, err, "Threshold not found", "Failed to get threshold")
 	}
@@ -295,6 +302,7 @@ func (c *Controller) GetDynamicThreshold(ctx echo.Context) error {
 	response := DynamicThresholdResponse{
 		SpeciesName:    dt.SpeciesName,
 		ScientificName: dt.ScientificName,
+		ModelName:      dt.ModelName,
 		Level:          dt.Level,
 		CurrentValue:   dt.CurrentValue,
 		BaseThreshold:  dt.BaseThreshold,
@@ -337,17 +345,18 @@ func (c *Controller) GetThresholdEvents(ctx echo.Context) error {
 
 	// Convert to response format
 	response := make([]ThresholdEventResponse, len(events))
-	for i, e := range events {
+	for i := range events {
 		response[i] = ThresholdEventResponse{
-			ID:            e.ID,
-			SpeciesName:   e.SpeciesName,
-			PreviousLevel: e.PreviousLevel,
-			NewLevel:      e.NewLevel,
-			PreviousValue: e.PreviousValue,
-			NewValue:      e.NewValue,
-			ChangeReason:  e.ChangeReason,
-			Confidence:    e.Confidence,
-			CreatedAt:     e.CreatedAt,
+			ID:            events[i].ID,
+			SpeciesName:   events[i].SpeciesName,
+			ModelName:     events[i].ModelName,
+			PreviousLevel: events[i].PreviousLevel,
+			NewLevel:      events[i].NewLevel,
+			PreviousValue: events[i].PreviousValue,
+			NewValue:      events[i].NewValue,
+			ChangeReason:  events[i].ChangeReason,
+			Confidence:    events[i].Confidence,
+			CreatedAt:     events[i].CreatedAt,
 		}
 	}
 

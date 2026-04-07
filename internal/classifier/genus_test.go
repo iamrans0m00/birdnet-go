@@ -1,0 +1,903 @@
+package classifier
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/tphakala/birdnet-go/internal/errors"
+)
+
+// TestLoadTaxonomyDatabase tests the taxonomy database loading
+func TestLoadTaxonomyDatabase(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "loader")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+	require.NotNil(t, db, "Expected non-nil database")
+
+	// Verify basic structure
+	assert.NotEmpty(t, db.Genera, "Expected non-empty genera map")
+	assert.NotEmpty(t, db.Families, "Expected non-empty families map")
+	assert.NotEmpty(t, db.SpeciesIndex, "Expected non-empty species index")
+
+	// Verify metadata
+	assert.NotEmpty(t, db.Version, "Expected version to be set")
+	assert.NotEmpty(t, db.Source, "Expected source to be set")
+	assert.NotEmpty(t, db.Attribution, "Expected attribution to be set")
+
+	t.Logf("Loaded taxonomy database: %d genera, %d families, %d species",
+		len(db.Genera), len(db.Families), len(db.SpeciesIndex))
+}
+
+// TestGetGenusByScientificName tests genus lookup by scientific name
+func TestGetGenusByScientificName(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "lookup")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	tests := []struct {
+		name           string
+		scientificName string
+		wantGenus      string
+		wantFamily     string
+		wantOrder      string
+		wantError      bool
+	}{
+		{
+			name:           "american robin",
+			scientificName: "Turdus migratorius",
+			wantGenus:      "turdus",
+			wantFamily:     "Turdidae",
+			wantOrder:      "Passeriformes",
+			wantError:      false,
+		},
+		{
+			name:           "common raven",
+			scientificName: "Corvus corax",
+			wantGenus:      "corvus",
+			wantFamily:     "Corvidae",
+			wantOrder:      "Passeriformes",
+			wantError:      false,
+		},
+		{
+			name:           "case insensitive",
+			scientificName: "TURDUS MIGRATORIUS",
+			wantGenus:      "turdus",
+			wantFamily:     "Turdidae",
+			wantOrder:      "Passeriformes",
+			wantError:      false,
+		},
+		{
+			name:           "with leading/trailing spaces",
+			scientificName: "  Corvus corax  ",
+			wantGenus:      "corvus",
+			wantFamily:     "Corvidae",
+			wantOrder:      "Passeriformes",
+			wantError:      false,
+		},
+		{
+			name:           "nonexistent species",
+			scientificName: "Nonexistent species",
+			wantError:      true,
+		},
+		{
+			name:           "empty string",
+			scientificName: "",
+			wantError:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			genusName, metadata, err := db.GetGenusByScientificName(tt.scientificName)
+
+			if tt.wantError {
+				require.Error(t, err, "Expected error but got none")
+				// Verify error is properly categorized
+				var enhancedErr *errors.EnhancedError
+				if errors.As(err, &enhancedErr) {
+					assert.Equal(t, errors.CategoryNotFound, enhancedErr.Category)
+				}
+				return
+			}
+
+			require.NoError(t, err, "Unexpected error")
+			assert.Equal(t, tt.wantGenus, genusName)
+			require.NotNil(t, metadata, "Expected non-nil metadata")
+			assert.Equal(t, tt.wantFamily, metadata.Family)
+			assert.Equal(t, tt.wantOrder, metadata.Order)
+			assert.NotEmpty(t, metadata.Species, "Expected non-empty species list")
+		})
+	}
+}
+
+// TestGetAllSpeciesInGenus tests retrieving all species in a genus
+func TestGetAllSpeciesInGenus(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "query")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	tests := []struct {
+		name      string
+		genus     string
+		wantError bool
+		minCount  int
+	}{
+		{
+			name:      "corvus genus",
+			genus:     "corvus",
+			wantError: false,
+			minCount:  10, // Should have at least 10 corvus species
+		},
+		{
+			name:      "turdus genus",
+			genus:     "turdus",
+			wantError: false,
+			minCount:  50, // Turdus is a large genus
+		},
+		{
+			name:      "case insensitive",
+			genus:     "CORVUS",
+			wantError: false,
+			minCount:  10,
+		},
+		{
+			name:      "nonexistent genus",
+			genus:     "nonexistentgenus",
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			species, err := db.GetAllSpeciesInGenus(tt.genus)
+
+			if tt.wantError {
+				assert.Error(t, err, "Expected error but got none")
+				return
+			}
+
+			require.NoError(t, err, "Unexpected error")
+			assert.GreaterOrEqual(t, len(species), tt.minCount, "Expected at least %d species, got %d", tt.minCount, len(species))
+
+			// Verify all species are properly formatted
+			for _, sp := range species {
+				assert.Contains(t, sp, " ", "Species name %q doesn't appear to be a proper scientific name", sp)
+			}
+
+			t.Logf("Found %d species in genus %s", len(species), tt.genus)
+		})
+	}
+}
+
+// TestGetAllSpeciesInFamily tests retrieving all species in a family
+func TestGetAllSpeciesInFamily(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "query")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	tests := []struct {
+		name      string
+		family    string
+		wantError bool
+		minCount  int
+	}{
+		{
+			name:      "owls (strigidae)",
+			family:    "strigidae",
+			wantError: false,
+			minCount:  200, // Should have around 229 owl species
+		},
+		{
+			name:      "corvids (corvidae)",
+			family:    "corvidae",
+			wantError: false,
+			minCount:  100, // Large family
+		},
+		{
+			name:      "case insensitive",
+			family:    "STRIGIDAE",
+			wantError: false,
+			minCount:  200,
+		},
+		{
+			name:      "nonexistent family",
+			family:    "nonexistentfamily",
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			species, err := db.GetAllSpeciesInFamily(tt.family)
+
+			if tt.wantError {
+				assert.Error(t, err, "Expected error but got none")
+				return
+			}
+
+			require.NoError(t, err, "Unexpected error")
+			assert.GreaterOrEqual(t, len(species), tt.minCount, "Expected at least %d species, got %d", tt.minCount, len(species))
+
+			t.Logf("Found %d species in family %s", len(species), tt.family)
+		})
+	}
+}
+
+// TestGetSpeciesTree tests building a complete taxonomic tree
+func TestGetSpeciesTree(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "query")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	tests := []struct {
+		name           string
+		scientificName string
+		wantGenus      string
+		wantFamily     string
+		wantOrder      string
+		wantError      bool
+	}{
+		{
+			name:           "american robin",
+			scientificName: "Turdus migratorius",
+			wantGenus:      "Turdus",
+			wantFamily:     "Turdidae",
+			wantOrder:      "Passeriformes",
+			wantError:      false,
+		},
+		{
+			name:           "common raven",
+			scientificName: "Corvus corax",
+			wantGenus:      "Corvus",
+			wantFamily:     "Corvidae",
+			wantOrder:      "Passeriformes",
+			wantError:      false,
+		},
+		{
+			name:           "nonexistent species",
+			scientificName: "Nonexistent species",
+			wantError:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := db.GetSpeciesTree(tt.scientificName)
+
+			if tt.wantError {
+				assert.Error(t, err, "Expected error but got none")
+				return
+			}
+
+			require.NoError(t, err, "Unexpected error")
+			require.NotNil(t, result, "Expected non-nil result")
+			require.NotNil(t, result.TaxonomyTree, "Expected non-nil taxonomy tree")
+
+			tree := result.TaxonomyTree
+
+			// Verify standard bird taxonomy
+			assert.Equal(t, "Animalia", tree.Kingdom)
+			assert.Equal(t, "Chordata", tree.Phylum)
+			assert.Equal(t, "Aves", tree.Class)
+			assert.Equal(t, tt.wantOrder, tree.Order)
+			assert.Equal(t, tt.wantFamily, tree.Family)
+			assert.Equal(t, tt.wantGenus, tree.Genus)
+			assert.Equal(t, tt.scientificName, tree.Species)
+
+			// Verify related species
+			assert.NotEmpty(t, result.RelatedInGenus, "Expected non-empty related species list")
+			assert.NotZero(t, result.TotalInGenus, "Expected non-zero total in genus")
+			assert.NotZero(t, result.TotalInFamily, "Expected non-zero total in family")
+
+			t.Logf("Species tree: %d species in genus, %d in family",
+				result.TotalInGenus, result.TotalInFamily)
+		})
+	}
+}
+
+// TestBuildFamilyTree tests compatibility with eBird API interface
+func TestBuildFamilyTree(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "compatibility")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	tree, err := db.BuildFamilyTree("Turdus migratorius")
+	require.NoError(t, err, "Failed to build family tree")
+	require.NotNil(t, tree, "Expected non-nil tree")
+
+	assert.Equal(t, "Turdidae", tree.Family)
+	assert.Equal(t, "Turdus", tree.Genus)
+}
+
+// TestGetFamilyInfo tests retrieving family information
+func TestGetFamilyInfo(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "query")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	familyInfo, err := db.GetFamilyInfo("strigidae")
+	require.NoError(t, err, "Failed to get family info")
+	require.NotNil(t, familyInfo, "Expected non-nil family info")
+
+	assert.NotEmpty(t, familyInfo.FamilyCommon, "Expected non-empty family common name")
+	assert.NotEmpty(t, familyInfo.Order, "Expected non-empty order")
+	assert.NotEmpty(t, familyInfo.Genera, "Expected non-empty genera list")
+	assert.NotZero(t, familyInfo.SpeciesCount, "Expected non-zero species count")
+
+	t.Logf("Family %s: %d genera, %d species",
+		familyInfo.FamilyCommon, len(familyInfo.Genera), familyInfo.SpeciesCount)
+}
+
+// testSearchHelper is a helper function to test search functionality
+func testSearchHelper(t *testing.T, searchFn func(string) []string, testCases []struct {
+	name     string
+	pattern  string
+	minMatch int
+}) {
+	t.Helper()
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			matches := searchFn(tt.pattern)
+
+			assert.GreaterOrEqual(t, len(matches), tt.minMatch, "Expected at least %d matches, got %d", tt.minMatch, len(matches))
+
+			t.Logf("Found %d matches for pattern %q", len(matches), tt.pattern)
+		})
+	}
+}
+
+// TestSearchGenus tests genus search functionality
+func TestSearchGenus(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "search")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	tests := []struct {
+		name     string
+		pattern  string
+		minMatch int
+	}{
+		{
+			name:     "search corvus",
+			pattern:  "corv",
+			minMatch: 1,
+		},
+		{
+			name:     "search turdus",
+			pattern:  "turd",
+			minMatch: 1,
+		},
+		{
+			name:     "case insensitive",
+			pattern:  "CORV",
+			minMatch: 1,
+		},
+		{
+			name:     "nonexistent pattern",
+			pattern:  "zzzzzzz",
+			minMatch: 0,
+		},
+	}
+
+	testSearchHelper(t, db.SearchGenus, tests)
+}
+
+// TestSearchFamily tests family search functionality
+func TestSearchFamily(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "search")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	tests := []struct {
+		name     string
+		pattern  string
+		minMatch int
+	}{
+		{
+			name:     "search strigidae",
+			pattern:  "strig",
+			minMatch: 1,
+		},
+		{
+			name:     "search corvidae",
+			pattern:  "corvid",
+			minMatch: 1,
+		},
+		{
+			name:     "case insensitive",
+			pattern:  "STRIG",
+			minMatch: 1,
+		},
+		{
+			name:     "nonexistent pattern",
+			pattern:  "zzzzzzz",
+			minMatch: 0,
+		},
+	}
+
+	testSearchHelper(t, db.SearchFamily, tests)
+}
+
+// TestStats tests database statistics
+func TestStats(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "metadata")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	stats := db.Stats()
+	require.NotNil(t, stats, "Expected non-nil stats")
+
+	requiredKeys := []string{"version", "updated_at", "genus_count", "family_count", "species_count", "source"}
+	for _, key := range requiredKeys {
+		assert.Contains(t, stats, key, "Expected stats to contain key %q", key)
+	}
+
+	// Verify counts are reasonable
+	genusCount, ok := stats["genus_count"].(int)
+	require.True(t, ok, "genus_count should be an int")
+	assert.GreaterOrEqual(t, genusCount, 2000, "Expected genus count >= 2000")
+
+	familyCount, ok := stats["family_count"].(int)
+	require.True(t, ok, "family_count should be an int")
+	assert.GreaterOrEqual(t, familyCount, 200, "Expected family count >= 200")
+
+	speciesCount, ok := stats["species_count"].(int)
+	require.True(t, ok, "species_count should be an int")
+	assert.GreaterOrEqual(t, speciesCount, 10000, "Expected species count >= 10000")
+
+	t.Logf("Stats: %d genera, %d families, %d species",
+		genusCount, familyCount, speciesCount)
+}
+
+// TestGetAllSpeciesInOrder tests retrieving all species in a taxonomic order
+func TestGetAllSpeciesInOrder(t *testing.T) {
+	t.Parallel()
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err)
+
+	species, err := db.GetAllSpeciesInOrder("Strigiformes")
+	require.NoError(t, err)
+	assert.NotEmpty(t, species)
+	assert.Greater(t, len(species), 10, "Strigiformes should have many species")
+}
+
+// TestGetAllSpeciesInOrder_NotFound tests error for nonexistent order
+func TestGetAllSpeciesInOrder_NotFound(t *testing.T) {
+	t.Parallel()
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err)
+
+	_, err = db.GetAllSpeciesInOrder("NonExistentOrder")
+	assert.Error(t, err)
+}
+
+// TestBirdNETSynonyms verifies that BirdNET model names that differ from
+// current eBird taxonomy are resolved correctly via the synonym mapping.
+func TestBirdNETSynonyms(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "synonyms")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	tests := []struct {
+		name           string
+		scientificName string
+		wantGenus      string
+		wantFamily     string
+	}{
+		{
+			name:           "cattle egret (Bubulcus → Ardea)",
+			scientificName: "Bubulcus ibis",
+			wantGenus:      "ardea",
+			wantFamily:     "Ardeidae",
+		},
+		{
+			name:           "yellow bittern (Ixobrychus → Botaurus)",
+			scientificName: "Ixobrychus sinensis",
+			wantGenus:      "botaurus",
+			wantFamily:     "Ardeidae",
+		},
+		{
+			name:           "mottled owl (Ciccaba → Strix)",
+			scientificName: "Ciccaba virgata",
+			wantGenus:      "strix",
+			wantFamily:     "Strigidae",
+		},
+		{
+			name:           "araripe manakin (Antilophia → Chiroxiphia)",
+			scientificName: "Antilophia bokermanni",
+			wantGenus:      "chiroxiphia",
+			wantFamily:     "Pipridae",
+		},
+		{
+			name:           "yellow-bellied caracara (Milvago → Daptrius)",
+			scientificName: "Milvago chimachima",
+			wantGenus:      "daptrius",
+			wantFamily:     "Falconidae",
+		},
+		{
+			name:           "ross turaco (Musophaga → Tauraco)",
+			scientificName: "Musophaga rossae",
+			wantGenus:      "tauraco",
+			wantFamily:     "Musophagidae",
+		},
+		{
+			name:           "groundscraper thrush (Psophocichla → Turdus)",
+			scientificName: "Psophocichla litsitsirupa",
+			wantGenus:      "turdus",
+			wantFamily:     "Turdidae",
+		},
+		{
+			name:           "major mitchell cockatoo (Lophochroa → Cacatua)",
+			scientificName: "Lophochroa leadbeateri",
+			wantGenus:      "cacatua",
+			wantFamily:     "Cacatuidae",
+		},
+		{
+			name:           "white-throated magpie-jay (Calocitta → Cyanocorax)",
+			scientificName: "Calocitta formosa",
+			wantGenus:      "cyanocorax",
+			wantFamily:     "Corvidae",
+		},
+		{
+			name:           "brown parrotbill (Cholornis → Paradoxornis)",
+			scientificName: "Cholornis unicolor",
+			wantGenus:      "paradoxornis",
+			wantFamily:     "Paradoxornithidae",
+		},
+		{
+			name:           "musk lorikeet (Glossopsitta → Trichoglossus)",
+			scientificName: "Glossopsitta concinna",
+			wantGenus:      "trichoglossus",
+			wantFamily:     "Psittaculidae",
+		},
+		{
+			name:           "purple-crowned lorikeet (Parvipsitta → Psitteuteles)",
+			scientificName: "Parvipsitta porphyrocephala",
+			wantGenus:      "psitteuteles",
+			wantFamily:     "Psittaculidae",
+		},
+		{
+			name:           "rustic bunting (Spodiornis → Emberiza)",
+			scientificName: "Spodiornis rusticus",
+			wantGenus:      "emberiza",
+			wantFamily:     "Emberizidae",
+		},
+		{
+			name:           "black-fronted dotterel (Elseyornis → Anarhynchus)",
+			scientificName: "Elseyornis melanops",
+			wantGenus:      "anarhynchus",
+			wantFamily:     "Charadriidae",
+		},
+		{
+			name:           "mouse-colored tyrannulet (Phaeomyias, added to DB)",
+			scientificName: "Phaeomyias murina",
+			wantGenus:      "phaeomyias",
+			wantFamily:     "Tyrannidae",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			genusName, metadata, err := db.GetGenusByScientificName(tt.scientificName)
+
+			require.NoError(t, err, "Synonym lookup should succeed for %s", tt.scientificName)
+			assert.Equal(t, tt.wantGenus, genusName)
+			require.NotNil(t, metadata)
+			assert.Equal(t, tt.wantFamily, metadata.Family)
+		})
+	}
+}
+
+// TestBirdNETSynonymCount verifies that the expected number of synonyms were applied.
+func TestBirdNETSynonymCount(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "synonyms")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	// Count how many BirdNET synonym keys are present in the species index
+	found := 0
+	for birdnetName := range birdnetSynonyms {
+		if _, exists := db.SpeciesIndex[birdnetName]; exists {
+			found++
+		}
+	}
+
+	assert.Equal(t, len(birdnetSynonyms), found,
+		"All BirdNET synonyms should be present in species index")
+}
+
+// TestLookupGenusByScientificName tests the non-telemetry genus lookup
+func TestLookupGenusByScientificName(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "lookup")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	tests := []struct {
+		name           string
+		scientificName string
+		wantGenus      string
+		wantFamily     string
+		wantOK         bool
+	}{
+		{
+			name:           "existing species",
+			scientificName: "Turdus migratorius",
+			wantGenus:      "turdus",
+			wantFamily:     "Turdidae",
+			wantOK:         true,
+		},
+		{
+			name:           "Cooper's Hawk (Accipiter cooperii)",
+			scientificName: "Accipiter cooperii",
+			wantGenus:      "accipiter",
+			wantFamily:     "Accipitridae",
+			wantOK:         true,
+		},
+		{
+			name:           "case insensitive",
+			scientificName: "CORVUS CORAX",
+			wantGenus:      "corvus",
+			wantFamily:     "Corvidae",
+			wantOK:         true,
+		},
+		{
+			name:           "nonexistent species returns false",
+			scientificName: "Nonexistent species",
+			wantOK:         false,
+		},
+		{
+			name:           "non-bird species returns false",
+			scientificName: "Acris crepitans",
+			wantOK:         false,
+		},
+		{
+			name:           "empty string returns false",
+			scientificName: "",
+			wantOK:         false,
+		},
+		{
+			name:           "BirdNET synonym species",
+			scientificName: "Bubulcus ibis",
+			wantGenus:      "ardea",
+			wantFamily:     "Ardeidae",
+			wantOK:         true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			genusName, metadata, ok := db.LookupGenusByScientificName(tt.scientificName)
+			assert.Equal(t, tt.wantOK, ok)
+
+			if tt.wantOK {
+				assert.Equal(t, tt.wantGenus, genusName)
+				require.NotNil(t, metadata)
+				assert.Equal(t, tt.wantFamily, metadata.Family)
+			} else {
+				assert.Empty(t, genusName)
+				assert.Nil(t, metadata)
+			}
+		})
+	}
+}
+
+// TestLookupGenusByScientificName_NilDB tests nil database handling
+func TestLookupGenusByScientificName_NilDB(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "robustness")
+
+	var db *TaxonomyDatabase
+	genusName, metadata, ok := db.LookupGenusByScientificName("Turdus migratorius")
+	assert.False(t, ok)
+	assert.Empty(t, genusName)
+	assert.Nil(t, metadata)
+}
+
+// TestLookupAllSpeciesInGenus tests the non-telemetry genus species lookup
+func TestLookupAllSpeciesInGenus(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "lookup")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	// Existing genus returns species list
+	species := db.LookupAllSpeciesInGenus("corvus")
+	assert.NotNil(t, species)
+	assert.GreaterOrEqual(t, len(species), 10)
+
+	// Case insensitive
+	speciesUpper := db.LookupAllSpeciesInGenus("CORVUS")
+	assert.NotNil(t, speciesUpper)
+	assert.Len(t, speciesUpper, len(species))
+
+	// Nonexistent genus returns nil
+	assert.Nil(t, db.LookupAllSpeciesInGenus("nonexistentgenus"))
+
+	// Nil database returns nil
+	var nilDB *TaxonomyDatabase
+	assert.Nil(t, nilDB.LookupAllSpeciesInGenus("corvus"))
+}
+
+// TestLookupAllSpeciesInFamily tests the non-telemetry family species lookup
+func TestLookupAllSpeciesInFamily(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "lookup")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	// Existing family returns species list
+	species := db.LookupAllSpeciesInFamily("strigidae")
+	assert.NotNil(t, species)
+	assert.GreaterOrEqual(t, len(species), 200)
+
+	// Nonexistent family returns nil
+	assert.Nil(t, db.LookupAllSpeciesInFamily("nonexistentfamily"))
+
+	// Nil database returns nil
+	var nilDB *TaxonomyDatabase
+	assert.Nil(t, nilDB.LookupAllSpeciesInFamily("strigidae"))
+}
+
+// TestLookupAllSpeciesInOrder tests the non-telemetry order species lookup
+func TestLookupAllSpeciesInOrder(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "lookup")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	// Existing order returns species list
+	species := db.LookupAllSpeciesInOrder("Strigiformes")
+	assert.NotNil(t, species)
+	assert.Greater(t, len(species), 10)
+
+	// Nonexistent order returns nil
+	assert.Nil(t, db.LookupAllSpeciesInOrder("NonExistentOrder"))
+
+	// Nil database returns nil
+	var nilDB *TaxonomyDatabase
+	assert.Nil(t, nilDB.LookupAllSpeciesInOrder("Strigiformes"))
+}
+
+// TestLookupConsistencyWithGet verifies that Lookup* methods return
+// the same data as their Get* counterparts for existing entries.
+func TestLookupConsistencyWithGet(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "birdnet-genus")
+	t.Attr("category", "consistency")
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(t, err, "Failed to load taxonomy database")
+
+	// Verify LookupGenusByScientificName matches GetGenusByScientificName
+	genusLookup, metaLookup, ok := db.LookupGenusByScientificName("Turdus migratorius")
+	genusGet, metaGet, err := db.GetGenusByScientificName("Turdus migratorius")
+	require.True(t, ok)
+	require.NoError(t, err)
+	assert.Equal(t, genusGet, genusLookup)
+	assert.Equal(t, metaGet, metaLookup)
+
+	// Verify LookupAllSpeciesInGenus matches GetAllSpeciesInGenus
+	speciesLookup := db.LookupAllSpeciesInGenus("corvus")
+	speciesGet, err := db.GetAllSpeciesInGenus("corvus")
+	require.NoError(t, err)
+	assert.Equal(t, speciesGet, speciesLookup)
+
+	// Verify LookupAllSpeciesInFamily matches GetAllSpeciesInFamily
+	familyLookup := db.LookupAllSpeciesInFamily("strigidae")
+	familyGet, err := db.GetAllSpeciesInFamily("strigidae")
+	require.NoError(t, err)
+	assert.Equal(t, familyGet, familyLookup)
+
+	// Verify LookupAllSpeciesInOrder matches GetAllSpeciesInOrder
+	orderLookup := db.LookupAllSpeciesInOrder("Strigiformes")
+	orderGet, err := db.GetAllSpeciesInOrder("Strigiformes")
+	require.NoError(t, err)
+	assert.ElementsMatch(t, orderGet, orderLookup)
+}
+
+// BenchmarkLookupGenusByScientificName benchmarks the non-telemetry lookup
+func BenchmarkLookupGenusByScientificName(b *testing.B) {
+	b.ReportAllocs()
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(b, err, "Failed to load database")
+
+	b.ResetTimer()
+	for b.Loop() {
+		_, _, ok := db.LookupGenusByScientificName("Turdus migratorius")
+		if !ok {
+			b.Fatal("Lookup failed unexpectedly")
+		}
+	}
+}
+
+// BenchmarkLoadTaxonomyDatabase benchmarks database loading
+func BenchmarkLoadTaxonomyDatabase(b *testing.B) {
+	b.ReportAllocs()
+
+	for b.Loop() {
+		db, err := LoadTaxonomyDatabase()
+		require.NoError(b, err, "Failed to load database")
+		require.NotNil(b, db, "Expected non-nil database")
+	}
+}
+
+// BenchmarkGetGenusByScientificName benchmarks genus lookup
+func BenchmarkGetGenusByScientificName(b *testing.B) {
+	b.ReportAllocs()
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(b, err, "Failed to load database")
+
+	for b.Loop() {
+		_, _, err := db.GetGenusByScientificName("Turdus migratorius")
+		require.NoError(b, err, "Lookup failed")
+	}
+}
+
+// BenchmarkGetSpeciesTree benchmarks tree building
+func BenchmarkGetSpeciesTree(b *testing.B) {
+	b.ReportAllocs()
+
+	db, err := LoadTaxonomyDatabase()
+	require.NoError(b, err, "Failed to load database")
+
+	for b.Loop() {
+		_, err := db.GetSpeciesTree("Turdus migratorius")
+		require.NoError(b, err, "Tree building failed")
+	}
+}

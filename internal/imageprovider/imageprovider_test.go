@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tphakala/birdnet-go/internal/datastore"
+	"github.com/tphakala/birdnet-go/internal/detection"
 	"github.com/tphakala/birdnet-go/internal/errors"
 	"github.com/tphakala/birdnet-go/internal/imageprovider"
 	"github.com/tphakala/birdnet-go/internal/observability"
@@ -153,6 +154,7 @@ func (m *mockStore) GetImageCacheBatch(providerName string, scientificNames []st
 // Implement other required interface methods with no-op implementations
 func (m *mockStore) Open() error                                                  { return nil }
 func (m *mockStore) Save(note *datastore.Note, results []datastore.Results) error { return nil }
+func (m *mockStore) EnsureModelRegistered(_ detection.ModelInfo) error            { return nil }
 func (m *mockStore) Delete(id string) error                                       { return nil }
 func (m *mockStore) Get(id string) (datastore.Note, error)                        { return datastore.Note{}, nil }
 func (m *mockStore) Close() error                                                 { return nil }
@@ -215,8 +217,9 @@ func (m *mockStore) UnlockNote(noteID string) error               { return nil }
 func (m *mockStore) GetNoteLock(noteID string) (*datastore.NoteLock, error) {
 	return nil, datastore.ErrNoteLockNotFound
 }
-func (m *mockStore) IsNoteLocked(noteID string) (bool, error)   { return false, nil }
-func (m *mockStore) GetLockedNotesClipPaths() ([]string, error) { return nil, nil }
+func (m *mockStore) IsNoteLocked(noteID string) (bool, error)            { return false, nil }
+func (m *mockStore) GetLockedNotesClipPaths() ([]string, error)          { return nil, nil }
+func (m *mockStore) ClearNoteClipPathsByNames(_ []string) (int64, error) { return 0, nil }
 func (m *mockStore) CountHourlyDetections(date, hour string, duration int) (int64, error) {
 	return 0, nil
 }
@@ -238,7 +241,7 @@ func (m *mockStore) SearchDetections(filters *datastore.SearchFilters) ([]datast
 
 // Dynamic threshold methods
 func (m *mockStore) SaveDynamicThreshold(threshold *datastore.DynamicThreshold) error { return nil }
-func (m *mockStore) GetDynamicThreshold(speciesName string) (*datastore.DynamicThreshold, error) {
+func (m *mockStore) GetDynamicThreshold(speciesName, modelName string) (*datastore.DynamicThreshold, error) {
 	return nil, fmt.Errorf("not found")
 }
 func (m *mockStore) GetAllDynamicThresholds(limit ...int) ([]datastore.DynamicThreshold, error) {

@@ -8,7 +8,7 @@
   - Card with view/edit modes
   - Device dropdown from available audio devices
   - Gain slider (-40 to +40 dB)
-  - Model selector (BirdNET, Perch v2, Bat)
+  - Model selector (dynamically loaded from backend)
   - Per-source equalizer (expandable, reuses AudioEqualizerSettings)
   - Per-source quiet hours (reuses QuietHoursEditor)
   - Delete confirmation overlay
@@ -17,16 +17,7 @@
   @component
 -->
 <script lang="ts">
-  import {
-    Settings,
-    Trash2,
-    Check,
-    X,
-    AlertCircle,
-    Volume2,
-    Moon,
-    ChevronDown,
-  } from '@lucide/svelte';
+  import { Settings, Trash2, Check, X, AlertCircle, Mic, Moon, ChevronDown } from '@lucide/svelte';
   import { slide } from 'svelte/transition';
   import { t } from '$lib/i18n';
   import { cn } from '$lib/utils/cn';
@@ -60,27 +51,28 @@
     source: AudioSourceConfig;
     index: number;
     audioDevices: Array<{ index: number; name: string; id: string }>;
+    modelOptions: Array<{ value: string; label: string }>;
     disabled?: boolean;
     onUpdate: (_source: AudioSourceConfig) => boolean;
     onDelete: () => void;
   }
 
-  let { source, index, audioDevices, disabled = false, onUpdate, onDelete }: Props = $props();
-
-  // Model options — use $derived to re-translate on locale change
-  const modelOptions = $derived([
-    { value: '', label: t('settings.audio.soundCards.models.birdnetDefault') },
-    { value: 'birdnet', label: t('settings.audio.soundCards.models.birdnet') },
-    { value: 'perch_v2', label: t('settings.audio.soundCards.models.perchV2') },
-    { value: 'bat', label: t('settings.audio.soundCards.models.bat') },
-  ]);
+  let {
+    source,
+    index,
+    audioDevices,
+    modelOptions,
+    disabled = false,
+    onUpdate,
+    onDelete,
+  }: Props = $props();
 
   // Local editing state
   let isEditing = $state(false);
   let editName = $state('');
   let editDevice = $state('');
   let editGain = $state(0);
-  let editModel = $state('');
+  let editModels = $state<string[]>([]);
   let editEqualizer = $state<LocalEqualizerSettings>({ enabled: false, filters: [] });
   let editQuietHours = $state<QuietHoursConfig>({ ...defaultQuietHoursConfig });
   let showDeleteConfirm = $state(false);
@@ -91,10 +83,11 @@
     audioDevices.find(d => d.id === source.device)?.name ?? source.device
   );
 
-  // Model display name
+  // Model display names (comma-separated for multiple)
   let modelDisplayName = $derived(
-    modelOptions.find(m => m.value === source.model)?.label ??
-      t('settings.audio.soundCards.models.birdnetDefault')
+    source.models.length > 0
+      ? source.models.map(id => modelOptions.find(m => m.value === id)?.label ?? id).join(', ')
+      : (modelOptions[0]?.label ?? '')
   );
 
   // Device dropdown options
@@ -105,7 +98,7 @@
     editName = source.name;
     editDevice = source.device;
     editGain = source.gain;
-    editModel = source.model;
+    editModels = [...source.models];
     editEqualizer = source.equalizer
       ? { ...source.equalizer, filters: [...source.equalizer.filters] }
       : { enabled: false, filters: [] };
@@ -138,7 +131,7 @@
       name: trimmedName,
       device: editDevice,
       gain: editGain,
-      model: editModel,
+      models: editModels,
       equalizer: transformedEqualizer,
       quietHours: editQuietHours,
     };
@@ -265,13 +258,15 @@
             step={1}
             unit=" dB"
             {disabled}
+            className="h-full [&>input]:my-auto"
           />
 
           <SelectDropdown
-            value={editModel}
+            value={editModels}
             label={t('settings.audio.soundCards.modelLabel')}
             options={modelOptions}
-            onChange={value => (editModel = value as string)}
+            multiple={true}
+            onChange={value => (editModels = value as string[])}
             groupBy={false}
             menuSize="sm"
           />
@@ -343,7 +338,7 @@
         <div
           class="flex-shrink-0 size-10 rounded-lg flex items-center justify-center border bg-[color-mix(in_srgb,var(--color-primary)_15%,transparent)] text-[var(--color-primary)] border-[color-mix(in_srgb,var(--color-primary)_25%,transparent)]"
         >
-          <Volume2 class="size-5" />
+          <Mic class="size-5" />
         </div>
 
         <!-- Source Info -->

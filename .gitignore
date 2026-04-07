@@ -12,6 +12,7 @@ spectrograms/
 .task/*
 .vscode/*
 .mcp.json
+.claude/settings.local.json
 tmp
 *.log
 *.log.*

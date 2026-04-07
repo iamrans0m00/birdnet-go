@@ -15,8 +15,8 @@ import (
 	"github.com/tphakala/birdnet-go/internal/audiocore/engine"
 	"github.com/tphakala/birdnet-go/internal/audiocore/schedule"
 	"github.com/tphakala/birdnet-go/internal/audiocore/soundlevel"
-	"github.com/tphakala/birdnet-go/internal/birdnet"
 	"github.com/tphakala/birdnet-go/internal/birdweather"
+	"github.com/tphakala/birdnet-go/internal/classifier"
 	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/errors"
 	"github.com/tphakala/birdnet-go/internal/logger"
@@ -35,7 +35,7 @@ type ControlMonitor struct {
 	proc           *processor.Processor
 	audioLevelChan chan audiocore.AudioLevelData
 	soundLevelChan chan soundlevel.SoundLevelData
-	bn             *birdnet.BirdNET
+	bn             *classifier.Orchestrator
 	apiController  *apiv2.Controller
 	engine         *engine.AudioEngine
 
@@ -235,8 +235,6 @@ func (cm *ControlMonitor) handleControlSignal(signal string) {
 		cm.handleQuietHoursStopSoundCard()
 	case schedule.SignalQuietHoursStartSoundCard:
 		cm.handleQuietHoursStartSoundCard()
-	case "reconfigure_species_guide":
-		cm.handleReconfigureSpeciesGuide()
 	default:
 		GetLogger().Warn("Received unknown control signal", logger.String("signal", signal))
 	}
@@ -244,7 +242,7 @@ func (cm *ControlMonitor) handleControlSignal(signal string) {
 
 // handleRebuildRangeFilter rebuilds the range filter
 func (cm *ControlMonitor) handleRebuildRangeFilter() {
-	if err := birdnet.BuildRangeFilter(cm.bn); err != nil {
+	if err := classifier.BuildRangeFilter(cm.bn); err != nil {
 		GetLogger().Error("Failed to rebuild range filter", logger.Error(err))
 		cm.notifyError("Failed to rebuild range filter", err)
 	} else {
@@ -276,7 +274,7 @@ func (cm *ControlMonitor) handleReloadBirdnet() {
 	cm.notifySuccess("BirdNET model reloaded successfully")
 
 	// Rebuild range filter after model reload
-	if err := birdnet.BuildRangeFilter(cm.bn); err != nil {
+	if err := classifier.BuildRangeFilter(cm.bn); err != nil {
 		GetLogger().Error("Failed to rebuild range filter after model reload", logger.Error(err))
 		cm.notifyError("Failed to rebuild range filter", err)
 	} else {
@@ -784,37 +782,5 @@ func (cm *ControlMonitor) handleQuietHoursStartSoundCard() {
 		GetLogger().Info("Quiet hours: sound card restart signal sent")
 	default:
 		GetLogger().Warn("Quiet hours: restart channel full, could not signal sound card restart")
-	}
-}
-
-// handleReconfigureSpeciesGuide re-initializes the species guide cache when the
-// feature is enabled or disabled via the settings UI (hot-reload support).
-func (cm *ControlMonitor) handleReconfigureSpeciesGuide() {
-	if cm.apiController == nil {
-		return
-	}
-
-	settings := conf.GetSettings()
-	if settings == nil {
-		return
-	}
-
-	// Re-initialize with current settings (closes old cache inside SetGuideCache).
-	newCache := initGuideCacheIfNeeded(settings, cm.apiController.DS, cm.apiController.DS, cm.metrics.GuideProvider)
-	cm.apiController.SetGuideCache(newCache)
-
-	// Re-wire the processor pre-fetch callback if applicable.
-	if cm.proc != nil {
-		if newCache != nil && settings.Realtime.Dashboard.SpeciesGuide.PreFetchEnabled {
-			cm.proc.SetGuidePreFetch(newCache.PreFetch)
-		} else {
-			cm.proc.SetGuidePreFetch(nil)
-		}
-	}
-
-	if newCache != nil {
-		GetLogger().Info("Species guide cache reconfigured and started")
-	} else {
-		GetLogger().Info("Species guide cache disabled")
 	}
 }
