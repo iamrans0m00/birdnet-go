@@ -20,6 +20,7 @@
 
 import * as Sentry from '@sentry/browser';
 import { getLogger } from '$lib/utils/logger';
+import { getLocalDateString } from '$lib/utils/date';
 
 const logger = getLogger('analytics');
 
@@ -52,7 +53,7 @@ function redactSensitive(data: Record<string, unknown>): Record<string, unknown>
  * @param labels - Optional labels/context for the event (sensitive keys will be redacted)
  */
 export function trackEvent(eventName: string, labels?: Record<string, unknown>): void {
-  const timestamp = new Date().toISOString();
+  const timestamp = getLocalDateString();
   const safeLabels = labels ? redactSensitive(labels) : {};
 
   // Log to console in development

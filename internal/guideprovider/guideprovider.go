@@ -19,6 +19,7 @@ type GuideCacheMetrics interface {
 	RecordCacheMiss(provider string)
 	RecordWikipediaAPICall(endpoint, result string, duration float64)
 	RecordDBOperation(operation, status string, duration float64)
+	UpdateCacheHitRatio(hits, misses float64)
 }
 
 // Provider name constants.
@@ -619,6 +620,9 @@ func (c *GuideCache) refreshStaleEntries() {
 	log.Info("Finished refreshing stale guide entries",
 		logger.Int("refreshed", refreshed),
 		logger.Int("total", len(staleEntries)))
+
+	// Update cache hit ratio metric
+	c.updateCacheHitRatio(context.Background(), providerName)
 }
 
 // shouldQuit checks if the cache's quit channel has been signaled.
@@ -641,4 +645,27 @@ func (c *GuideCache) waitWithQuit(d time.Duration) bool {
 	case <-timer.C:
 		return false
 	}
+}
+
+// updateCacheHitRatio calculates and updates the cache hit ratio metric.
+func (c *GuideCache) updateCacheHitRatio(ctx context.Context, providerName string) {
+	if c.metrics == nil || c.store == nil {
+		return
+	}
+
+	entries, err := c.store.GetAllGuideCaches(ctx, providerName)
+	if err != nil {
+		return
+	}
+
+	var hits, misses int
+	for i := range entries {
+		if entries[i].SourceProvider == negativeEntryMarker {
+			misses++
+		} else {
+			hits++
+		}
+	}
+
+	c.metrics.UpdateCacheHitRatio(float64(hits), float64(misses))
 }
