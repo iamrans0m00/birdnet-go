@@ -46,6 +46,12 @@ const (
 
 	// Response limits
 	wikiMaxResponseBody = 1024 * 1024 // 1MB max response body (full extracts are larger)
+
+	// Wikipedia API result status constants
+	WikiResultSuccess   = "success"
+	WikiResultNotFound  = "not_found"
+	WikiResultRateLimit = "rate_limited"
+	WikiResultError    = "error"
 )
 
 // identificationSections lists English Wikipedia section headings that contain
@@ -131,6 +137,7 @@ type wikipediaExtractResponse struct {
 type WikipediaGuideProvider struct {
 	httpClient *http.Client
 	limiter    *rate.Limiter
+	metrics    GuideCacheMetrics
 
 	// Circuit breaker
 	circuitMu        sync.RWMutex
@@ -144,10 +151,15 @@ type WikipediaGuideProvider struct {
 
 // NewWikipediaGuideProvider creates a new WikipediaGuideProvider.
 func NewWikipediaGuideProvider() *WikipediaGuideProvider {
+	return NewWikipediaGuideProviderWithMetrics(nil)
+}
+
+// NewWikipediaGuideProviderWithMetrics creates a new WikipediaGuideProvider with metrics.
+func NewWikipediaGuideProviderWithMetrics(metrics GuideCacheMetrics) *WikipediaGuideProvider {
 	transport := &http.Transport{
-		MaxIdleConns:       10,
-		IdleConnTimeout:    wikiIdleConnTimeout,
-		DisableCompression: false,
+		MaxIdleConns:        10,
+		IdleConnTimeout:     wikiIdleConnTimeout,
+		DisableCompression:  false,
 	}
 
 	return &WikipediaGuideProvider{
@@ -156,6 +168,7 @@ func NewWikipediaGuideProvider() *WikipediaGuideProvider {
 			Transport: transport,
 		},
 		limiter: rate.NewLimiter(rate.Limit(wikiRateLimitPerSec), 1),
+		metrics:  metrics,
 	}
 }
 
@@ -274,6 +287,22 @@ func (p *WikipediaGuideProvider) buildRichDescription(ctx context.Context, title
 
 // fetchSummary fetches the Wikipedia REST API summary for a given title and locale.
 func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title, locale string) (*wikipediaSummaryResponse, error) {
+	start := time.Now()
+	var fetchErr error
+		defer func() {
+			if p.metrics != nil {
+				result := WikiResultSuccess
+				if fetchErr != nil {
+					if errors.Is(fetchErr, ErrGuideNotFound) {
+						result = WikiResultNotFound
+					} else {
+						result = WikiResultError
+					}
+				}
+				p.metrics.RecordWikipediaAPICall("summary", result, time.Since(start).Seconds())
+			}
+		}()
+
 	restBase, _ := wikipediaURLs(locale)
 	baseURL := restBase
 	if p.testBaseURL != "" {
@@ -294,6 +323,7 @@ func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title, locale
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
+		fetchErr = err
 		p.tripCircuitBreaker(cbNetworkDuration, "network error: "+err.Error())
 		return nil, errors.Newf("HTTP request failed: %w", err).
 			Component("guideprovider").
@@ -303,6 +333,7 @@ func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title, locale
 	defer resp.Body.Close() //nolint:errcheck // response body close errors are not actionable after successful read
 
 	if err := p.handleHTTPError(resp); err != nil {
+		fetchErr = err
 		return nil, err
 	}
 
@@ -326,9 +357,11 @@ func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title, locale
 	}
 
 	if summary.Type == "disambiguation" {
+		fetchErr = ErrGuideNotFound
 		return nil, ErrGuideNotFound
 	}
 	if summary.Extract == "" {
+		fetchErr = ErrGuideNotFound
 		return nil, ErrGuideNotFound
 	}
 

@@ -216,7 +216,7 @@ func TestDbEntryToGuide(t *testing.T) {
 func TestGuideCache_GetFromMemory(t *testing.T) {
 	t.Parallel()
 
-	cache := NewGuideCache(nil)
+	cache := NewGuideCache(nil, nil)
 	defer cache.Close()
 
 	// Pre-populate memory cache
@@ -237,7 +237,7 @@ func TestGuideCache_GetFromMemory(t *testing.T) {
 func TestGuideCache_NegativeMemoryCacheHit(t *testing.T) {
 	t.Parallel()
 
-	cache := NewGuideCache(nil)
+	cache := NewGuideCache(nil, nil)
 	defer cache.Close()
 
 	// Pre-populate with negative entry
@@ -256,7 +256,7 @@ func TestGuideCache_FetchFromProvider(t *testing.T) {
 	t.Parallel()
 
 	store := newMockGuideStore()
-	cache := NewGuideCache(store)
+	cache := NewGuideCache(store, nil)
 	defer cache.Close()
 
 	provider := &mockGuideProvider{
@@ -296,7 +296,7 @@ func TestGuideCache_ProviderNotFound(t *testing.T) {
 	t.Parallel()
 
 	store := newMockGuideStore()
-	cache := NewGuideCache(store)
+	cache := NewGuideCache(store, nil)
 	defer cache.Close()
 
 	provider := &mockGuideProvider{
@@ -329,7 +329,7 @@ func TestGuideCache_WarmForSpecies(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		store := newMockGuideStore()
-		cache := NewGuideCache(store)
+		cache := NewGuideCache(store, nil)
 
 		fetchCount := 0
 		provider := &mockGuideProvider{
@@ -369,7 +369,7 @@ func TestGuideCache_WarmForSpecies_SkipsExisting(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		store := newMockGuideStore()
-		cache := NewGuideCache(store)
+		cache := NewGuideCache(store, nil)
 
 		fetchCount := 0
 		provider := &mockGuideProvider{
@@ -409,7 +409,7 @@ func TestGuideCache_PreFetch(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		store := newMockGuideStore()
-		cache := NewGuideCache(store)
+		cache := NewGuideCache(store, nil)
 
 		provider := &mockGuideProvider{
 			fetchFunc: func(_ context.Context, name string) (SpeciesGuide, error) {
@@ -445,7 +445,7 @@ func TestGuideCache_PreFetch_SkipsExisting(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		store := newMockGuideStore()
-		cache := NewGuideCache(store)
+		cache := NewGuideCache(store, nil)
 
 		fetchCount := 0
 		provider := &mockGuideProvider{
@@ -478,7 +478,7 @@ func TestGuideCache_WarmForSpecies_Empty(t *testing.T) {
 	t.Attr("type", "unit")
 	t.Attr("feature", "cache-warming")
 
-	cache := NewGuideCache(nil)
+	cache := NewGuideCache(nil, nil)
 	// Should not panic with empty or nil list
 	cache.WarmForSpecies(nil)
 	cache.WarmForSpecies([]string{})

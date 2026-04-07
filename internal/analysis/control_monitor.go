@@ -800,7 +800,7 @@ func (cm *ControlMonitor) handleReconfigureSpeciesGuide() {
 	}
 
 	// Re-initialize with current settings (closes old cache inside SetGuideCache).
-	newCache := initGuideCacheIfNeeded(settings, cm.apiController.DS, cm.apiController.DS)
+	newCache := initGuideCacheIfNeeded(settings, cm.apiController.DS, cm.apiController.DS, cm.metrics.GuideProvider)
 	cm.apiController.SetGuideCache(newCache)
 
 	// Re-wire the processor pre-fetch callback if applicable.

@@ -16,18 +16,19 @@ import (
 
 // Metrics holds all the metric collectors for the application.
 type Metrics struct {
-	registry      *prometheus.Registry
-	MQTT          *metrics.MQTTMetrics
-	BirdNET       *metrics.BirdNETMetrics
-	ImageProvider *metrics.ImageProviderMetrics
-	DiskManager   *metrics.DiskManagerMetrics
-	Weather       *metrics.WeatherMetrics
-	SunCalc       *metrics.SunCalcMetrics
-	Datastore     *metrics.DatastoreMetrics
-	MyAudio       *metrics.MyAudioMetrics
-	SoundLevel    *metrics.SoundLevelMetrics
-	HTTP          *metrics.HTTPMetrics
-	Notification  *metrics.NotificationMetrics
+	registry       *prometheus.Registry
+	MQTT           *metrics.MQTTMetrics
+	BirdNET        *metrics.BirdNETMetrics
+	ImageProvider  *metrics.ImageProviderMetrics
+	DiskManager    *metrics.DiskManagerMetrics
+	Weather        *metrics.WeatherMetrics
+	SunCalc        *metrics.SunCalcMetrics
+	Datastore      *metrics.DatastoreMetrics
+	MyAudio        *metrics.MyAudioMetrics
+	SoundLevel     *metrics.SoundLevelMetrics
+	HTTP           *metrics.HTTPMetrics
+	Notification   *metrics.NotificationMetrics
+	GuideProvider  *metrics.GuideProviderMetrics
 }
 
 // NewMetrics creates a new instance of Metrics, initializing all metric collectors.
@@ -90,19 +91,25 @@ func NewMetrics() (*Metrics, error) {
 		return nil, fmt.Errorf("failed to create Notification metrics: %w", err)
 	}
 
+	guideProviderMetrics, err := metrics.NewGuideProviderMetrics(registry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GuideProvider metrics: %w", err)
+	}
+
 	m := &Metrics{
-		registry:      registry,
-		MQTT:          mqttMetrics,
-		BirdNET:       birdnetMetrics,
-		ImageProvider: imageProviderMetrics,
-		DiskManager:   diskManagerMetrics,
-		Weather:       weatherMetrics,
-		SunCalc:       sunCalcMetrics,
-		Datastore:     datastoreMetrics,
-		MyAudio:       myAudioMetrics,
-		SoundLevel:    soundLevelMetrics,
-		HTTP:          httpMetrics,
-		Notification:  notificationMetrics,
+		registry:       registry,
+		MQTT:           mqttMetrics,
+		BirdNET:        birdnetMetrics,
+		ImageProvider:  imageProviderMetrics,
+		DiskManager:    diskManagerMetrics,
+		Weather:        weatherMetrics,
+		SunCalc:        sunCalcMetrics,
+		Datastore:      datastoreMetrics,
+		MyAudio:        myAudioMetrics,
+		SoundLevel:     soundLevelMetrics,
+		HTTP:           httpMetrics,
+		Notification:   notificationMetrics,
+		GuideProvider:  guideProviderMetrics,
 	}
 
 	// Initialize tracing with metrics

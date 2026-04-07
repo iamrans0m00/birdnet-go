@@ -6,6 +6,7 @@
   import { parseGuideDescription } from '$lib/types/species';
   import CollapsibleSection from './CollapsibleSection.svelte';
   import { loggers } from '$lib/utils/logger';
+  import { trackEvent, AnalyticsEvents } from '$lib/telemetry/analytics';
 
   const logger = loggers.ui;
 
@@ -67,6 +68,10 @@
 
   $effect(() => {
     fetchSimilarSpecies();
+    trackEvent(AnalyticsEvents.SPECIES_COMPARISON_OPENED, {
+      focal_species: scientificName,
+      comparison_count: 0,
+    });
   });
 </script>
 

@@ -36,6 +36,7 @@
   import { api } from '$lib/utils/api';
   import { buildAppUrl } from '$lib/utils/urlHelpers';
   import { loggers } from '$lib/utils/logger';
+  import { trackEvent, AnalyticsEvents } from '$lib/telemetry/analytics';
   import {
     Download,
     Camera,
@@ -412,6 +413,10 @@
         `/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`,
         { entry: newNoteText.trim() }
       );
+      trackEvent(AnalyticsEvents.SPECIES_NOTE_CREATED, {
+        species: detection.scientificName,
+        entry_length: newNoteText.trim().length,
+      });
       newNoteText = '';
       await fetchSpeciesNotes();
     } catch (err) {
@@ -425,6 +430,9 @@
   async function deleteSpeciesNote(noteId: number) {
     try {
       await api.delete(`/api/v2/species/notes/${noteId}`);
+      trackEvent(AnalyticsEvents.SPECIES_NOTE_DELETED, {
+        species: detection?.scientificName,
+      });
       await fetchSpeciesNotes();
     } catch (err) {
       logger.error('Error deleting species note', { error: err });

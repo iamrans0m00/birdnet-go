@@ -3,6 +3,7 @@ package guideprovider
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/tphakala/birdnet-go/internal/ebird"
 	"github.com/tphakala/birdnet-go/internal/errors"
@@ -12,16 +13,22 @@ import (
 // EBirdGuideProvider enriches species guide data using the eBird API.
 // It wraps the existing ebird.Client and provides taxonomy-based enrichment.
 type EBirdGuideProvider struct {
-	client *ebird.Client
+	client  *ebird.Client
+	metrics GuideCacheMetrics
 }
 
 // NewEBirdGuideProvider creates a new EBirdGuideProvider wrapping the given client.
 // Returns ErrProviderNotConfigured if the client is nil.
 func NewEBirdGuideProvider(client *ebird.Client) (*EBirdGuideProvider, error) {
+	return NewEBirdGuideProviderWithMetrics(client, nil)
+}
+
+// NewEBirdGuideProviderWithMetrics creates a new EBirdGuideProvider with metrics support.
+func NewEBirdGuideProviderWithMetrics(client *ebird.Client, metrics GuideCacheMetrics) (*EBirdGuideProvider, error) {
 	if client == nil {
 		return nil, ErrProviderNotConfigured
 	}
-	return &EBirdGuideProvider{client: client}, nil
+	return &EBirdGuideProvider{client: client, metrics: metrics}, nil
 }
 
 // Fetch retrieves species guide information from the eBird taxonomy API.
@@ -30,6 +37,14 @@ func NewEBirdGuideProvider(client *ebird.Client) (*EBirdGuideProvider, error) {
 // compatibility but locale is not used (eBird taxonomy uses English).
 func (p *EBirdGuideProvider) Fetch(ctx context.Context, scientificName string, _ FetchOptions) (SpeciesGuide, error) {
 	log := getLogger()
+	start := time.Now()
+	result := "success"
+
+	defer func() {
+		if p.metrics != nil {
+			p.metrics.RecordWikipediaAPICall("taxonomy", result, time.Since(start).Seconds())
+		}
+	}()
 
 	// Get taxonomy data
 	taxonomy, err := p.client.GetTaxonomy(ctx, "en")
@@ -37,6 +52,7 @@ func (p *EBirdGuideProvider) Fetch(ctx context.Context, scientificName string, _
 		log.Debug("eBird taxonomy lookup failed",
 			logger.String("species", scientificName),
 			logger.Any("error", err))
+		result = "error"
 		return SpeciesGuide{}, errors.Newf("eBird taxonomy lookup: %w", err).
 			Component("guideprovider").
 			Category(errors.CategoryNetwork).
@@ -62,5 +78,6 @@ func (p *EBirdGuideProvider) Fetch(ctx context.Context, scientificName string, _
 		}
 	}
 
+	result = "not_found"
 	return SpeciesGuide{}, ErrGuideNotFound
 }

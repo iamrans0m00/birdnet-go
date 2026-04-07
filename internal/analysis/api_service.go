@@ -117,7 +117,7 @@ func (s *APIServerService) Start(_ context.Context) error {
 	s.birdImageCache = initBirdImageCache(s.settings, dataStore, s.metrics)
 
 	// Initialize species guide cache (optional — failure is non-fatal).
-	s.guideCache = initGuideCacheIfNeeded(s.settings, dataStore, dataStore)
+	s.guideCache = initGuideCacheIfNeeded(s.settings, dataStore, dataStore, s.metrics.GuideProvider)
 
 	// Create SunCalc for sunrise/sunset calculations.
 	s.sunCalc = suncalc.NewSunCalc(s.settings.BirdNET.Latitude, s.settings.BirdNET.Longitude)

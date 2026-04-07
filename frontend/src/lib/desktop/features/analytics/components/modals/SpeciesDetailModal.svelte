@@ -9,6 +9,7 @@
   import { loggers } from '$lib/utils/logger';
   import { api } from '$lib/utils/api';
   import { buildAppUrl } from '$lib/utils/urlHelpers';
+  import { trackEvent, AnalyticsEvents } from '$lib/telemetry/analytics';
   import {
     parseGuideDescription,
     type SpeciesGuideData,
@@ -102,6 +103,13 @@
         return;
       }
       guideData = await response.json();
+      if (guideData) {
+        trackEvent(AnalyticsEvents.SPECIES_GUIDE_VIEWED, {
+          species: scientificName,
+          guide_quality: guideData.quality || 'unknown',
+          provider: guideData.source?.provider || 'unknown',
+        });
+      }
     } catch (err) {
       logger.debug('Guide fetch error', { species: scientificName, error: err });
     } finally {

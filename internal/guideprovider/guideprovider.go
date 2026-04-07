@@ -13,6 +13,14 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+// GuideCacheMetrics defines the metrics interface for guide cache operations.
+type GuideCacheMetrics interface {
+	RecordCacheHit(provider, quality string)
+	RecordCacheMiss(provider string)
+	RecordWikipediaAPICall(endpoint, result string, duration float64)
+	RecordDBOperation(operation, status string, duration float64)
+}
+
 // Provider name constants.
 const (
 	WikipediaProviderName = "wikipedia" // Wikipedia REST API provider
@@ -58,6 +66,14 @@ const (
 
 	maxDescriptionLength     = 2000  // Maximum description length for summary-only fallback
 	maxRichDescriptionLength = 10000 // Maximum description length for rich content with identification sections
+
+	GuideQualityFull  = "full"  // Guide has complete identification content
+	GuideQualityStub  = "stub"  // Guide has only intro paragraph
+
+	// DB operation status constants
+	DBResultSuccess  = "success"
+	DBResultNotFound = "not_found"
+	DBResultError    = "error"
 )
 
 // defaultProviderName is the provider used when settings are unavailable.
@@ -114,7 +130,7 @@ type GuideStore interface {
 // GuideCacheEntry represents a guide cache entry in the database.
 type GuideCacheEntry struct {
 	ID                 uint      `gorm:"primaryKey"`
-	ProviderName       string    `gorm:"uniqueIndex:idx_guidecache_provider_species;size:50;not null;default:wikipedia"`
+	ProviderName       string    `gorm:"uniqueIndex:idx_guidecache_provider_species;size:50;not null;default:wikipedia;index:idx_guidecache_age_provider"`
 	ScientificName     string    `gorm:"uniqueIndex:idx_guidecache_provider_species;not null"`
 	SourceProvider     string    `gorm:"size:50;not null;default:wikipedia"`
 	CommonName         string    `gorm:"size:200"`
@@ -123,7 +139,7 @@ type GuideCacheEntry struct {
 	SourceURL          string    `gorm:"size:2048"`
 	LicenseName        string    `gorm:"size:200"`
 	LicenseURL         string    `gorm:"size:2048"`
-	CachedAt           time.Time `gorm:"index"`
+	CachedAt           time.Time `gorm:"index;index:idx_guidecache_age_provider"`
 }
 
 // TableName returns the table name for GORM.
@@ -140,14 +156,16 @@ type GuideCache struct {
 	quit      chan struct{}
 	closeOnce sync.Once
 	mu        sync.RWMutex // protects providers map
+	metrics   GuideCacheMetrics
 }
 
 // NewGuideCache creates a new GuideCache with the given store.
-func NewGuideCache(store GuideStore) *GuideCache {
+func NewGuideCache(store GuideStore, metrics GuideCacheMetrics) *GuideCache {
 	return &GuideCache{
 		providers: make(map[string]GuideProvider),
 		store:     store,
 		quit:      make(chan struct{}),
+		metrics:   metrics,
 	}
 }
 
@@ -234,36 +252,61 @@ func (c *GuideCache) PreFetch(scientificName string) {
 // The locale parameter selects the Wikipedia language edition (e.g. "de", "fr").
 // An empty locale defaults to English.
 func (c *GuideCache) Get(ctx context.Context, scientificName string, opts FetchOptions) (*SpeciesGuide, error) {
+	settings := conf.GetSettings()
+	providerName := defaultProviderName
+	if settings != nil {
+		providerName = settings.Realtime.Dashboard.SpeciesGuide.Provider
+	}
+
 	// Tier 1: Memory cache
 	if cached, ok := c.dataMap.Load(scientificName); ok {
 		guide := cached.(*SpeciesGuide)
 		if guide.IsNegativeEntry() {
 			if !isCacheEntryStale(guide.CachedAt, true) {
+				if c.metrics != nil {
+					c.metrics.RecordCacheMiss(providerName)
+				}
 				return nil, ErrGuideNotFound
 			}
 			// Stale negative entry, fall through to re-fetch
 		} else if !isCacheEntryStale(guide.CachedAt, false) {
+			if c.metrics != nil {
+				quality := GuideQualityFull
+				if guide.Partial {
+					quality = GuideQualityStub
+				}
+				c.metrics.RecordCacheHit(providerName, quality)
+			}
 			return guide, nil
 		}
 		// Stale positive entry: return it immediately, refresh in background (stale-while-revalidate).
 		if !guide.IsNegativeEntry() {
 			c.triggerAsyncRefresh(scientificName, opts)
+			if c.metrics != nil {
+				quality := GuideQualityFull
+				if guide.Partial {
+					quality = GuideQualityStub
+				}
+				c.metrics.RecordCacheHit(providerName, quality)
+			}
 			return guide, nil
 		}
 	}
 
 	// Tier 2: DB cache
 	if c.store != nil {
-		settings := conf.GetSettings()
-		providerName := defaultProviderName
-		if settings != nil {
-			providerName = settings.Realtime.Dashboard.SpeciesGuide.Provider
-		}
 		entry, err := c.store.GetGuideCache(ctx, scientificName, providerName)
 		if err == nil && entry != nil {
 			guide := dbEntryToGuide(entry)
 			if !isCacheEntryStale(guide.CachedAt, guide.IsNegativeEntry()) {
 				c.dataMap.Store(scientificName, guide)
+				if c.metrics != nil {
+					quality := GuideQualityFull
+					if guide.Partial {
+						quality = GuideQualityStub
+					}
+					c.metrics.RecordCacheHit(providerName, quality)
+				}
 				if guide.IsNegativeEntry() {
 					return nil, ErrGuideNotFound
 				}

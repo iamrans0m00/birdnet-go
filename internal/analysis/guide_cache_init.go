@@ -7,6 +7,7 @@ import (
 	"github.com/tphakala/birdnet-go/internal/ebird"
 	"github.com/tphakala/birdnet-go/internal/guideprovider"
 	"github.com/tphakala/birdnet-go/internal/logger"
+	"github.com/tphakala/birdnet-go/internal/observability/metrics"
 	"gorm.io/gorm"
 )
 
@@ -42,7 +43,7 @@ func extractDB(ds any) *gorm.DB {
 // initGuideCacheIfNeeded initializes the species guide cache if the feature is enabled.
 // Returns nil if the feature is disabled or required dependencies are unavailable.
 // If WarmTopN > 0, it warms the cache with the top detected species after startup.
-func initGuideCacheIfNeeded(settings *conf.Settings, ds any, store datastore.Interface) *guideprovider.GuideCache {
+func initGuideCacheIfNeeded(settings *conf.Settings, ds any, store datastore.Interface, m *metrics.GuideProviderMetrics) *guideprovider.GuideCache {
 	log := GetLogger()
 
 	if !settings.Realtime.Dashboard.SpeciesGuide.Enabled {
@@ -57,16 +58,16 @@ func initGuideCacheIfNeeded(settings *conf.Settings, ds any, store datastore.Int
 		return nil
 	}
 
-	guideStore, err := guideprovider.NewGORMGuideStore(db)
+	guideStore, err := guideprovider.NewGORMGuideStoreWithMetrics(db, m)
 	if err != nil {
 		log.Error("failed to initialize guide cache store", logger.Error(err))
 		return nil
 	}
 
-	cache := guideprovider.NewGuideCache(guideStore)
+	cache := guideprovider.NewGuideCache(guideStore, m)
 
 	// Register Wikipedia provider (always available, no API key needed).
-	wikiProvider := guideprovider.NewWikipediaGuideProvider()
+	wikiProvider := guideprovider.NewWikipediaGuideProviderWithMetrics(m)
 	cache.RegisterProvider(guideprovider.WikipediaProviderName, wikiProvider)
 
 	// Register eBird provider if API key is configured.
@@ -75,7 +76,7 @@ func initGuideCacheIfNeeded(settings *conf.Settings, ds any, store datastore.Int
 			APIKey: settings.Realtime.EBird.APIKey,
 		})
 		if clientErr == nil {
-			ebirdProvider, provErr := guideprovider.NewEBirdGuideProvider(ebirdClient)
+			ebirdProvider, provErr := guideprovider.NewEBirdGuideProviderWithMetrics(ebirdClient, m)
 			if provErr == nil {
 				cache.RegisterProvider(guideprovider.EBirdProviderName, ebirdProvider)
 				log.Info("registered eBird guide provider")
