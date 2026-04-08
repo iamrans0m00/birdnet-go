@@ -63,7 +63,7 @@ export function trackEvent(eventName: string, labels?: Record<string, unknown>):
   }
 
   // Capture as Sentry breadcrumb for error correlation (guard against missing Sentry)
-  if (typeof Sentry !== 'undefined' && Sentry.addBreadcrumb) {
+  if (Sentry?.addBreadcrumb) {
     Sentry.addBreadcrumb({
       category: ANALYTICS_CATEGORY,
       message: eventName,
