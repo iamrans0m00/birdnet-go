@@ -62,8 +62,8 @@ export function trackEvent(eventName: string, labels?: Record<string, unknown>):
     logger.debug(`[event] ${eventName}`, safeLabels);
   }
 
-  // Capture as Sentry breadcrumb for error correlation (guard against missing Sentry)
-  if (Sentry?.addBreadcrumb) {
+  // Capture as Sentry breadcrumb for error correlation
+  try {
     Sentry.addBreadcrumb({
       category: ANALYTICS_CATEGORY,
       message: eventName,
@@ -71,6 +71,8 @@ export function trackEvent(eventName: string, labels?: Record<string, unknown>):
       data: safeLabels,
       timestamp: new Date(timestamp).getTime(),
     });
+  } catch {
+    // Sentry not available at runtime
   }
 }
 
