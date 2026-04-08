@@ -151,28 +151,28 @@ type CustomColors struct {
 
 // SpeciesGuideConfig holds configuration for the species guide provider.
 type SpeciesGuideConfig struct {
-	Enabled            bool   `yaml:"enabled" json:"enabled"`                         // enable species guide feature
-	Provider           string `yaml:"provider" json:"provider"`                       // preferred provider: "wikipedia", "auto"
-	FallbackPolicy     string `yaml:"fallbackpolicy" json:"fallbackPolicy"`           // fallback policy: "none", "all"
-	WarmTopN           int    `yaml:"warmtopn" json:"warmTopN"`                       // number of top detected species to warm on startup (0 = disabled)
-	PreFetchEnabled    bool   `yaml:"prefetchenabled" json:"preFetchEnabled"`         // pre-fetch guides for newly detected species
-	ShowNotes          *bool  `yaml:"shownotes" json:"showNotes"`                     // show species notes section (default: true)
-	ShowEnrichments    *bool  `yaml:"showenrichments" json:"showEnrichments"`         // show expectedness, season badges, and external links (default: true)
-	ShowSimilarSpecies *bool  `yaml:"showsimilarspecies" json:"showSimilarSpecies"`   // show similar species comparison (default: true)
+	Enabled            bool   `yaml:"enabled" json:"enabled"`                       // enable species guide feature
+	Provider           string `yaml:"provider" json:"provider"`                     // preferred provider: "wikipedia", "auto"
+	FallbackPolicy     string `yaml:"fallbackpolicy" json:"fallbackPolicy"`         // fallback policy: "none", "all"
+	WarmTopN           int    `yaml:"warmtopn" json:"warmTopN"`                     // number of top detected species to warm on startup (0 = disabled)
+	PreFetchEnabled    bool   `yaml:"prefetchenabled" json:"preFetchEnabled"`       // pre-fetch guides for newly detected species
+	ShowNotes          *bool  `yaml:"shownotes" json:"showNotes"`                   // show species notes section (default: true)
+	ShowEnrichments    *bool  `yaml:"showenrichments" json:"showEnrichments"`       // show expectedness, season badges, and external links (default: true)
+	ShowSimilarSpecies *bool  `yaml:"showsimilarspecies" json:"showSimilarSpecies"` // show similar species comparison (default: true)
 }
 
 // IsShowNotes returns whether species notes are enabled (defaults to true).
-func (c SpeciesGuideConfig) IsShowNotes() bool {
+func (c *SpeciesGuideConfig) IsShowNotes() bool {
 	return c.ShowNotes == nil || *c.ShowNotes
 }
 
 // IsShowEnrichments returns whether enrichment badges are enabled (defaults to true).
-func (c SpeciesGuideConfig) IsShowEnrichments() bool {
+func (c *SpeciesGuideConfig) IsShowEnrichments() bool {
 	return c.ShowEnrichments == nil || *c.ShowEnrichments
 }
 
 // IsShowSimilarSpecies returns whether similar species comparison is enabled (defaults to true).
-func (c SpeciesGuideConfig) IsShowSimilarSpecies() bool {
+func (c *SpeciesGuideConfig) IsShowSimilarSpecies() bool {
 	return c.ShowSimilarSpecies == nil || *c.ShowSimilarSpecies
 }
 
