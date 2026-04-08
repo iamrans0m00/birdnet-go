@@ -312,6 +312,11 @@ func (m *mockStore) DeleteExpiredNotificationHistory(before time.Time) (int64, e
 	return 0, nil
 }
 
+// Species notes methods
+func (m *mockStore) GetSpeciesNotes(_ string) ([]datastore.SpeciesNote, error) { return nil, nil }
+func (m *mockStore) SaveSpeciesNote(_ *datastore.SpeciesNote) error            { return nil }
+func (m *mockStore) DeleteSpeciesNote(_ string) error                          { return nil }
+
 func (m *mockStore) SchemaVersion() string     { return datastore.SchemaVersionLegacy }
 func (m *mockStore) UpdateNameMaps(_ []string) {}
 func (m *mockStore) GetDatabaseStats() (*datastore.DatabaseStats, error) {

@@ -12,7 +12,6 @@ import (
 	"github.com/tphakala/birdnet-go/internal/classifier"
 	"github.com/tphakala/birdnet-go/internal/diskmanager"
 	"github.com/tphakala/birdnet-go/internal/observability/metrics"
-	gpmetrics "github.com/tphakala/birdnet-go/internal/observability/metrics"
 )
 
 // Metrics holds all the metric collectors for the application.
@@ -29,7 +28,7 @@ type Metrics struct {
 	SoundLevel    *metrics.SoundLevelMetrics
 	HTTP          *metrics.HTTPMetrics
 	Notification  *metrics.NotificationMetrics
-	GuideProvider *gpmetrics.GuideProviderMetrics
+	GuideProvider *metrics.GuideProviderMetrics
 }
 
 // NewMetrics creates a new instance of Metrics, initializing all metric collectors.
@@ -92,7 +91,7 @@ func NewMetrics() (*Metrics, error) {
 		return nil, fmt.Errorf("failed to create Notification metrics: %w", err)
 	}
 
-	guideProviderMetrics, err := gpmetrics.NewGuideProviderMetrics(registry)
+	guideProviderMetrics, err := metrics.NewGuideProviderMetrics(registry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GuideProvider metrics: %w", err)
 	}
