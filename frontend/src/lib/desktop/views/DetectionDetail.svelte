@@ -408,10 +408,9 @@
     if (!detection?.scientificName || !newNoteText.trim()) return;
     isSavingNote = true;
     try {
-      await api.post(
-        `/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`,
-        { entry: newNoteText.trim() }
-      );
+      await api.post(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`, {
+        entry: newNoteText.trim(),
+      });
       trackEvent(AnalyticsEvents.SPECIES_NOTE_CREATED, {
         species: detection.scientificName,
         entry_length: newNoteText.trim().length,

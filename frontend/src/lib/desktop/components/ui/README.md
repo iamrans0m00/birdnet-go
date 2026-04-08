@@ -509,11 +509,11 @@ Side-by-side comparison of a species with similar/same-genus species. Fetches si
 
 #### Props
 
-| Prop             | Type       | Required | Description                          |
-| ---------------- | ---------- | -------- | ------------------------------------ |
-| `scientificName` | `string`   | Yes      | Scientific name of the focal species |
-| `commonName`     | `string`   | Yes      | Common name of the focal species     |
-| `onclose`        | `() => void` | Yes   | Callback when panel is closed        |
+| Prop             | Type         | Required | Description                          |
+| ---------------- | ------------ | -------- | ------------------------------------ |
+| `scientificName` | `string`     | Yes      | Scientific name of the focal species |
+| `commonName`     | `string`     | Yes      | Common name of the focal species     |
+| `onclose`        | `() => void` | Yes      | Callback when panel is closed        |
 
 #### Usage
 
