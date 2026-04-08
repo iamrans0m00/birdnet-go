@@ -3947,6 +3947,22 @@
           "label": "Ativar guia de espécies",
           "helpText": "Exibir guias de identificação baseados na Wikipédia."
         },
+        "provider": {
+          "label": "Fornecedor do guia",
+          "helpText": "Qual fonte de dados usar para guias de identificação de espécies.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Política de fallback",
+          "helpText": "O que fazer quando o fornecedor preferido não pode fornecer um guia.",
+          "options": {
+            "all": "Tentar todos os fornecedores",
+            "none": "Sem fallback"
+          }
+        },
         "sections": {
           "title": "Seções do guia"
         },

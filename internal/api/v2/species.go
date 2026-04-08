@@ -356,24 +356,41 @@ func calculateRarityStatus(score float64) RarityStatus {
 }
 
 // buildExternalLinks generates curated links to external bird identification resources.
-func buildExternalLinks(commonName string) []ExternalLink {
-	if commonName == "" {
+func buildExternalLinks(commonName, scientificName string) []ExternalLink {
+	if commonName == "" && scientificName == "" {
 		return nil
 	}
 
-	// AllAboutBirds uses hyphenated lowercase common names as URL slugs.
-	slug := strings.ToLower(commonName)
-	slug = strings.ReplaceAll(slug, " ", "-")
-	slug = strings.ReplaceAll(slug, "'", "")
+	// All About Birds uses underscores and proper capitalization (e.g., Northern_Cardinal)
+	// Also provide fallback using scientific name since common names vary by region.
+	var allAboutBirdsURL string
+	if commonName != "" {
+		slug := strings.ReplaceAll(commonName, " ", "_")
+		slug = strings.ReplaceAll(slug, "'", "")
+		allAboutBirdsURL = "https://www.allaboutbirds.org/guide/" + slug
+	}
+
+	// If no common name, try scientific name as fallback for All About Birds
+	if allAboutBirdsURL == "" && scientificName != "" {
+		slug := strings.ReplaceAll(scientificName, " ", "_")
+		allAboutBirdsURL = "https://www.allaboutbirds.org/guide/" + slug
+	}
+
+	// Xeno-canto uses scientific name in format: genus-species (e.g., Turdus-migratorius)
+	var xenoCantoURL string
+	if scientificName != "" {
+		xenoCantoName := strings.ReplaceAll(scientificName, " ", "-")
+		xenoCantoURL = "https://xeno-canto.org/species/" + url.PathEscape(xenoCantoName)
+	}
 
 	return []ExternalLink{
 		{
 			Name: "All About Birds",
-			URL:  "https://www.allaboutbirds.org/guide/" + slug,
+			URL:  allAboutBirdsURL,
 		},
 		{
 			Name: "Xeno-canto",
-			URL:  "https://xeno-canto.org/species/" + url.PathEscape(commonName),
+			URL:  xenoCantoURL,
 		},
 	}
 }
@@ -899,7 +916,7 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 		latitude := c.Settings.BirdNET.Latitude
 		now := time.Now()
 		response.CurrentSeason = computeCurrentSeason(latitude, now)
-		response.ExternalLinks = buildExternalLinks(guide.CommonName)
+		response.ExternalLinks = buildExternalLinks(guide.CommonName, guide.ScientificName)
 
 		if c.Processor != nil {
 			if bn := c.Processor.GetBirdNET(); bn != nil {

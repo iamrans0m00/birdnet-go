@@ -3947,6 +3947,22 @@
           "label": "Artenführer aktivieren",
           "helpText": "Wikipedia-basierte Führerinhalte anzeigen."
         },
+        "provider": {
+          "label": "Datenquelle",
+          "helpText": "Welche Datenquelle für Artenführer verwendet werden soll.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Fallback-Richtlinie",
+          "helpText": "Was zu tun ist, wenn der bevorzugte Anbieter keinen Führerinhalt liefern kann.",
+          "options": {
+            "all": "Alle Anbieter versuchen",
+            "none": "Kein Fallback"
+          }
+        },
         "sections": {
           "title": "Führerabschnitte"
         },

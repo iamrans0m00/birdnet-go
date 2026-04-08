@@ -3947,6 +3947,22 @@
           "label": "Activar guía de especies",
           "helpText": "Mostrar guías de identificación basadas en Wikipedia."
         },
+        "provider": {
+          "label": "Proveedor de guía",
+          "helpText": "Fuente de datos para las guías de identificación de especies.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Política de reserva",
+          "helpText": "Qué hacer cuando el proveedor preferido no puede proporcionar una guía.",
+          "options": {
+            "all": "Probar todos los proveedores",
+            "none": "Sin reserva"
+          }
+        },
         "sections": {
           "title": "Secciones de la guía"
         },

@@ -3947,6 +3947,22 @@
           "label": "Soortengids inschakelen",
           "helpText": "Wikipedia-gebaseerde identificatiegidsen tonen."
         },
+        "provider": {
+          "label": "Gidsleverancier",
+          "helpText": "Welke gegevensbron te gebruiken voor soortgidsen.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Terugvalbeleid",
+          "helpText": "Wat te doen als de voorkeursleverancier geen gids kan leveren.",
+          "options": {
+            "all": "Alle leveranciers proberen",
+            "none": "Geen terugval"
+          }
+        },
         "sections": {
           "title": "Gidssecties"
         },

@@ -257,7 +257,7 @@
     });
   }
 
-  function updateSpeciesGuideSetting(key: string, value: boolean | number) {
+  function updateSpeciesGuideSetting(key: string, value: boolean | number | string) {
     settingsActions.updateSection('realtime', {
       dashboard: {
         ...settings.dashboard,
@@ -682,6 +682,36 @@
           disabled={store.isLoading || store.isSaving}
           onchange={value => updateSpeciesGuideSetting('enabled', value)}
         />
+
+        <!-- Provider selection — only active when guide is enabled -->
+        <div
+          class:opacity-50={!(settings.dashboard.speciesGuide?.enabled ?? true)}
+          class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4"
+        >
+          <SelectDropdown
+            value={settings.dashboard.speciesGuide?.provider ?? 'wikipedia'}
+            label={t('settings.userInterface.speciesGuide.provider.label')}
+            helpText={t('settings.userInterface.speciesGuide.provider.helpText')}
+            options={[
+              { value: 'wikipedia', label: t('settings.userInterface.speciesGuide.provider.options.wikipedia') },
+              { value: 'ebird', label: t('settings.userInterface.speciesGuide.provider.options.ebird') },
+            ]}
+            disabled={store.isLoading || store.isSaving || !(settings.dashboard.speciesGuide?.enabled ?? true)}
+            onChange={value => updateSpeciesGuideSetting('provider', Array.isArray(value) ? value[0] : value)}
+          />
+
+          <SelectDropdown
+            value={settings.dashboard.speciesGuide?.fallbackPolicy ?? 'all'}
+            label={t('settings.userInterface.speciesGuide.fallbackPolicy.label')}
+            helpText={t('settings.userInterface.speciesGuide.fallbackPolicy.helpText')}
+            options={[
+              { value: 'all', label: t('settings.userInterface.speciesGuide.fallbackPolicy.options.all') },
+              { value: 'none', label: t('settings.userInterface.speciesGuide.fallbackPolicy.options.none') },
+            ]}
+            disabled={store.isLoading || store.isSaving || !(settings.dashboard.speciesGuide?.enabled ?? true)}
+            onChange={value => updateSpeciesGuideSetting('fallbackPolicy', Array.isArray(value) ? value[0] : value)}
+          />
+        </div>
 
         <div class="border-t border-[var(--color-base-200)]"></div>
 

@@ -3947,6 +3947,22 @@
           "label": "Ota lajiopas käyttöön",
           "helpText": "Näytä Wikipedia-pohjainen tunnistusopas."
         },
+        "provider": {
+          "label": "Oppaan lähde",
+          "helpText": "Mitä tietolähdettä käytetään lajioppaisiin.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Varavaihtoehto",
+          "helpText": "Mitä tehdä, kun ensisijainen lähde ei pysty toimittamaan opasta.",
+          "options": {
+            "all": "Kokeile kaikkia lähteitä",
+            "none": "Ei varavaihtoehtoea"
+          }
+        },
         "sections": {
           "title": "Oppaan osiot"
         },

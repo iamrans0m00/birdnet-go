@@ -3947,6 +3947,22 @@
           "label": "Włącz przewodnik gatunków",
           "helpText": "Wyświetlaj przewodniki identyfikacji oparte na Wikipedii."
         },
+        "provider": {
+          "label": "Dostawca przewodnika",
+          "helpText": "Które źródło danych używać dla przewodników gatunków.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Polityka zapasowa",
+          "helpText": "Co robić, gdy preferowany dostawca nie może dostarczyć przewodnika.",
+          "options": {
+            "all": "Wypróbuj wszystkich dostawców",
+            "none": "Bez opcji zapasowej"
+          }
+        },
         "sections": {
           "title": "Sekcje przewodnika"
         },

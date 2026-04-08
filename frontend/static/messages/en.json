@@ -3971,6 +3971,22 @@
           "label": "Enable Species Guide",
           "helpText": "Show Wikipedia-powered identification guides when viewing a detection or species."
         },
+        "provider": {
+          "label": "Guide Provider",
+          "helpText": "Which data source to use for species identification guides.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Fallback Policy",
+          "helpText": "What to do when the preferred provider cannot supply a guide.",
+          "options": {
+            "all": "Try all providers",
+            "none": "No fallback"
+          }
+        },
         "sections": {
           "title": "Guide Sections"
         },

@@ -967,11 +967,11 @@ func TestBuildExternalLinks(t *testing.T) {
 
 	t.Run("generates links for common name", func(t *testing.T) {
 		t.Parallel()
-		links := buildExternalLinks("Northern Cardinal")
+		links := buildExternalLinks("Northern Cardinal", "Passer domesticus")
 		require.Len(t, links, 2)
 
 		assert.Equal(t, "All About Birds", links[0].Name)
-		assert.Equal(t, "https://www.allaboutbirds.org/guide/northern-cardinal", links[0].URL)
+		assert.Equal(t, "https://www.allaboutbirds.org/guide/Northern_Cardinal", links[0].URL)
 
 		assert.Equal(t, "Xeno-canto", links[1].Name)
 		assert.Contains(t, links[1].URL, "xeno-canto.org/species/")
@@ -979,14 +979,26 @@ func TestBuildExternalLinks(t *testing.T) {
 
 	t.Run("handles apostrophes", func(t *testing.T) {
 		t.Parallel()
-		links := buildExternalLinks("Cooper's Hawk")
+		links := buildExternalLinks("Cooper's Hawk", "Accipiter cooperii")
 		require.Len(t, links, 2)
-		assert.Equal(t, "https://www.allaboutbirds.org/guide/coopers-hawk", links[0].URL)
+		assert.Equal(t, "https://www.allaboutbirds.org/guide/Coopers_Hawk", links[0].URL)
 	})
 
 	t.Run("returns nil for empty name", func(t *testing.T) {
 		t.Parallel()
-		links := buildExternalLinks("")
+		links := buildExternalLinks("", "")
 		assert.Nil(t, links)
+	})
+
+	t.Run("falls back to scientific name for All About Birds when common name is empty", func(t *testing.T) {
+		t.Parallel()
+		links := buildExternalLinks("", "Turdus migratorius")
+		require.Len(t, links, 2)
+
+		assert.Equal(t, "All About Birds", links[0].Name)
+		assert.Equal(t, "https://www.allaboutbirds.org/guide/Turdus_migratorius", links[0].URL)
+
+		assert.Equal(t, "Xeno-canto", links[1].Name)
+		assert.Equal(t, "https://xeno-canto.org/species/Turdus-migratorius", links[1].URL)
 	})
 }

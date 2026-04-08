@@ -533,6 +533,8 @@ export interface WebServerSettings {
 // Dashboard settings
 export interface SpeciesGuideSettings {
   enabled?: boolean;
+  provider?: string; // preferred provider: "wikipedia", "ebird"
+  fallbackPolicy?: string; // fallback policy: "all", "none"
   showNotes?: boolean;
   showEnrichments?: boolean;
   showSimilarSpecies?: boolean;
