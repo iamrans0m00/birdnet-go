@@ -462,7 +462,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 			setupCtrl: func(c *Controller) {
 				c.Settings = &conf.Settings{}
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
-				c.GuideCache = guideprovider.NewGuideCache(nil)
+				c.GuideCache = guideprovider.NewGuideCache(nil, nil)
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   "Missing required parameter",
@@ -475,7 +475,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
 				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
-				cache := guideprovider.NewGuideCache(nil)
+				cache := guideprovider.NewGuideCache(nil, nil)
 				// Register a provider that always returns not found
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
 					err: guideprovider.ErrGuideNotFound,
@@ -493,7 +493,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
 				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
-				cache := guideprovider.NewGuideCache(nil)
+				cache := guideprovider.NewGuideCache(nil, nil)
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
 					guide: guideprovider.SpeciesGuide{
 						ScientificName: "Turdus merula",
@@ -519,7 +519,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				c.Settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
 				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
-				cache := guideprovider.NewGuideCache(nil)
+				cache := guideprovider.NewGuideCache(nil, nil)
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
 					guide: guideprovider.SpeciesGuide{
 						ScientificName: "Turdus merula",
