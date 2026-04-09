@@ -682,7 +682,8 @@ func (s *testLegacyInterface) GetBatchHourlyOccurrences(_ string, _ []string, _ 
 func (s *testLegacyInterface) SpeciesDetections(_, _, _ string, _ int, _ bool, _, _ int) ([]datastore.Note, error) {
 	return nil, nil
 }
-func (s *testLegacyInterface) DeleteSpeciesNote(_ string) error { return nil }
+func (s *testLegacyInterface) DeleteSpeciesNote(_ string) error    { return nil }
+func (s *testLegacyInterface) UpdateSpeciesNote(_, _ string) error { return nil }
 func (s *testLegacyInterface) GetSpeciesNotes(_ string) ([]datastore.SpeciesNote, error) {
 	return nil, nil
 }

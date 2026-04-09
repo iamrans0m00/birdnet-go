@@ -4920,6 +4920,51 @@ func (_c *MockInterface_DeleteSpeciesNote_Call) RunAndReturn(run func(string) er
 	return _c
 }
 
+// UpdateSpeciesNote provides a mock function with given fields: noteID, entry
+func (_m *MockInterface) UpdateSpeciesNote(noteID string, entry string) error {
+	ret := _m.Called(noteID, entry)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateSpeciesNote")
+	}
+
+	var r0 error
+	if ret.Get(0) != nil {
+		r0 = ret.Get(0).(error)
+	}
+
+	return r0
+}
+
+// MockInterface_UpdateSpeciesNote_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateSpeciesNote'
+type MockInterface_UpdateSpeciesNote_Call struct {
+	*mock.Call
+}
+
+// UpdateSpeciesNote is a helper method to define mock.On call
+func (_e *MockInterface_Expecter) UpdateSpeciesNote(noteID interface{}, entry interface{}) *MockInterface_UpdateSpeciesNote_Call {
+	return &MockInterface_UpdateSpeciesNote_Call{Call: _e.mock.On("UpdateSpeciesNote", noteID, entry)}
+}
+
+func (_c *MockInterface_UpdateSpeciesNote_Call) Run(run func(noteID string, entry string)) *MockInterface_UpdateSpeciesNote_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(string), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockInterface_UpdateSpeciesNote_Call) Return(_a0 error) *MockInterface_UpdateSpeciesNote_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockInterface_UpdateSpeciesNote_Call) RunAndReturn(run func(string, string) error) *MockInterface_UpdateSpeciesNote_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		_c.Call.Return(run(args[0].(string), args[1].(string)))
+	})
+	return _c
+}
+
 // NewMockInterface creates a new instance of MockInterface. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewMockInterface(t interface {

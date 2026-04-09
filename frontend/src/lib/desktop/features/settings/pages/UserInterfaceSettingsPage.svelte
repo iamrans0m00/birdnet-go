@@ -693,11 +693,20 @@
             label={t('settings.userInterface.speciesGuide.provider.label')}
             helpText={t('settings.userInterface.speciesGuide.provider.helpText')}
             options={[
-              { value: 'wikipedia', label: t('settings.userInterface.speciesGuide.provider.options.wikipedia') },
-              { value: 'ebird', label: t('settings.userInterface.speciesGuide.provider.options.ebird') },
+              {
+                value: 'wikipedia',
+                label: t('settings.userInterface.speciesGuide.provider.options.wikipedia'),
+              },
+              {
+                value: 'ebird',
+                label: t('settings.userInterface.speciesGuide.provider.options.ebird'),
+              },
             ]}
-            disabled={store.isLoading || store.isSaving || !(settings.dashboard.speciesGuide?.enabled ?? true)}
-            onChange={value => updateSpeciesGuideSetting('provider', Array.isArray(value) ? value[0] : value)}
+            disabled={store.isLoading ||
+              store.isSaving ||
+              !(settings.dashboard.speciesGuide?.enabled ?? true)}
+            onChange={value =>
+              updateSpeciesGuideSetting('provider', Array.isArray(value) ? value[0] : value)}
           />
 
           <SelectDropdown
@@ -705,11 +714,20 @@
             label={t('settings.userInterface.speciesGuide.fallbackPolicy.label')}
             helpText={t('settings.userInterface.speciesGuide.fallbackPolicy.helpText')}
             options={[
-              { value: 'all', label: t('settings.userInterface.speciesGuide.fallbackPolicy.options.all') },
-              { value: 'none', label: t('settings.userInterface.speciesGuide.fallbackPolicy.options.none') },
+              {
+                value: 'all',
+                label: t('settings.userInterface.speciesGuide.fallbackPolicy.options.all'),
+              },
+              {
+                value: 'none',
+                label: t('settings.userInterface.speciesGuide.fallbackPolicy.options.none'),
+              },
             ]}
-            disabled={store.isLoading || store.isSaving || !(settings.dashboard.speciesGuide?.enabled ?? true)}
-            onChange={value => updateSpeciesGuideSetting('fallbackPolicy', Array.isArray(value) ? value[0] : value)}
+            disabled={store.isLoading ||
+              store.isSaving ||
+              !(settings.dashboard.speciesGuide?.enabled ?? true)}
+            onChange={value =>
+              updateSpeciesGuideSetting('fallbackPolicy', Array.isArray(value) ? value[0] : value)}
           />
         </div>
 

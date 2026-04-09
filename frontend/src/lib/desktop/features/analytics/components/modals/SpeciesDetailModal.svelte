@@ -422,14 +422,14 @@
                     <p class="text-sm leading-relaxed break-all" style:white-space="pre-wrap">{note.entry}</p>
                     <div class="flex gap-2 justify-end">
                       <button
-                        class="opacity-0 group-hover:opacity-50 hover:!opacity-100 p-1 rounded text-blue-500 hover:bg-blue-500 hover:text-white transition-all"
+                        class="p-1 rounded text-blue-500 hover:bg-blue-500 hover:text-white transition-all"
                         aria-label="Edit"
                         onclick={() => startEditNote(note)}
                       >
                         <Pencil class="h-3 w-3" />
                       </button>
                       <button
-                        class="opacity-0 group-hover:opacity-50 hover:!opacity-100 p-1 rounded text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                        class="p-1 rounded text-red-500 hover:bg-red-500 hover:text-white transition-all"
                         aria-label={t('analytics.species.notes.deleteConfirm')}
                         onclick={() => deleteSpeciesNote(note.id)}
                       >

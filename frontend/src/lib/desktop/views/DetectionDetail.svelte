@@ -988,20 +988,22 @@
                 {:else}
                   <div class="flex justify-between items-start gap-2">
                     <p class="text-sm leading-relaxed flex-1 break-all" style:white-space="pre-wrap">{note.entry}</p>
-                    <button
-                      class="opacity-0 group-hover:opacity-50 hover:!opacity-100 p-1 rounded text-blue-500 hover:bg-blue-500 hover:text-white transition-all"
-                      aria-label="Edit"
-                      onclick={() => startEditNote(note)}
-                    >
-                      <Pencil class="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      class="opacity-0 group-hover:opacity-50 hover:!opacity-100 p-1 rounded text-red-500 hover:bg-red-500 hover:text-white transition-all"
-                      aria-label={t('analytics.species.notes.deleteConfirm')}
-                      onclick={() => deleteSpeciesNote(note.id)}
-                    >
-                      <Trash2 class="h-3.5 w-3.5" />
-                    </button>
+                    <div class="flex gap-1">
+                      <button
+                        class="p-1 rounded text-blue-500 hover:bg-blue-500 hover:text-white transition-all"
+                        aria-label="Edit"
+                        onclick={() => startEditNote(note)}
+                      >
+                        <Pencil class="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        class="p-1 rounded text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                        aria-label={t('analytics.species.notes.deleteConfirm')}
+                        onclick={() => deleteSpeciesNote(note.id)}
+                      >
+                        <Trash2 class="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 {/if}
                   <p class="text-xs opacity-40 mt-1.5">

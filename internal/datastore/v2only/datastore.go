@@ -3072,3 +3072,15 @@ func (ds *Datastore) DeleteSpeciesNote(noteID string) error {
 	}
 	return ds.manager.DB().Delete(&datastore.SpeciesNote{}, id).Error
 }
+
+// UpdateSpeciesNote updates an existing species note's entry.
+func (ds *Datastore) UpdateSpeciesNote(noteID, entry string) error {
+	if entry == "" {
+		return fmt.Errorf("note entry cannot be empty")
+	}
+	id, err := parseID(noteID)
+	if err != nil {
+		return err
+	}
+	return ds.manager.DB().Model(&datastore.SpeciesNote{}).Where("id = ?", id).Update("entry", entry).Error
+}

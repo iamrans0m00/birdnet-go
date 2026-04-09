@@ -3285,15 +3285,32 @@ export type TranslationParams = {
   'notifications.content.resource.highUsage': { resource: string | number };
   'notifications.content.resource.criticalUsage': { resource: string | number };
   'notifications.content.resource.recovered': { resource: string | number };
-  'notifications.content.resource.currentUsage': { current: string | number; unit: string | number; threshold: string | number };
+  'notifications.content.resource.currentUsage': {
+    current: string | number;
+    unit: string | number;
+    threshold: string | number;
+  };
   'notifications.content.error.categoryError': { category: string | number };
   'notifications.content.error.burstTitle': { component: string | number };
-  'notifications.content.error.burstMessage': { count: string | number; window_minutes: string | number; sample_error: string | number };
+  'notifications.content.error.burstMessage': {
+    count: string | number;
+    window_minutes: string | number;
+    sample_error: string | number;
+  };
   'notifications.content.cleanup.completeMessage': { space: string | number };
-  'notifications.content.buffer.overloadMessage': { dropRate: string | number; sourceName: string | number };
+  'notifications.content.buffer.overloadMessage': {
+    dropRate: string | number;
+    sourceName: string | number;
+  };
   'notifications.content.alert.firedTitle': { rule_name: string | number };
-  'notifications.content.alert.metricExceeded': { value: string | number; threshold: string | number };
-  'notifications.content.alert.detectionOccurred': { species_name: string | number; confidence: string | number };
+  'notifications.content.alert.metricExceeded': {
+    value: string | number;
+    threshold: string | number;
+  };
+  'notifications.content.alert.detectionOccurred': {
+    species_name: string | number;
+    confidence: string | number;
+  };
   'notifications.content.alert.errorOccurred': { error: string | number };
   'notifications.content.alert.disconnected': { source_name: string | number };
   'search.resultsCountOther': { count: string | number };
@@ -3307,11 +3324,28 @@ export type TranslationParams = {
   'dashboard.dailySummary.daylight.sunrise': { time: string | number };
   'dashboard.dailySummary.daylight.sunset': { time: string | number };
   'dashboard.dailySummary.tooltips.viewHourly': { hour: string | number };
-  'dashboard.dailySummary.tooltips.viewBiHourly': { startHour: string | number; endHour: string | number };
-  'dashboard.dailySummary.tooltips.viewSixHourly': { startHour: string | number; endHour: string | number };
-  'dashboard.dailySummary.tooltips.hourlyDetections': { count: string | number; hour: string | number };
-  'dashboard.dailySummary.tooltips.biHourlyDetections': { count: string | number; startHour: string | number; endHour: string | number };
-  'dashboard.dailySummary.tooltips.sixHourlyDetections': { count: string | number; startHour: string | number; endHour: string | number };
+  'dashboard.dailySummary.tooltips.viewBiHourly': {
+    startHour: string | number;
+    endHour: string | number;
+  };
+  'dashboard.dailySummary.tooltips.viewSixHourly': {
+    startHour: string | number;
+    endHour: string | number;
+  };
+  'dashboard.dailySummary.tooltips.hourlyDetections': {
+    count: string | number;
+    hour: string | number;
+  };
+  'dashboard.dailySummary.tooltips.biHourlyDetections': {
+    count: string | number;
+    startHour: string | number;
+    endHour: string | number;
+  };
+  'dashboard.dailySummary.tooltips.sixHourlyDetections': {
+    count: string | number;
+    startHour: string | number;
+    endHour: string | number;
+  };
   'dashboard.recentDetections.modals.showSpecies': { species: string | number };
   'dashboard.recentDetections.modals.ignoreSpecies': { species: string | number };
   'dashboard.recentDetections.modals.showSpeciesConfirm': { species: string | number };
@@ -3326,11 +3360,19 @@ export type TranslationParams = {
   'dashboard.errors.configFetch': { status: string | number };
   'dashboard.editMode.configureTitle': { element: string | number };
   'detections.titles.hourly': { hour: string | number; date: string | number };
-  'detections.titles.hourlyRange': { startHour: string | number; endHour: string | number; date: string | number };
+  'detections.titles.hourlyRange': {
+    startHour: string | number;
+    endHour: string | number;
+    date: string | number;
+  };
   'detections.titles.species': { species: string | number; date: string | number };
   'detections.titles.search': { query: string | number };
   'detections.titles.allDetections': { date: string | number };
-  'detections.pagination.showing': { from: string | number; to: string | number; total: string | number };
+  'detections.pagination.showing': {
+    from: string | number;
+    to: string | number;
+    total: string | number;
+  };
   'detections.row.viewDetails': { species: string | number };
   'detections.aria.loaded': { species: string | number };
   'detections.aria.error': { error: string | number };
@@ -3372,14 +3414,23 @@ export type TranslationParams = {
   'system.database.migration.phase.indicator': { current: string | number; total: string | number };
   'system.database.migration.prerequisites.criticalIssues': { count: string | number };
   'system.database.migration.prerequisites.warningsCount': { count: string | number };
-  'system.database.migration.prerequisites.checkingStep': { current: string | number; total: string | number };
-  'system.database.migration.prerequisites.passedCount': { passed: string | number; total: string | number };
+  'system.database.migration.prerequisites.checkingStep': {
+    current: string | number;
+    total: string | number;
+  };
+  'system.database.migration.prerequisites.passedCount': {
+    passed: string | number;
+    total: string | number;
+  };
   'system.database.migration.prerequisites.criticalCount': { count: string | number };
   'system.database.migration.prerequisites.warningCount': { count: string | number };
   'analytics.advanced.speciesSelection': { count: string | number; max: string | number };
   'analytics.advanced.detections': { count: string | number };
   'settings.notFound.message': { section: string | number };
-  'settings.main.sections.falsePositiveFilter.detectionCount': { count: string | number; description: string | number };
+  'settings.main.sections.falsePositiveFilter.detectionCount': {
+    count: string | number;
+    description: string | number;
+  };
   'settings.main.sections.falsePositiveFilter.overlapAdjusted': { overlap: string | number };
   'settings.main.sections.falsePositiveFilter.overlapReduced': { overlap: string | number };
   'settings.support.supportReport.userMessage.githubTip': { systemId: string | number };
@@ -3393,7 +3444,10 @@ export type TranslationParams = {
   'settings.notifications.push.providers.urlsPreview': { count: string | number };
   'settings.notifications.push.providers.deleteConfirm': { name: string | number };
   'settings.notifications.push.test.error': { message: string | number };
-  'settings.notifications.push.autoName.numbered': { service: string | number; number: string | number };
+  'settings.notifications.push.autoName.numbered': {
+    service: string | number;
+    number: string | number;
+  };
   'settings.audio.soundCards.summary': { count: string | number };
   'settings.audio.audioCapture.streamsConfigured': { count: string | number };
   'settings.audio.streams.summary': { count: string | number };
@@ -3424,7 +3478,11 @@ export type TranslationParams = {
   'settings.alerts.status.imported': { imported: string | number; total: string | number };
   'auth.errors.rateLimited': { minutes: string | number };
   'dataDisplay.table.sortBy': { column: string | number };
-  'dataDisplay.table.pageInfo': { from: string | number; to: string | number; total: string | number };
+  'dataDisplay.table.pageInfo': {
+    from: string | number;
+    to: string | number;
+    total: string | number;
+  };
   'dataDisplay.pagination.page': { current: string | number; total: string | number };
   'dataDisplay.pagination.goToPage': { page: string | number };
   'forms.placeholders.text': { field: string | number };
@@ -3450,7 +3508,10 @@ export type TranslationParams = {
   'components.datePicker.aria.dayUnavailable': { day: string | number };
   'components.datePicker.aria.todayButton': { today: string | number };
   'components.audioPlayer.errors.generationFailedStatus': { status: string | number };
-  'components.audioPlayer.clipExtraction.rangeLabel': { start: string | number; end: string | number };
+  'components.audioPlayer.clipExtraction.rangeLabel': {
+    start: string | number;
+    end: string | number;
+  };
   'quietHours.indicator.tooltip': { count: string | number };
   'errors.detection.invalidDate': { paramName: string | number };
   'errors.backup.insufficientSpace': { needed: string | number; available: string | number };

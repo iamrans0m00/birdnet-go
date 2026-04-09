@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -140,6 +141,7 @@ func (c *Controller) initSpeciesRoutes() {
 	// Species notes endpoints
 	c.Group.GET("/species/:scientific_name/notes", c.GetSpeciesNotes)
 	c.Group.POST("/species/:scientific_name/notes", c.CreateSpeciesNote, c.authMiddleware)
+	c.Group.PUT("/species/notes/:id", c.UpdateSpeciesNote, c.authMiddleware)
 	c.Group.DELETE("/species/notes/:id", c.DeleteSpeciesNote, c.authMiddleware)
 
 	// New taxonomy endpoints using local database
@@ -1060,6 +1062,11 @@ type CreateSpeciesNoteRequest struct {
 	Entry string `json:"entry"`
 }
 
+// UpdateSpeciesNoteRequest represents the request body for updating a species note.
+type UpdateSpeciesNoteRequest struct {
+	Entry string `json:"entry"`
+}
+
 // GetSpeciesNotes retrieves all notes for a species.
 // @Summary Get species notes
 // @Description Returns user-authored notes for a species
@@ -1216,4 +1223,74 @@ func (c *Controller) DeleteSpeciesNote(ctx echo.Context) error {
 	}
 
 	return ctx.NoContent(http.StatusNoContent)
+}
+
+// UpdateSpeciesNote updates an existing species note.
+// @Summary Update a species note
+// @Description Updates an existing user note for a species
+// @Tags species
+// @Param id path string true "Note ID"
+// @Accept json
+// @Produce json
+// @Success 200 {object} SpeciesNoteResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v2/species/notes/{id} [put]
+func (c *Controller) UpdateSpeciesNote(ctx echo.Context) error {
+	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
+		return c.HandleError(ctx, errors.Newf("species notes feature is disabled").
+			Category(errors.CategoryConfiguration).
+			Component("api-species").
+			Build(), "Species notes feature is disabled", http.StatusNotFound)
+	}
+
+	noteID := ctx.Param("id")
+	if noteID == "" {
+		return c.HandleError(ctx, errors.Newf("note ID is required").
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Missing note ID", http.StatusBadRequest)
+	}
+
+	var req UpdateSpeciesNoteRequest
+	if err := ctx.Bind(&req); err != nil {
+		return c.HandleError(ctx, errors.Newf("invalid request body: %w", err).
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Invalid request body", http.StatusBadRequest)
+	}
+
+	entry := strings.TrimSpace(req.Entry)
+	if entry == "" {
+		return c.HandleError(ctx, errors.Newf("entry cannot be empty").
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Note entry is required", http.StatusBadRequest)
+	}
+
+	if len(entry) > maxNoteEntryLength {
+		return c.HandleError(ctx, errors.Newf("note entry exceeds maximum length of %d characters", maxNoteEntryLength).
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Note entry too long", http.StatusBadRequest)
+	}
+
+	if err := c.DS.UpdateSpeciesNote(noteID, entry); err != nil {
+		return c.HandleError(ctx, err, "Failed to update species note", http.StatusInternalServerError)
+	}
+
+	// Parse the ID to verify it exists
+	id, err := strconv.ParseUint(noteID, 10, 32)
+	if err != nil {
+		return c.HandleError(ctx, errors.Newf("invalid note ID").
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Invalid note ID", http.StatusBadRequest)
+	}
+
+	return ctx.JSON(http.StatusOK, SpeciesNoteResponse{
+		ID:        uint(id),
+		Entry:     entry,
+		CreatedAt: time.Now(), // This will be ignored on frontend, actual time is preserved in DB
+		UpdatedAt: time.Now(),
+	})
 }

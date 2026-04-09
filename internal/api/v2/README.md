@@ -220,6 +220,7 @@ Lightweight connectivity check. Returns a minimal response with no database quer
 | GET    | `/species/:scientific_name/similar` | `GetSimilarSpecies`   | ❌   | Get similar species (same genus) with optional guide summaries                                           |
 | GET    | `/species/:scientific_name/notes`   | `GetSpeciesNotes`     | ❌   | Get user-authored notes for a species                                                                    |
 | POST   | `/species/:scientific_name/notes`   | `CreateSpeciesNote`   | ✅   | Create a new species note                                                                                |
+| PUT    | `/species/notes/:id`                | `UpdateSpeciesNote`   | ✅   | Update a species note by ID                                                                              |
 | DELETE | `/species/notes/:id`                | `DeleteSpeciesNote`   | ✅   | Delete a species note by ID                                                                              |
 
 #### GET /api/v2/species/:scientific_name/guide

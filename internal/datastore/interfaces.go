@@ -223,6 +223,7 @@ type Interface interface {
 	GetSpeciesNotes(scientificName string) ([]SpeciesNote, error)
 	SaveSpeciesNote(note *SpeciesNote) error
 	DeleteSpeciesNote(noteID string) error
+	UpdateSpeciesNote(noteID string, entry string) error
 	// Database stats method for runtime statistics
 	GetDatabaseStats() (*DatabaseStats, error)
 	// SchemaVersion returns the datastore schema version ("legacy" or "v2").
@@ -1678,6 +1679,35 @@ func (ds *DataStore) DeleteSpeciesNote(noteID string) error {
 				Component("datastore").
 				Category(errors.CategoryDatabase).
 				Context("operation", "delete_species_note").
+				Context("note_id", noteID).
+				Build()
+		}
+		return nil
+	}, ds.getMetrics())
+}
+
+// UpdateSpeciesNote updates an existing species note's entry.
+func (ds *DataStore) UpdateSpeciesNote(noteID, entry string) error {
+	if entry == "" {
+		return validationError("note entry cannot be empty", "entry", "")
+	}
+
+	id, err := strconv.ParseUint(noteID, 10, 32)
+	if err != nil {
+		return errors.New(err).
+			Component("datastore").
+			Category(errors.CategoryValidation).
+			Context("operation", "update_species_note").
+			Context("note_id", noteID).
+			Build()
+	}
+
+	return RetryOnLock(context.Background(), "update_species_note", func() error {
+		if err := ds.DB.Model(&SpeciesNote{}).Where("id = ?", id).Update("entry", entry).Error; err != nil {
+			return errors.New(err).
+				Component("datastore").
+				Category(errors.CategoryDatabase).
+				Context("operation", "update_species_note").
 				Context("note_id", noteID).
 				Build()
 		}
