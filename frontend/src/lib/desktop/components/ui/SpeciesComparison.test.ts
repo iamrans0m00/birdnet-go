@@ -75,7 +75,7 @@ describe('SpeciesComparison', () => {
   });
 
   it('displays loading state initially', () => {
-    global.fetch = vi.fn(() => new Promise(() => {})) as ReturnType<typeof fetch>;
+    global.fetch = vi.fn(() => new Promise(() => {})) as unknown as typeof fetch;
 
     comparisonTest.render({
       props: {
@@ -92,7 +92,7 @@ describe('SpeciesComparison', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ similar: [] }),
-    }) as ReturnType<typeof fetch>;
+    }) as unknown as typeof fetch;
 
     comparisonTest.render({
       props: {
@@ -124,7 +124,7 @@ describe('SpeciesComparison', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ similar: mockSimilarSpecies }),
-    }) as ReturnType<typeof fetch>;
+    }) as unknown as typeof fetch;
 
     comparisonTest.render({
       props: {
@@ -144,7 +144,7 @@ describe('SpeciesComparison', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ similar: [] }),
-    }) as ReturnType<typeof fetch>;
+    }) as unknown as typeof fetch;
 
     comparisonTest.render({
       props: {
@@ -166,7 +166,7 @@ describe('SpeciesComparison', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ similar: [] }),
-    }) as ReturnType<typeof fetch>;
+    }) as unknown as typeof fetch;
 
     comparisonTest.render({
       props: {
@@ -176,7 +176,7 @@ describe('SpeciesComparison', () => {
       },
     });
 
-    await waitFor(() => {
+    await waitFor(async () => {
       const closeButton = screen.getByRole('button', { name: /common.close/i });
       await fireEvent.click(closeButton);
       expect(onClose).toHaveBeenCalledTimes(1);
@@ -195,7 +195,7 @@ describe('SpeciesComparison', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ similar: mockSimilarSpecies }),
-    }) as ReturnType<typeof fetch>;
+    }) as unknown as typeof fetch;
 
     comparisonTest.render({
       props: {
@@ -233,7 +233,7 @@ describe('SpeciesComparison', () => {
         });
       }
       return guidePromise;
-    }) as ReturnType<typeof fetch>;
+    }) as unknown as typeof fetch;
 
     comparisonTest.render({
       props: {
@@ -287,7 +287,7 @@ describe('SpeciesComparison', () => {
               '## Description\nA beautiful songbird\n\n## Songs and calls\nMelodious warble',
           }),
       });
-    }) as ReturnType<typeof fetch>;
+    }) as unknown as typeof fetch;
 
     comparisonTest.render({
       props: {
@@ -311,9 +311,7 @@ describe('SpeciesComparison', () => {
   });
 
   it('handles API error gracefully', async () => {
-    global.fetch = vi.fn().mockRejectedValue(new Error('Network error')) as ReturnType<
-      typeof fetch
-    >;
+    global.fetch = vi.fn().mockRejectedValue(new Error('Network error')) as unknown as typeof fetch;
 
     comparisonTest.render({
       props: {
@@ -340,7 +338,7 @@ describe('SpeciesComparison', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ similar: mockSimilarSpecies }),
-    }) as ReturnType<typeof fetch>;
+    }) as unknown as typeof fetch;
 
     comparisonTest.render({
       props: {
