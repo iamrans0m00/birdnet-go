@@ -987,7 +987,12 @@
                   </div>
                 {:else}
                   <div class="flex justify-between items-start gap-2">
-                    <p class="text-sm leading-relaxed flex-1 break-all" style:white-space="pre-wrap">{note.entry}</p>
+                    <p
+                      class="text-sm leading-relaxed flex-1 break-all"
+                      style:white-space="pre-wrap"
+                    >
+                      {note.entry}
+                    </p>
                     <div class="flex gap-1">
                       <button
                         class="p-1 rounded text-blue-500 hover:bg-blue-500 hover:text-white transition-all"
@@ -1006,7 +1011,7 @@
                     </div>
                   </div>
                 {/if}
-                  <p class="text-xs opacity-40 mt-1.5">
+                <p class="text-xs opacity-40 mt-1.5">
                   {formatLocalDateTime(new Date(note.created_at))}
                 </p>
               </article>

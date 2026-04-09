@@ -428,6 +428,12 @@ func TestGetSpeciesGuide(t *testing.T) {
 	t.Attr("type", "unit")
 	t.Attr("feature", "species-guide")
 
+	// Save original settings and restore after test
+	origSettings := conf.GetSettings()
+	t.Cleanup(func() {
+		conf.SetTestSettings(origSettings)
+	})
+
 	tests := []struct {
 		name           string
 		scientificName string
@@ -439,8 +445,10 @@ func TestGetSpeciesGuide(t *testing.T) {
 			name:           "feature disabled",
 			scientificName: "Turdus merula",
 			setupCtrl: func(c *Controller) {
-				c.Settings = &conf.Settings{}
-				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = false
+				settings := conf.GetTestSettings()
+				settings.Realtime.Dashboard.SpeciesGuide.Enabled = false
+				conf.SetTestSettings(settings)
+				c.Settings = settings
 			},
 			expectedStatus: http.StatusNotFound,
 			expectedBody:   "Species guide feature is disabled",
@@ -449,8 +457,10 @@ func TestGetSpeciesGuide(t *testing.T) {
 			name:           "nil guide cache",
 			scientificName: "Turdus merula",
 			setupCtrl: func(c *Controller) {
-				c.Settings = &conf.Settings{}
-				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				settings := conf.GetTestSettings()
+				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				conf.SetTestSettings(settings)
+				c.Settings = settings
 				c.GuideCache = nil
 			},
 			expectedStatus: http.StatusServiceUnavailable,
@@ -460,8 +470,10 @@ func TestGetSpeciesGuide(t *testing.T) {
 			name:           "empty scientific name",
 			scientificName: "",
 			setupCtrl: func(c *Controller) {
-				c.Settings = &conf.Settings{}
-				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				settings := conf.GetTestSettings()
+				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				conf.SetTestSettings(settings)
+				c.Settings = settings
 				c.GuideCache = guideprovider.NewGuideCache(nil, nil)
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -471,12 +483,13 @@ func TestGetSpeciesGuide(t *testing.T) {
 			name:           "species not found returns 404",
 			scientificName: "Nonexistent species",
 			setupCtrl: func(c *Controller) {
-				c.Settings = &conf.Settings{}
-				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
-				c.Settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
-				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
+				settings := conf.GetTestSettings()
+				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
+				settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
+				conf.SetTestSettings(settings)
+				c.Settings = settings
 				cache := guideprovider.NewGuideCache(nil, nil)
-				// Register a provider that always returns not found
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
 					err: guideprovider.ErrGuideNotFound,
 				})
@@ -489,10 +502,12 @@ func TestGetSpeciesGuide(t *testing.T) {
 			name:           "success returns guide data with quality stub",
 			scientificName: "Turdus merula",
 			setupCtrl: func(c *Controller) {
-				c.Settings = &conf.Settings{}
-				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
-				c.Settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
-				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
+				settings := conf.GetTestSettings()
+				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
+				settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
+				conf.SetTestSettings(settings)
+				c.Settings = settings
 				cache := guideprovider.NewGuideCache(nil, nil)
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
 					guide: guideprovider.SpeciesGuide{
@@ -515,10 +530,12 @@ func TestGetSpeciesGuide(t *testing.T) {
 			name:           "success returns full quality guide",
 			scientificName: "Turdus merula",
 			setupCtrl: func(c *Controller) {
-				c.Settings = &conf.Settings{}
-				c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
-				c.Settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
-				c.Settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
+				settings := conf.GetTestSettings()
+				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
+				settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
+				conf.SetTestSettings(settings)
+				c.Settings = settings
 				cache := guideprovider.NewGuideCache(nil, nil)
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
 					guide: guideprovider.SpeciesGuide{

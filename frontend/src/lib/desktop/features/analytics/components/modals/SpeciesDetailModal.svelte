@@ -419,7 +419,9 @@
                       </button>
                     </div>
                   {:else}
-                    <p class="text-sm leading-relaxed break-all" style:white-space="pre-wrap">{note.entry}</p>
+                    <p class="text-sm leading-relaxed break-all" style:white-space="pre-wrap">
+                      {note.entry}
+                    </p>
                     <div class="flex gap-2 justify-end">
                       <button
                         class="p-1 rounded text-blue-500 hover:bg-blue-500 hover:text-white transition-all"
