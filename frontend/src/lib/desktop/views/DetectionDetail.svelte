@@ -50,6 +50,9 @@
     Trash2,
     BookOpen,
     GitCompareArrows,
+    Pencil,
+    X,
+    Check,
   } from '@lucide/svelte';
   import SpeciesComparison from '$lib/desktop/components/ui/SpeciesComparison.svelte';
 
@@ -131,6 +134,10 @@
   let isSavingNote = $state(false);
   let newNoteText = $state('');
   let showComparison = $state(false);
+
+  // Editing state
+  let editingNoteId = $state<number | null>(null);
+  let editingText = $state('');
 
   // Derived state for subspecies with proper typing
   let subspeciesList = $derived<Subspecies[]>(
@@ -434,6 +441,28 @@
       await fetchSpeciesNotes();
     } catch (err) {
       logger.error('Error deleting species note', { error: err });
+    }
+  }
+
+  function startEditNote(note: SpeciesNoteData) {
+    editingNoteId = note.id;
+    editingText = note.entry;
+  }
+
+  function cancelEditNote() {
+    editingNoteId = null;
+    editingText = '';
+  }
+
+  async function saveEditNote(noteId: number) {
+    if (!editingText.trim()) return;
+    try {
+      await api.put(`/api/v2/species/notes/${noteId}`, { entry: editingText.trim() });
+      editingNoteId = null;
+      editingText = '';
+      await fetchSpeciesNotes();
+    } catch (err) {
+      logger.error('Error updating species note', { error: err });
     }
   }
 
@@ -928,17 +957,54 @@
           <div class="space-y-2 mt-2" role="list" aria-label="Species notes">
             {#each speciesNotes as note (note.id)}
               <article class="content-panel species-note-card" role="listitem">
-                <div class="flex justify-between items-start gap-2">
-                  <p class="text-sm leading-relaxed flex-1">{note.entry}</p>
-                  <button
-                    class="species-note-delete"
-                    aria-label={t('analytics.species.notes.deleteConfirm')}
-                    onclick={() => deleteSpeciesNote(note.id)}
-                  >
-                    <Trash2 class="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                <p class="text-xs opacity-40 mt-1.5">
+                {#if editingNoteId === note.id}
+                  <div class="flex flex-col gap-2">
+                    <textarea
+                      class="w-full text-sm px-2 py-1 rounded border border-[var(--color-primary)] bg-[var(--color-base-100)] text-[var(--color-base-content)] focus:outline-none resize-none"
+                      rows="3"
+                      bind:value={editingText}
+                      onkeydown={(e: KeyboardEvent) => {
+                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveEditNote(note.id);
+                        if (e.key === 'Escape') cancelEditNote();
+                      }}
+                    ></textarea>
+                    <div class="flex gap-2 justify-end">
+                      <button
+                        class="p-1 rounded text-green-500 hover:bg-green-500 hover:text-white transition-all"
+                        aria-label="Save"
+                        onclick={() => saveEditNote(note.id)}
+                      >
+                        <Check class="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        class="p-1 rounded text-gray-500 hover:bg-gray-500 hover:text-white transition-all"
+                        aria-label="Cancel"
+                        onclick={cancelEditNote}
+                      >
+                        <X class="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                {:else}
+                  <div class="flex justify-between items-start gap-2">
+                    <p class="text-sm leading-relaxed flex-1 break-all" style:white-space="pre-wrap">{note.entry}</p>
+                    <button
+                      class="opacity-0 group-hover:opacity-50 hover:!opacity-100 p-1 rounded text-blue-500 hover:bg-blue-500 hover:text-white transition-all"
+                      aria-label="Edit"
+                      onclick={() => startEditNote(note)}
+                    >
+                      <Pencil class="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      class="opacity-0 group-hover:opacity-50 hover:!opacity-100 p-1 rounded text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                      aria-label={t('analytics.species.notes.deleteConfirm')}
+                      onclick={() => deleteSpeciesNote(note.id)}
+                    >
+                      <Trash2 class="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                {/if}
+                  <p class="text-xs opacity-40 mt-1.5">
                   {formatLocalDateTime(new Date(note.created_at))}
                 </p>
               </article>
@@ -951,12 +1017,12 @@
         {/if}
 
         <!-- Add note form -->
-        <div class="mt-3 flex gap-2">
+        <div class="mt-3">
           <textarea
-            class="species-note-input"
+            class="w-full text-sm px-3 py-2 rounded-lg border border-[var(--border-100)] bg-[var(--color-base-100)] text-[var(--color-base-content)] focus:outline-none focus:border-[var(--color-primary)] resize-none"
             placeholder={t('analytics.species.notes.placeholder')}
             aria-label={t('analytics.species.notes.placeholder')}
-            rows="2"
+            rows="3"
             bind:value={newNoteText}
             onkeydown={(e: KeyboardEvent) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -966,7 +1032,7 @@
             }}
           ></textarea>
           <button
-            class="species-note-save"
+            class="mt-2 px-4 py-2 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-content)] hover:opacity-90 transition-opacity disabled:opacity-50"
             disabled={!newNoteText.trim() || isSavingNote}
             onclick={saveSpeciesNote}
           >
