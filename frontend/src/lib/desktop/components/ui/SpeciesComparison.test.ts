@@ -130,7 +130,7 @@ describe('SpeciesComparison', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Song Thrush')).toBeInTheDocument();
+      expect(screen.getAllByText('Song Thrush').length).toBeGreaterThan(0);
       expect(screen.getByText('Turdus philomelos')).toBeInTheDocument();
     });
   });
@@ -201,7 +201,8 @@ describe('SpeciesComparison', () => {
     });
 
     await waitFor(() => {
-      const item = screen.getByText('Song Thrush').closest('button');
+      const items = screen.getAllByText('Song Thrush');
+      const item = items[0].closest('button');
       expect(item).toHaveClass('active');
     });
   });
@@ -242,7 +243,8 @@ describe('SpeciesComparison', () => {
       expect(screen.getByText('Song Thrush')).toBeInTheDocument();
     });
 
-    const item = screen.getByText('Song Thrush').closest('button');
+    const items = screen.getAllByText('Song Thrush');
+    const item = items[0].closest('button');
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     await fireEvent.click(item!);
 
@@ -298,12 +300,13 @@ describe('SpeciesComparison', () => {
       expect(screen.getByText('Song Thrush')).toBeInTheDocument();
     });
 
-    const item = screen.getByText('Song Thrush').closest('button');
+    const allItems = screen.getAllByText('Song Thrush');
+    const item = allItems[0].closest('button');
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     await fireEvent.click(item!);
 
     await waitFor(() => {
-      expect(screen.getByText('Song Thrush')).toBeInTheDocument();
+      expect(screen.getAllByText('Song Thrush').length).toBeGreaterThan(0);
       expect(screen.getByText('Description')).toBeInTheDocument();
     });
   });
