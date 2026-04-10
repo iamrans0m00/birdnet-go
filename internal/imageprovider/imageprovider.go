@@ -105,9 +105,14 @@ func (b *BirdImage) IsNegativeEntry() bool {
 	return b.URL == negativeEntryMarker
 }
 
-// GetTTL returns the appropriate TTL for this cache entry
+// GetTTL returns the appropriate TTL for this cache entry.
+// Non-avian species (Siren, Dog, etc.) get an effectively permanent TTL
+// since they will never have images from bird image providers.
 func (b *BirdImage) GetTTL() time.Duration {
 	if b.IsNegativeEntry() {
+		if isNonAvianClass(b.ScientificName) {
+			return 10 * 365 * 24 * time.Hour // ~10 years: effectively permanent
+		}
 		return negativeCacheTTL
 	}
 	return defaultCacheTTL
@@ -210,6 +215,30 @@ const (
 // The order matters: avicommons is tried first as it's faster (local data), then wikimedia (remote API).
 var fallbackProviders = []string{"avicommons", "wikimedia"}
 
+// nonAvianClasses lists BirdNET model output classes that are not bird species.
+// These will never have images available from bird image providers, so their
+// negative cache entries should never expire to avoid futile re-fetch attempts.
+var nonAvianClasses = map[string]bool{
+	"Siren":           true,
+	"Dog":             true,
+	"Power tools":     true,
+	"Human vocal":     true,
+	"Human non-vocal": true,
+	"Human whistle":   true,
+	"Jet":             true,
+	"Gun":             true,
+	"Fireworks":       true,
+	"Noise":           true,
+	"Environmental":   true,
+	"Engine":          true,
+}
+
+// isNonAvianClass returns true if the scientific name is a non-bird class
+// that will never have images available from bird image providers.
+func isNonAvianClass(scientificName string) bool {
+	return nonAvianClasses[scientificName]
+}
+
 // --- Shared Helper Functions ---
 
 // shouldQuit checks if the cache's quit channel has been signaled.
@@ -295,6 +324,11 @@ func (c *BirdImageCache) findStaleEntries(entries []datastore.ImageCache) []stri
 			continue
 		}
 		isNegative := entries[i].URL == negativeEntryMarker
+		// Non-avian species (Siren, Dog, etc.) will never have images;
+		// skip their negative entries so they never expire and re-fetch.
+		if isNegative && isNonAvianClass(entries[i].ScientificName) {
+			continue
+		}
 		if isCacheEntryStale(entries[i].CachedAt, isNegative) {
 			if isNegative {
 				log.Debug("Found stale negative entry",
@@ -1236,7 +1270,7 @@ func (c *BirdImageCache) handleNegativeDBEntry(scientificName string, dbImage *B
 		logger.String("provider", c.providerName),
 		logger.String("scientific_name", scientificName))
 
-	if isCacheEntryStale(dbImage.CachedAt, true) {
+	if !isNonAvianClass(scientificName) && isCacheEntryStale(dbImage.CachedAt, true) {
 		log.Debug("Negative cache entry from DB is expired, will re-fetch")
 		return BirdImage{}, false // Continue to provider fetch
 	}
@@ -1306,18 +1340,23 @@ func (c *BirdImageCache) handleProviderFetchError(scientificName string, fetchEr
 		logger.String("provider", c.providerName),
 		logger.String("scientific_name", scientificName))
 
+	// Check for expected "not found" condition first — this is not an error.
+	// Many species legitimately have no images in AviCommons or Wikipedia.
+	if errors.Is(fetchErr, ErrImageNotFound) {
+		if c.metrics != nil {
+			c.metrics.IncrementDownloadErrorsWithCategory("image-fetch", c.providerName, "not_found")
+		}
+		return c.storeNegativeCacheEntry(scientificName, fetchErr)
+	}
+
+	// Actual provider errors — log at error level
 	enhancedErr := c.enhanceFetchError(fetchErr, scientificName)
 	log.Error("Failed to fetch image from provider", logger.Error(enhancedErr))
 
 	if c.metrics != nil {
-		c.metrics.IncrementDownloadErrorsWithCategory("image-fetch", c.providerName, "provider_fetch")
+		c.metrics.IncrementDownloadErrorsWithCategory("image-fetch", c.providerName, "provider_error")
 	}
 
-	if errors.Is(fetchErr, ErrImageNotFound) {
-		return c.storeNegativeCacheEntry(scientificName, fetchErr)
-	}
-
-	log.Warn("Provider error (not caching)", logger.Error(enhancedErr))
 	return BirdImage{}, enhancedErr
 }
 
