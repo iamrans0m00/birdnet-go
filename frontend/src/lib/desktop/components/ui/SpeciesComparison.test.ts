@@ -1,14 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  renderTyped,
   createComponentTestFactory,
   screen,
   fireEvent,
   waitFor,
 } from '../../../../test/render-helpers';
-import userEvent from '@testing-library/user-event';
 import SpeciesComparison from './SpeciesComparison.svelte';
-import SpeciesComparisonTestWrapper from './SpeciesComparison.test.svelte';
 
 vi.mock('$lib/i18n', () => ({
   t: vi.fn((key: string) => key),
@@ -49,11 +46,9 @@ vi.mock('$lib/types/species', () => ({
 }));
 
 describe('SpeciesComparison', () => {
-  let user: ReturnType<typeof userEvent.setup>;
   const comparisonTest = createComponentTestFactory(SpeciesComparison);
 
   beforeEach(() => {
-    user = userEvent.setup();
     vi.clearAllMocks();
   });
 
@@ -248,10 +243,12 @@ describe('SpeciesComparison', () => {
     });
 
     const item = screen.getByText('Song Thrush').closest('button');
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     await fireEvent.click(item!);
 
     expect(screen.getByText('analytics.species.guide.loading')).toBeInTheDocument();
 
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     resolveGuide!({
       ok: true,
       json: () =>
@@ -302,6 +299,7 @@ describe('SpeciesComparison', () => {
     });
 
     const item = screen.getByText('Song Thrush').closest('button');
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     await fireEvent.click(item!);
 
     await waitFor(() => {
