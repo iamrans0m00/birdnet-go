@@ -38,7 +38,7 @@ linters:
     - thelper
     - testifylint
     - gocyclo
-    - modernize
+    # - modernize  # Disabled: causes panic with Go 1.26 and atomic types (known bug in golangci-lint v2.11.4)
     - forbidigo  # Sensitive field name detection
     # Performance linters
     - prealloc

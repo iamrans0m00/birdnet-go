@@ -1532,6 +1532,51 @@
         "detections": "Havainnot:",
         "confidence": "Luottamus:",
         "first": "Ensimmäinen:"
+      },
+      "guide": {
+        "title": "Lajiopas",
+        "loading": "Ladataan lajitietoja...",
+        "source": "Lähde:",
+        "description": "Kuvaus",
+        "songs": "Laulut ja äänet",
+        "similar": "Samanlaiset lajit",
+        "qualityFull": "Yksityiskohtainen",
+        "qualityIntroOnly": "Lyhyt",
+        "qualityStub": "Luonnos",
+        "expectedness": {
+          "expected": "Odotettu",
+          "uncommon": "Harvinainen",
+          "rare": "Harvinainen",
+          "unexpected": "Odottamaton"
+        },
+        "season": {
+          "spring": "Kevät",
+          "summer": "Kesä",
+          "fall": "Syksy",
+          "winter": "Talvi",
+          "wet1": "Sadekausi",
+          "dry1": "Kuivakausi",
+          "wet2": "Sadekausi",
+          "dry2": "Kuivakausi"
+        }
+      },
+      "notes": {
+        "title": "Lajimuistiinpanot",
+        "placeholder": "Lisää muistiinpano tästä lajista...",
+        "save": "Tallenna muistiinpano",
+        "empty": "Ei muistiinpanoja vielä. Lisää havaintosi tästä lajista.",
+        "deleteConfirm": "Poista tämä muistiinpano?",
+        "saving": "Tallennetaan...",
+        "deleteFailed": "Muistiinpanon poistaminen epäonnistui",
+        "saveFailed": "Muistiinpanon tallentaminen epäonnistui"
+      },
+      "similar": {
+        "title": "Samankaltaiset lajit",
+        "compare": "Vertaa samankaltaisiin",
+        "loading": "Ladataan samankaltaisia lajeja...",
+        "empty": "Samankaltaisia lajeja ei löytynyt tästä suvusta.",
+        "sameGenus": "Sama suku",
+        "sameFamily": "Sama heimo"
       }
     },
     "advanced": {
@@ -3876,7 +3921,8 @@
         "appearance": "Appearance",
         "language": "Language & Regional",
         "visualContent": "Visual Content",
-        "audioPlayback": "Äänentoisto"
+        "audioPlayback": "Äänentoisto",
+        "speciesGuide": "Lajiopas"
       },
       "appearance": {
         "title": "Appearance",
@@ -3896,6 +3942,56 @@
         "defaultGain": "Oletusäänenvahvistus",
         "defaultGainHelpText": "Alkuvahvistus äänitteiden toistossa. Lintujen äänet ovat usein hiljaisia, joten 6-12 dB:n vahvistus on suositeltavaa.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Lajiopas",
+        "description": "Määritä lajiopas havainnon yksityiskohtiin.",
+        "enabled": {
+          "label": "Ota lajiopas käyttöön",
+          "helpText": "Näytä Wikipedia-pohjainen tunnistusopas."
+        },
+        "provider": {
+          "label": "Oppaan lähde",
+          "helpText": "Mitä tietolähdettä käytetään lajioppaisiin.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Varavaihtoehto",
+          "helpText": "Mitä tehdä, kun ensisijainen lähde ei pysty toimittamaan opasta.",
+          "options": {
+            "all": "Kokeile kaikkia lähteitä",
+            "none": "Ei varavaihtoehtoea"
+          }
+        },
+        "sections": {
+          "title": "Oppaan osiot"
+        },
+        "showEnrichments": {
+          "label": "Näytä rikasteet",
+          "helpText": "Näytä kausitieto, levinneisyysmerkinnät ja linkit."
+        },
+        "showSimilarSpecies": {
+          "label": "Näytä samankaltaiset lajit",
+          "helpText": "Vertailupaneeli saman suvun lajeista."
+        },
+        "showNotes": {
+          "label": "Näytä lajimuistiinpanot",
+          "helpText": "Henkilökohtainen muistiinpanopaneeli."
+        },
+        "cache": {
+          "title": "Opasvälimuisti"
+        },
+        "preFetchEnabled": {
+          "label": "Esihae oppaat",
+          "helpText": "Hae oppaat automaattisesti taustalla."
+        },
+        "warmTopN": {
+          "label": "Lämmitä välimuisti käynnistyksessä",
+          "helpText": "Kuinka monen lajin oppaat esivalmistellaan. 0 = pois."
+        }
       }
     },
     "restartRequired": "Jotkin muutokset vaativat palvelimen uudelleenkäynnistyksen astuakseen voimaan. Käynnistä BirdNET-Go uudelleen."

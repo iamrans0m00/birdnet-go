@@ -435,6 +435,7 @@ func migrateTables(db *gorm.DB, dbType string, log logger.Logger) (int, error) {
 		{&DynamicThreshold{}, "dynamic_thresholds"},
 		{&ThresholdEvent{}, "threshold_events"},            // BG-59: Threshold change history
 		{&NotificationHistory{}, "notification_histories"}, // BG-17: Notification suppression persistence
+		{&SpeciesNote{}, "species_notes"},
 	}
 
 	GetLogger().Debug("Starting table migrations",
