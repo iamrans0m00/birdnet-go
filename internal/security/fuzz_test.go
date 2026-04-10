@@ -460,7 +460,7 @@ func FuzzIsRequestFromAllowedSubnet(f *testing.F) {
 
 		// If disabled, result must be false (unless loopback)
 		if !enabled {
-			parsedIP := net.ParseIP(ipStr)
+			parsedIP := parseIPWithZone(ipStr)
 			if parsedIP == nil || !parsedIP.IsLoopback() {
 				assert.False(t, result, "Disabled subnet bypass should return false")
 			}
@@ -470,7 +470,7 @@ func FuzzIsRequestFromAllowedSubnet(f *testing.F) {
 		if ipStr == "" {
 			assert.False(t, result, "Empty IP should return false")
 		}
-		if net.ParseIP(ipStr) == nil {
+		if parseIPWithZone(ipStr) == nil {
 			assert.False(t, result, "Invalid IP should return false")
 		}
 
@@ -896,7 +896,7 @@ func TestAdvancedIPAddressEdgeCases(t *testing.T) {
 		{"Letters in IPv4", "192.168.a.1", false, false},
 
 		// Unusual but valid
-		{"IPv6 with zone", "fe80::1%eth0", false, false}, // ParseIP doesn't handle zones
+		{"IPv6 with zone", "fe80::1%eth0", false, false}, // net.ParseIP doesn't handle zones; use parseIPWithZone
 		{"Full IPv6", "2001:0db8:0000:0000:0000:0000:0000:0001", true, false},
 		{"Compressed IPv6", "2001:db8::1", true, false},
 
