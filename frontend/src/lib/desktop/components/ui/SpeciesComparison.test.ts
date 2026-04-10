@@ -137,7 +137,7 @@ describe('SpeciesComparison', () => {
 
   it('displays column header with focal species', async () => {
     global.fetch = vi.fn((url: string) => {
-      if (url.includes('api/v2/species/') && url.includes('/similar')) {
+      if (url.includes('api/v2/species/') && url.includes('similar')) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ similar: [] }),
@@ -167,7 +167,7 @@ describe('SpeciesComparison', () => {
     const onClose = vi.fn();
 
     global.fetch = vi.fn((url: string) => {
-      if (url.includes('api/v2/species/') && url.includes('/similar')) {
+      if (url.includes('api/v2/species/') && url.includes('similar')) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ similar: [] }),
@@ -205,7 +205,7 @@ describe('SpeciesComparison', () => {
     ];
 
     global.fetch = vi.fn((url: string) => {
-      if (url.includes('api/v2/species/') && url.includes('/similar')) {
+      if (url.includes('api/v2/species/') && url.includes('similar')) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ similar: mockSimilarSpecies }),
@@ -248,7 +248,7 @@ describe('SpeciesComparison', () => {
     });
 
     global.fetch = vi.fn((url: string) => {
-      if (url.includes('api/v2/species/') && url.includes('/similar')) {
+      if (url.includes('api/v2/species/') && url.includes('similar')) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ similar: mockSimilarSpecies }),
@@ -297,7 +297,7 @@ describe('SpeciesComparison', () => {
     ];
 
     global.fetch = vi.fn((url: string) => {
-      if (url.includes('api/v2/species/') && url.includes('/similar')) {
+      if (url.includes('api/v2/species/') && url.includes('similar')) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ similar: mockSimilarSpecies }),
