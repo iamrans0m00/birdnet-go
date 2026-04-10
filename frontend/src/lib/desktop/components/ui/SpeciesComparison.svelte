@@ -1,10 +1,9 @@
 <script lang="ts">
-  import { X } from '@lucide/svelte';
+  import { X, ChevronDown, ChevronRight, Music, Bird, ListOrdered } from '@lucide/svelte';
   import { t, getLocale } from '$lib/i18n';
   import { buildAppUrl } from '$lib/utils/urlHelpers';
   import type { SimilarSpeciesEntry, SpeciesGuideData } from '$lib/types/species';
   import { parseGuideDescription } from '$lib/types/species';
-  import CollapsibleSection from './CollapsibleSection.svelte';
   import { loggers } from '$lib/utils/logger';
   import { trackEvent, AnalyticsEvents } from '$lib/telemetry/analytics';
 
@@ -20,16 +19,46 @@
 
   let similarSpecies = $state<SimilarSpeciesEntry[]>([]);
   let isLoading = $state(true);
+  let focalGuide = $state<SpeciesGuideData | null>(null);
+  let focalSections = $state<ReturnType<typeof parseGuideDescription>>([]);
   let selectedSpecies = $state<string | null>(null);
-  let selectedGuide = $state<SpeciesGuideData | null>(null);
-  let isLoadingGuide = $state(false);
+  let selectedSimilarIndex = $state<number>(0);
+  let isLoadingFocal = $state(false);
+
+  // Collapsible section states - Description expanded by default, others collapsed
+  let descriptionOpen = $state(true);
+  let songsOpen = $state(false);
+  let similarOpen = $state(false);
+
+  async function fetchFocalSpeciesGuide() {
+    isLoadingFocal = true;
+    try {
+      const locale = getLocale();
+      const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
+      const encodedName = encodeURIComponent(scientificName);
+      const url = buildAppUrl(`/api/v2/species/${encodedName}/guide${localeParam}`);
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        focalGuide = data;
+        if (focalGuide?.description) {
+          focalSections = parseGuideDescription(focalGuide.description);
+        }
+      }
+    } catch (err) {
+      logger.error('Failed to fetch focal species guide', err);
+    } finally {
+      isLoadingFocal = false;
+    }
+  }
 
   async function fetchSimilarSpecies() {
     isLoading = true;
     try {
       const locale = getLocale();
+      const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
       const encodedName = encodeURIComponent(scientificName);
-      const url = buildAppUrl(`/api/v2/species/${encodedName}/similar?locale=${locale}`);
+      const url = buildAppUrl(`/api/v2/species/${encodedName}/similar${localeParam}`);
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
@@ -42,37 +71,38 @@
     }
   }
 
-  async function selectSpecies(entry: SimilarSpeciesEntry) {
-    if (selectedSpecies === entry.scientific_name) {
-      selectedSpecies = null;
-      selectedGuide = null;
-      return;
-    }
-    selectedSpecies = entry.scientific_name;
-    selectedGuide = null;
-    isLoadingGuide = true;
-    try {
-      const locale = getLocale();
-      const encodedName = encodeURIComponent(entry.scientific_name);
-      const url = buildAppUrl(`/api/v2/species/${encodedName}/guide?locale=${locale}`);
-      const response = await fetch(url);
-      if (response.ok) {
-        selectedGuide = await response.json();
-      }
-    } catch (err) {
-      logger.error('Failed to fetch guide for similar species', err);
-    } finally {
-      isLoadingGuide = false;
-    }
+  function selectSimilar(index: number) {
+    selectedSimilarIndex = index;
+    selectedSpecies = similarSpecies[index]?.scientific_name ?? null;
+    // Reset collapsible states when switching
+    descriptionOpen = true;
+    songsOpen = false;
+    similarOpen = false;
   }
 
   $effect(() => {
     fetchSimilarSpecies();
+    fetchFocalSpeciesGuide();
     trackEvent(AnalyticsEvents.SPECIES_COMPARISON_OPENED, {
       focal_species: scientificName,
       comparison_count: 0,
     });
   });
+
+  // Helper to extract specific section from focal guide
+  function getSectionContent(
+    sections: ReturnType<typeof parseGuideDescription>,
+    heading: string
+  ): string {
+    const section = sections.find(s => s.heading?.toLowerCase() === heading.toLowerCase());
+    return section?.body ?? '';
+  }
+
+  // Get sections from the current similar species (from API)
+  function getSimilarSections() {
+    if (selectedSimilarIndex >= similarSpecies.length) return null;
+    return similarSpecies[selectedSimilarIndex].sections ?? null;
+  }
 </script>
 
 <div class="species-comparison">
@@ -85,7 +115,7 @@
     </button>
   </div>
 
-  {#if isLoading}
+  {#if isLoading || isLoadingFocal}
     <div class="flex items-center gap-2 p-4 text-sm opacity-60">
       <div
         class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
@@ -95,64 +125,162 @@
   {:else if similarSpecies.length === 0}
     <p class="p-4 text-sm opacity-50">{t('analytics.species.similar.empty')}</p>
   {:else}
-    <div class="comparison-grid">
-      <!-- Source species column -->
-      <div class="comparison-column comparison-source">
-        <div class="column-header">
-          <span class="font-semibold text-xs uppercase tracking-wide">{commonName}</span>
-          <span class="text-xs opacity-50 italic">{scientificName}</span>
-        </div>
+    <!-- Single row of species cards -->
+    <div class="species-row">
+      <!-- Focal species card -->
+      <button
+        class="species-card focal"
+        onclick={() => {
+          selectedSimilarIndex = -1;
+          selectedSpecies = scientificName;
+        }}
+      >
+        <span class="species-common">{commonName}</span>
+        <span class="species-scientific">{scientificName}</span>
+      </button>
+
+      <!-- Divider -->
+      <div class="vs-divider">
+        <span>vs</span>
       </div>
 
-      <!-- Similar species list -->
-      <div class="comparison-column comparison-similar">
-        <div class="similar-list">
-          {#each similarSpecies as entry (entry.scientific_name)}
-            <button
-              class="similar-item"
-              class:active={selectedSpecies === entry.scientific_name}
-              onclick={() => selectSpecies(entry)}
-            >
-              <span class="font-medium text-sm">{entry.common_name}</span>
-              <span class="text-xs opacity-50 italic">{entry.scientific_name}</span>
-              {#if entry.guide_summary}
-                <p class="text-xs opacity-60 mt-1 line-clamp-2">{entry.guide_summary}</p>
-              {/if}
-            </button>
-          {/each}
-        </div>
-      </div>
+      <!-- Similar species cards -->
+      {#each similarSpecies as entry, i (entry.scientific_name)}
+        <button
+          class="species-card"
+          class:selected={selectedSimilarIndex === i}
+          onclick={() => selectSimilar(i)}
+        >
+          <span class="species-common">{entry.common_name}</span>
+          <span class="species-scientific">{entry.scientific_name}</span>
+          {#if entry.relationship}
+            <span class="species-relationship">{entry.relationship.replace('_', ' ')}</span>
+          {/if}
+        </button>
+      {/each}
     </div>
 
-    <!-- Expanded guide for selected species -->
-    {#if selectedSpecies && isLoadingGuide}
-      <div class="flex items-center gap-2 p-4 text-sm opacity-60">
-        <div
-          class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
-        ></div>
-        <span>{t('analytics.species.guide.loading')}</span>
-      </div>
-    {:else if selectedGuide?.description}
-      <div class="selected-guide">
-        <h4 class="text-sm font-semibold mb-2">{selectedGuide.common_name}</h4>
-        <div class="space-y-2">
-          {#each parseGuideDescription(selectedGuide.description) as section, i (i)}
-            {#if section.heading}
-              <CollapsibleSection
-                title={section.heading}
-                defaultOpen={false}
-                className="bg-[var(--color-base-200)] shadow-none rounded-lg"
-                titleClassName="text-xs font-semibold uppercase tracking-wide min-h-8 py-1 px-3"
-                contentClassName="px-3 pb-2"
-              >
-                {#if section.body}
-                  <p class="text-sm leading-relaxed opacity-85">{section.body}</p>
-                {/if}
-              </CollapsibleSection>
-            {:else if section.body}
-              <p class="text-sm leading-relaxed opacity-85">{section.body}</p>
+    <!-- Comparison panel -->
+    {#if selectedSimilarIndex >= 0 && selectedSimilarIndex < similarSpecies.length}
+      {@const similarEntry = similarSpecies[selectedSimilarIndex]}
+      {@const similarSections = similarEntry.sections ?? null}
+
+      <div class="comparison-panel">
+        <h4 class="panel-title">
+          {commonName} vs {similarEntry.common_name}
+        </h4>
+
+        <!-- Description Section - Expanded by default -->
+        <div class="section">
+          <button class="section-header" onclick={() => (descriptionOpen = !descriptionOpen)}>
+            {#if descriptionOpen}
+              <ChevronDown class="h-4 w-4" />
+            {:else}
+              <ChevronRight class="h-4 w-4" />
             {/if}
-          {/each}
+            <Bird class="h-4 w-4 text-blue-500" />
+            <span>{t('analytics.species.guide.description') || 'Description'}</span>
+          </button>
+          {#if descriptionOpen}
+            <div class="section-content">
+              <div class="comparison-row">
+                <div class="comparison-side focal">
+                  <span class="side-label">{commonName}</span>
+                  <p class="side-content">
+                    {#if focalSections.length > 0}
+                      {getSectionContent(focalSections, 'Description') ||
+                        focalGuide?.description?.substring(0, 300) ||
+                        'No description available'}
+                    {:else}
+                      {focalGuide?.description?.substring(0, 300) || 'No description available'}
+                    {/if}
+                  </p>
+                </div>
+                <div class="comparison-side">
+                  <span class="side-label">{similarEntry.common_name}</span>
+                  <p class="side-content">
+                    {similarSections?.description ||
+                      similarEntry.guide_summary ||
+                      'No description available'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          {/if}
+        </div>
+
+        <!-- Songs and Calls Section - Collapsed by default -->
+        <div class="section">
+          <button class="section-header" onclick={() => (songsOpen = !songsOpen)}>
+            {#if songsOpen}
+              <ChevronDown class="h-4 w-4" />
+            {:else}
+              <ChevronRight class="h-4 w-4" />
+            {/if}
+            <Music class="h-4 w-4 text-green-500" />
+            <span>{t('analytics.species.guide.songs') || 'Songs and calls'}</span>
+          </button>
+          {#if songsOpen}
+            <div class="section-content">
+              <div class="comparison-row">
+                <div class="comparison-side focal">
+                  <span class="side-label">{commonName}</span>
+                  <p class="side-content">
+                    {getSectionContent(focalSections, 'Songs and calls') ||
+                      getSectionContent(focalSections, 'Song and calls') ||
+                      getSectionContent(focalSections, 'Vocalisation') ||
+                      'No songs/calls info available'}
+                  </p>
+                </div>
+                <div class="comparison-side">
+                  <span class="side-label">{similarEntry.common_name}</span>
+                  <p class="side-content">
+                    {similarSections?.songs_and_calls || 'No songs/calls info available'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          {/if}
+        </div>
+
+        <!-- Similar Species Section - Collapsed by default -->
+        <div class="section">
+          <button class="section-header" onclick={() => (similarOpen = !similarOpen)}>
+            {#if similarOpen}
+              <ChevronDown class="h-4 w-4" />
+            {:else}
+              <ChevronRight class="h-4 w-4" />
+            {/if}
+            <ListOrdered class="h-4 w-4 text-orange-500" />
+            <span>{t('analytics.species.guide.similar') || 'Similar species'}</span>
+          </button>
+          {#if similarOpen}
+            <div class="section-content">
+              <div class="comparison-row">
+                <div class="comparison-side focal">
+                  <span class="side-label">{commonName}</span>
+                  <p class="side-content">
+                    {#if focalSections.length > 0}
+                      {getSectionContent(focalSections, 'Similar species') ||
+                        'No similar species listed'}
+                    {:else}
+                      No similar species listed
+                    {/if}
+                  </p>
+                </div>
+                <div class="comparison-side">
+                  <span class="side-label">{similarEntry.common_name}</span>
+                  <p class="side-content">
+                    {#if similarSections?.similar_species && similarSections.similar_species.length > 0}
+                      {similarSections.similar_species.join(', ')}
+                    {:else}
+                      No similar species listed
+                    {/if}
+                  </p>
+                </div>
+              </div>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -191,59 +319,149 @@
     background: var(--color-base-300);
   }
 
-  .comparison-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1px;
-    background: var(--border-100);
-  }
-
-  .comparison-column {
-    background: var(--color-base-100);
-    padding: 0.75rem;
-  }
-
-  .column-header {
+  /* Single row of species cards */
+  .species-row {
     display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
-  }
-
-  .similar-list {
-    display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 0.5rem;
+    padding: 0.75rem;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border-100);
   }
 
-  .similar-item {
+  .species-card {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
     padding: 0.5rem 0.75rem;
     border-radius: 0.375rem;
     border: 1px solid var(--border-100);
     background: var(--color-base-100);
     cursor: pointer;
     text-align: left;
-    width: 100%;
     color: inherit;
-    transition:
-      background-color 0.15s,
-      border-color 0.15s;
+    transition: all 0.15s;
+    flex-shrink: 0;
+    min-width: 100px;
   }
 
-  .similar-item:hover {
+  .species-card:hover {
     background: var(--color-base-200);
   }
 
-  .similar-item.active {
+  .species-card.selected {
     border-color: var(--color-primary);
-    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-base-100));
+    background: color-mix(in srgb, var(--color-primary) 10%, var(--color-base-100));
   }
 
-  .selected-guide {
-    padding: 1rem;
-    border-top: 1px solid var(--border-100);
+  .species-card.focal {
+    background: var(--color-base-200);
+  }
+
+  .species-card.focal.selected {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 15%, var(--color-base-200));
+  }
+
+  .species-common {
+    font-weight: 500;
+    font-size: 0.75rem;
+    white-space: nowrap;
+  }
+
+  .species-scientific {
+    font-size: 0.65rem;
+    opacity: 50;
+    font-style: italic;
+  }
+
+  .species-relationship {
+    font-size: 0.6rem;
+    opacity: 40;
+    text-transform: capitalize;
+  }
+
+  .vs-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.65rem;
+    opacity: 40;
+    flex-shrink: 0;
+  }
+
+  /* Comparison panel */
+  .comparison-panel {
+    padding: 0.75rem;
+  }
+
+  .panel-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    text-align: center;
+    opacity: 70;
+  }
+
+  .section {
+    border: 1px solid var(--border-100);
+    border-radius: 0.375rem;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: var(--color-base-200);
+    border: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: left;
+    color: inherit;
+  }
+
+  .section-header:hover {
+    background: var(--color-base-300);
+  }
+
+  .section-content {
+    padding: 0.75rem;
     background: var(--color-base-100);
+  }
+
+  .comparison-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .comparison-side {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .comparison-side.focal {
+    padding-right: 0.5rem;
+    border-right: 1px solid var(--border-100);
+  }
+
+  .side-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    opacity: 60;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .side-content {
+    font-size: 0.75rem;
+    line-height: 1.4;
+    opacity: 80;
   }
 </style>

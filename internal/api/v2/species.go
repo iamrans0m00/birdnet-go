@@ -943,12 +943,20 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 	return ctx.JSON(http.StatusOK, response)
 }
 
+// SimilarSpeciesSections holds parsed sections from the species guide for comparison.
+type SimilarSpeciesSections struct {
+	Description    string   `json:"description,omitempty"`
+	SongsAndCalls  string   `json:"songs_and_calls,omitempty"`
+	SimilarSpecies []string `json:"similar_species,omitempty"`
+}
+
 // SimilarSpeciesEntry represents one similar species in the comparison response.
 type SimilarSpeciesEntry struct {
-	ScientificName string `json:"scientific_name"`
-	CommonName     string `json:"common_name"`
-	Relationship   string `json:"relationship"` // "same_genus", "same_family", or "similar"
-	GuideSummary   string `json:"guide_summary,omitempty"`
+	ScientificName string                  `json:"scientific_name"`
+	CommonName     string                  `json:"common_name"`
+	Relationship   string                  `json:"relationship"` // "same_genus", "same_family", or "similar"
+	GuideSummary   string                  `json:"guide_summary,omitempty"`
+	Sections       *SimilarSpeciesSections `json:"sections,omitempty"`
 }
 
 // SimilarSpeciesResponse is the response for the similar species endpoint.
@@ -1036,6 +1044,8 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 					summary = summary[:maxGuideSummaryLen] + "…"
 				}
 				similar[i].GuideSummary = summary
+				// Extract sections for comparison view
+				similar[i].Sections = extractSections(guide.Description, guide.SimilarSpecies)
 			}
 		}
 	}
@@ -1293,4 +1303,73 @@ func (c *Controller) UpdateSpeciesNote(ctx echo.Context) error {
 		CreatedAt: time.Now(), // This will be ignored on frontend, actual time is preserved in DB
 		UpdatedAt: time.Now(),
 	})
+}
+
+// extractSections parses the Wikipedia description and extracts key sections for comparison.
+func extractSections(description string, similarSpecies []string) *SimilarSpeciesSections {
+	if description == "" && len(similarSpecies) == 0 {
+		return nil
+	}
+
+	sections := &SimilarSpeciesSections{
+		SimilarSpecies: similarSpecies,
+	}
+
+	// Parse the description for specific sections
+	// Wikipedia format uses "## SectionName" for headers
+	lines := strings.Split(description, "\n")
+	var currentSection strings.Builder
+	var currentHeader string
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "## ") {
+			// Save previous section
+			if currentHeader != "" && currentSection.Len() > 0 {
+				content := strings.TrimSpace(currentSection.String())
+				switch currentHeader {
+				case "Description":
+					sections.Description = content
+				case "Songs and calls", "Song and calls", "Vocalisation", "Voice", "Vocalization", "Vocalizations":
+					if sections.SongsAndCalls == "" {
+						sections.SongsAndCalls = content
+					} else {
+						sections.SongsAndCalls += "\n" + content
+					}
+				}
+			}
+			// Start new section
+			currentHeader = strings.Trim(strings.TrimPrefix(line, "## "), " ")
+			currentSection.Reset()
+		} else if currentHeader != "" {
+			currentSection.WriteString(line)
+			currentSection.WriteString("\n")
+		}
+	}
+
+	// Save last section
+	if currentHeader != "" && currentSection.Len() > 0 {
+		content := strings.TrimSpace(currentSection.String())
+		switch currentHeader {
+		case "Description":
+			sections.Description = content
+		case "Songs and calls", "Song and calls", "Vocalisation", "Voice", "Vocalization", "Vocalizations":
+			if sections.SongsAndCalls == "" {
+				sections.SongsAndCalls = content
+			} else {
+				sections.SongsAndCalls += "\n" + content
+			}
+		}
+	}
+
+	// If no sections found but there's description content, use it as description
+	if sections.Description == "" && description != "" {
+		// Try to get first 200 chars as description if no ## headers found
+		if len(description) > 200 {
+			sections.Description = description[:200] + "..."
+		} else {
+			sections.Description = description
+		}
+	}
+
+	return sections
 }

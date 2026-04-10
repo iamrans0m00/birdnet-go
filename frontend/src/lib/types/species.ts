@@ -100,12 +100,20 @@ export interface SpeciesGuideData {
   cached_at: string;
 }
 
+// Parsed sections from species guide for comparison
+export interface SimilarSpeciesSections {
+  description?: string;
+  songs_and_calls?: string;
+  similar_species?: string[];
+}
+
 // Similar species entry returned by /api/v2/species/:name/similar
 export interface SimilarSpeciesEntry {
   scientific_name: string;
   common_name: string;
   relationship: 'same_genus' | 'same_family' | 'similar';
   guide_summary?: string;
+  sections?: SimilarSpeciesSections;
 }
 
 // Response from /api/v2/species/:name/similar
