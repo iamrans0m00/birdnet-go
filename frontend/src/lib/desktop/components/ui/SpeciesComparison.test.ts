@@ -143,7 +143,11 @@ describe('SpeciesComparison', () => {
           json: () => Promise.resolve({ similar: [] }),
         });
       }
-      return Promise.resolve({ ok: false } as Response);
+      // Return valid response for other URLs (guide endpoint)
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
     }) as unknown as typeof fetch;
 
     comparisonTest.render({
@@ -170,7 +174,11 @@ describe('SpeciesComparison', () => {
           json: () => Promise.resolve({ similar: [] }),
         });
       }
-      return Promise.resolve({ ok: false } as Response);
+      // Return valid response for other URLs (guide endpoint)
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
     }) as unknown as typeof fetch;
 
     comparisonTest.render({
@@ -204,7 +212,11 @@ describe('SpeciesComparison', () => {
           json: () => Promise.resolve({ similar: mockSimilarSpecies }),
         });
       }
-      return Promise.resolve({ ok: false } as Response);
+      // Return valid response for other URLs (guide endpoint)
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
     }) as unknown as typeof fetch;
 
     comparisonTest.render({
