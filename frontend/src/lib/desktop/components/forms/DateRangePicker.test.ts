@@ -63,7 +63,7 @@ describe('DateRangePicker', () => {
   beforeEach(() => {
     // Set a fixed date for consistent testing
     vi.useFakeTimers();
-    vi.setSystemTime(new Date('2024-01-15Z'));
+    vi.setSystemTime(new Date(2024, 0, 15));
   });
 
   afterEach(() => {
