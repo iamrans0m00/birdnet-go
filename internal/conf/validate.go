@@ -43,6 +43,23 @@ var validRetentionPolicies = []string{
 var (
 	// birdweatherIDPattern validates Birdweather ID format (24 alphanumeric characters)
 	birdweatherIDPattern = regexp.MustCompile(`^[a-zA-Z0-9]{24}$`)
+
+	// gpsCoordPattern matches the GPS-coordinate-as-device-string
+	// misconfiguration seen in the wild. The leading colon is optional:
+	// the originally reported case was `:45.5,-120.5` (an ALSA-style
+	// device prefix with the PCM name replaced by coordinates), but the
+	// naked variant `45.5,-120.5` — and integer-only forms like
+	// `45,120` — are equally nonsensical as audio devices and would
+	// otherwise slip through. Real ALSA/Pulse device strings always
+	// start with a letter (`default`, `hw:0,0`, `pulse:0`, etc.), so
+	// a leading digit / sign / optional colon never collides with a
+	// valid configuration. Optional whitespace around the comma is
+	// allowed because users frequently paste coordinates copied from
+	// map services with a space after the separator (`45.5, -120.5`).
+	// Detecting this shape at validation time lets us point the user
+	// at the right field with a single clear error instead of emitting
+	// recurring telemetry.
+	gpsCoordPattern = regexp.MustCompile(`^:?[+-]?\d+(\.\d+)?\s*,\s*[+-]?\d+(\.\d+)?$`)
 )
 
 // Audio gain limits in dB
@@ -332,6 +349,16 @@ func (a *AudioSourceConfig) Validate() error {
 	// Device is required
 	if a.Device == "" {
 		return fmt.Errorf("audio source device is required for '%s'", a.Name)
+	}
+
+	// Reject device strings that look like GPS coordinates. Users have
+	// pasted values like ":45.5,-120.5" into the device field (probably
+	// intended for the location/coordinates setting) which bypasses
+	// argument parsing in ALSA/pipewire/pulse and causes the audio
+	// engine to fail forever on every startup. Catch it up front with
+	// a clear error pointing at the right setting.
+	if gpsCoordPattern.MatchString(a.Device) {
+		return fmt.Errorf("audio source '%s': device %q looks like GPS coordinates; set latitude/longitude under birdnet.latitude and birdnet.longitude instead and pick a real audio device", a.Name, a.Device)
 	}
 
 	// Validate gain range
@@ -835,16 +862,23 @@ func validateSecuritySettings(settings *Security) error {
 		return err
 	}
 
-	// Validate the subnet bypass setting against the allowed pattern
+	// Validate the subnet bypass setting against the allowed pattern.
+	// Empty entries (from trailing commas, double commas, or all-whitespace tokens)
+	// are skipped so that a config like "10.0.0.0/8, ,192.168.0.0/24" is accepted
+	// with the same semantics as oauth.go's allowlist check.
 	if settings.AllowSubnetBypass.Enabled {
 		subnets := strings.SplitSeq(settings.AllowSubnetBypass.Subnet, ",")
 		for subnet := range subnets {
-			_, _, err := net.ParseCIDR(strings.TrimSpace(subnet))
+			trimmedSubnet := strings.TrimSpace(subnet)
+			if trimmedSubnet == "" {
+				continue // Skip empty entries (e.g. trailing or embedded commas)
+			}
+			_, _, err := net.ParseCIDR(trimmedSubnet)
 			if err != nil {
 				return errors.New(err).
 					Category(errors.CategoryValidation).
 					Context("validation_type", "security-subnet-format").
-					Context("subnet", subnet).
+					Context("subnet", trimmedSubnet).
 					Build()
 			}
 		}

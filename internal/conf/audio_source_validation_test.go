@@ -80,6 +80,81 @@ func TestAudioSourceConfig_Validate_DeviceRequired(t *testing.T) {
 	assert.Contains(t, err.Error(), "device is required")
 }
 
+// TestAudioSourceConfig_Validate_RejectsGPSCoordinates is a regression
+// test for the case where a user pasted GPS coordinates (intended for
+// birdnet.latitude/longitude) into the audio source device field.
+// The device string parses at config load time but fails forever once
+// the audio engine tries to open it, producing repeated Sentry events.
+func TestAudioSourceConfig_Validate_RejectsGPSCoordinates(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		device string
+	}{
+		{"positive lat/lon", ":45.5,-120.5"},
+		{"negative lat", ":-45.5,120.5"},
+		{"explicit signs", ":+45.5,-120.5"},
+		{"integer coords", ":45,-120"},
+		// Naked variant — same nonsense, no leading colon. Must also be
+		// rejected even though it does not mimic the ALSA device-prefix
+		// shape, since real ALSA/Pulse device strings always start with
+		// a letter.
+		{"naked decimal coords", "45.5,-120.5"},
+		{"naked integer coords", "45,120"},
+		// Whitespace variants — copy-pasted from map services or
+		// spreadsheet exports often include a space after (or around)
+		// the comma. The shape is still nonsense as an audio device
+		// and must be rejected with the same clear error.
+		{"colon space after comma", ":45.5, -120.5"},
+		{"naked space after comma", "45.5, -120.5"},
+		{"naked space before comma", "45.5 ,-120.5"},
+		{"naked spaces both sides", ":45.5  ,  -120.5"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			src := &AudioSourceConfig{
+				Name:   "Mic",
+				Device: tt.device,
+			}
+			err := src.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "GPS coordinates",
+				"GPS-shaped device strings must fail with a clear error")
+		})
+	}
+}
+
+// TestAudioSourceConfig_Validate_AcceptsRealDeviceStrings ensures the
+// GPS regex is narrow enough that real ALSA/Pulse/CoreAudio device
+// shapes still validate. The plan scopes this to a narrow negative
+// regex, so a permissive positive-shape check is out of scope.
+func TestAudioSourceConfig_Validate_AcceptsRealDeviceStrings(t *testing.T) {
+	t.Parallel()
+
+	tests := []string{
+		"default",
+		"sysdefault",
+		"hw:0,0",
+		"hw:CARD0,DEV0",
+		"plughw:0,0",
+		"pulse:0",
+		"pulse",
+		"Built-in Microphone",
+	}
+	for _, device := range tests {
+		t.Run(device, func(t *testing.T) {
+			t.Parallel()
+			src := &AudioSourceConfig{
+				Name:   "Mic",
+				Device: device,
+			}
+			assert.NoError(t, src.Validate(), "real device string %q must still validate", device)
+		})
+	}
+}
+
 func TestAudioSourceConfig_Validate_GainRange(t *testing.T) {
 	t.Parallel()
 

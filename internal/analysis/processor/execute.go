@@ -14,11 +14,29 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/datastore"
 	"github.com/tphakala/birdnet-go/internal/detection"
 	"github.com/tphakala/birdnet-go/internal/errors"
 	"github.com/tphakala/birdnet-go/internal/logger"
+	"github.com/tphakala/birdnet-go/internal/notification"
 )
+
+// executeCommandActionType is the action type discriminator used in
+// species configuration entries to identify ExecuteCommand actions.
+const executeCommandActionType = "ExecuteCommand"
+
+// invalidCommandPathRecheckTTL is how long an entry in
+// Processor.invalidCommandPaths is trusted before
+// markCommandPathInvalidIfBroken re-stats the underlying file. Operators
+// who fix a broken script (chmod +x, restore a missing file, etc.) get
+// the corresponding ExecuteCommand action back within this window
+// without restarting the process. The value is short enough that
+// recovery feels immediate to a human, and long enough that the
+// per-detection hot path remains a cheap sync.Map lookup for actions
+// that legitimately stay broken (the original Sentry-spam scenario the
+// gate was introduced to fix).
+const invalidCommandPathRecheckTTL = 30 * time.Second
 
 type ExecuteCommandAction struct {
 	Command string
@@ -52,16 +70,14 @@ func (a ExecuteCommandAction) ExecuteContext(ctx context.Context, data any) erro
 			Build()
 	}
 
-	// Validate and resolve the command path
+	// Validate and resolve the command path. validateCommandPath already
+	// returns a fully-annotated enhanced error (CategoryFileIO for stat
+	// failures, CategoryValidation for bad-shape failures). Re-wrapping it
+	// here used to produce a second, dual-fingerprint Sentry event per
+	// failed execution, so propagate the original error unchanged.
 	cmdPath, err := validateCommandPath(a.Command)
 	if err != nil {
-		return errors.New(err).
-			Component("analysis.processor").
-			Category(errors.CategoryValidation).
-			Priority(errors.PriorityHigh). // User-configured script issues should notify users
-			Context("operation", "validate_command_path").
-			Context("command_type", "external_script").
-			Build()
+		return err
 	}
 
 	// Building the command line arguments with validation
@@ -374,4 +390,175 @@ func getResultValueByName(result *detection.Result, paramName string) any {
 	default:
 		return nil
 	}
+}
+
+// validateCustomCommandActions scans the species configuration at
+// startup (and on any subsequent re-scan) and validates every
+// ExecuteCommand action command path. Paths that fail validation are
+// recorded in p.invalidCommandPaths so that getActionsForItem can skip
+// them at dispatch time. A single user-facing notification and one
+// telemetry event are emitted per unique broken path per recheck
+// window, replacing the previous behavior of emitting a
+// dual-fingerprint Sentry event on every detection that would have
+// triggered the action.
+//
+// Entries are keyed by the *original* (non-cleaned) command string from
+// the config so that getActionsForItem can look up entries without
+// re-cleaning the path on every detection. An empty command string is
+// always treated as invalid because ExecuteCommand with no command is
+// a user misconfiguration.
+//
+// The method is a no-op when there are no species configurations. It
+// only records failures; valid paths are left unrecorded so a species
+// added post-startup still goes through first-use validation via
+// markCommandPathInvalidIfBroken in getActionsForItem.
+func (p *Processor) validateCustomCommandActions(settings *conf.Settings) {
+	// validated deduplicates work within a single scan so the same
+	// command path appearing in multiple species configs is only stat'd
+	// and reported once, even if users share the same script across
+	// many species.
+	validated := make(map[string]struct{})
+
+	log := GetLogger()
+
+	for speciesKey, speciesCfg := range settings.Realtime.Species.Config {
+		for i := range speciesCfg.Actions {
+			actionCfg := &speciesCfg.Actions[i]
+			if actionCfg.Type != executeCommandActionType {
+				continue
+			}
+
+			cmd := actionCfg.Command
+			if _, seen := validated[cmd]; seen {
+				continue
+			}
+			validated[cmd] = struct{}{}
+
+			// Skip paths we already flagged inside the recheck window
+			// so a re-scan does not re-emit the same notification. The
+			// per-dispatch gate (markCommandPathInvalidIfBroken) is the
+			// only place that re-stats once the TTL has elapsed.
+			if v, known := p.invalidCommandPaths.Load(cmd); known {
+				if stamp, ok := v.(time.Time); ok && time.Since(stamp) < invalidCommandPathRecheckTTL {
+					continue
+				}
+				// Stale entry (or malformed value) — delete it before
+				// re-validating so a still-broken path hits the
+				// LoadOrStore loaded=false branch below and emits a
+				// fresh notification in the new TTL window. This
+				// matches the delete-before-recheck contract in
+				// markCommandPathInvalidIfBroken.
+				p.invalidCommandPaths.Delete(cmd)
+			}
+
+			// validateCommandPath returns a fully built enhanced error
+			// that is already routed to the telemetry pipeline via
+			// ErrorBuilder.Build(). Calling it once per unique cmd gives
+			// us exactly one Sentry fingerprint per broken path.
+			if _, err := validateCommandPath(cmd); err != nil {
+				// LoadOrStore guarantees a single winner even if a
+				// concurrent detection path is racing with this scan,
+				// so notification is emitted at most once per recheck
+				// window for the same unique broken path.
+				if _, loaded := p.invalidCommandPaths.LoadOrStore(cmd, time.Now()); loaded {
+					continue
+				}
+
+				// Structured log for operators reading journal/stdout.
+				log.Error("Custom ExecuteCommand action has invalid command path — action will be skipped",
+					logger.String("species", speciesKey),
+					logger.String("command", cmd),
+					logger.Error(err),
+					logger.String("operation", "validate_custom_command_path"))
+
+				// Surface the failure in the notification center exactly
+				// once per unique bad path per recheck window.
+				// NotifyError does not create a second telemetry event:
+				// it only extracts title/priority from the existing
+				// enhanced error for the UI panel.
+				notification.NotifyError("analysis.processor", err)
+				continue
+			}
+
+			// Path is valid — clear any stale invalid marker so a
+			// previously broken path that has been fixed becomes
+			// active immediately on the next dispatch.
+			p.invalidCommandPaths.Delete(cmd)
+		}
+	}
+}
+
+// markCommandPathInvalidIfBroken is the per-dispatch gate used by
+// getActionsForItem. It returns true if the path is currently flagged
+// invalid (skip silently), or if it is freshly stat'd and found broken
+// (skip and emit exactly one log line + one notification per recheck
+// window). It returns false when the path is usable, letting the
+// caller register an ExecuteCommandAction.
+//
+// Cached failures are honored only for invalidCommandPathRecheckTTL —
+// after that, the path is re-stat'd on the next dispatch. This gives
+// hot-reload coverage for two scenarios:
+//
+//  1. The species was added or edited after startup. The new
+//     ExecuteCommand path is stat'd on its first dispatch and, if
+//     broken, the failure is announced once and cached so subsequent
+//     detections are cheap silent no-ops.
+//  2. The path was previously broken (e.g. missing file, missing
+//     execute bit) but the operator has since fixed it. After
+//     invalidCommandPathRecheckTTL elapses, the next dispatch re-stats
+//     the path; on success the cache entry is deleted and the action
+//     becomes active immediately without a process restart.
+func (p *Processor) markCommandPathInvalidIfBroken(speciesKey, cmd string) (invalid bool) {
+	if v, known := p.invalidCommandPaths.Load(cmd); known {
+		if stamp, ok := v.(time.Time); ok && time.Since(stamp) < invalidCommandPathRecheckTTL {
+			// Recent failure — still skip without re-stating.
+			return true
+		}
+		// TTL expired (or someone stored a non-time value, which
+		// should not happen but is handled defensively). Drop the
+		// stale entry BEFORE the slow path runs. Without this,
+		// LoadOrStore below would observe the old entry and return
+		// loaded=true on a still-failing re-check, so the fresh
+		// failure would never reach the notification branch and the
+		// operator would only ever get one notification per startup.
+		// Deleting here means a still-broken path goes through the
+		// loaded=false branch and re-emits the notification exactly
+		// once per recheck window, while a now-usable path naturally
+		// falls through to the clear-and-return-false tail below.
+		p.invalidCommandPaths.Delete(cmd)
+	}
+
+	if _, err := validateCommandPath(cmd); err != nil {
+		// LoadOrStore is authoritative here because the stale entry
+		// (if any) was already deleted above. A concurrent detection
+		// racing on the same path will see exactly one winner, so the
+		// notification is emitted at most once per recheck window
+		// even under contention.
+		_, loaded := p.invalidCommandPaths.LoadOrStore(cmd, time.Now())
+		if loaded {
+			// Another concurrent detection won the LoadOrStore race
+			// for the freshly-deleted entry; it is responsible for
+			// the notification, we just suppress the action.
+			return true
+		}
+
+		log := GetLogger()
+		log.Error("Custom ExecuteCommand action has invalid command path — action will be skipped",
+			logger.String("species", speciesKey),
+			logger.String("command", cmd),
+			logger.Error(err),
+			logger.String("operation", "validate_custom_command_path_runtime"))
+
+		notification.NotifyError("analysis.processor", err)
+		return true
+	}
+
+	// Path is valid — ensure any lingering invalid marker is gone
+	// (the Delete above already handled the TTL-expired path; this
+	// covers the rare "entry appeared between the Load branch and
+	// here" case defensively) so a previously broken path that has
+	// been fixed (chmod +x, restored file, etc.) becomes active
+	// immediately for subsequent dispatches.
+	p.invalidCommandPaths.Delete(cmd)
+	return false
 }
