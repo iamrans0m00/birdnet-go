@@ -385,6 +385,7 @@ func (m *ActionMockDatastore) GetSpeciesNotes(_ string) ([]datastore.SpeciesNote
 }
 func (m *ActionMockDatastore) SaveSpeciesNote(_ *datastore.SpeciesNote) error { return nil }
 func (m *ActionMockDatastore) DeleteSpeciesNote(_ string) error               { return nil }
+func (m *ActionMockDatastore) UpdateSpeciesNote(_, _ string) error            { return nil }
 
 // Compile-time check that ActionMockDatastore implements datastore.Interface
 var _ datastore.Interface = (*ActionMockDatastore)(nil)

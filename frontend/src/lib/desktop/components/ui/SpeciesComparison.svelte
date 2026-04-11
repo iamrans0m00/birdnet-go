@@ -21,7 +21,6 @@
   let isLoading = $state(true);
   let focalGuide = $state<SpeciesGuideData | null>(null);
   let focalSections = $state<ReturnType<typeof parseGuideDescription>>([]);
-  let selectedSpecies = $state<string | null>(null);
   let selectedSimilarIndex = $state<number>(0);
   let isLoadingFocal = $state(false);
 
@@ -73,7 +72,6 @@
 
   function selectSimilar(index: number) {
     selectedSimilarIndex = index;
-    selectedSpecies = similarSpecies[index]?.scientific_name ?? null;
     // Reset collapsible states when switching
     descriptionOpen = true;
     songsOpen = false;
@@ -96,12 +94,6 @@
   ): string {
     const section = sections.find(s => s.heading?.toLowerCase() === heading.toLowerCase());
     return section?.body ?? '';
-  }
-
-  // Get sections from the current similar species (from API)
-  function getSimilarSections() {
-    if (selectedSimilarIndex >= similarSpecies.length) return null;
-    return similarSpecies[selectedSimilarIndex].sections ?? null;
   }
 </script>
 
@@ -132,7 +124,6 @@
         class="species-card focal"
         onclick={() => {
           selectedSimilarIndex = -1;
-          selectedSpecies = scientificName;
         }}
       >
         <span class="species-common">{commonName}</span>
@@ -163,7 +154,16 @@
     <!-- Comparison panel -->
     {#if selectedSimilarIndex >= 0 && selectedSimilarIndex < similarSpecies.length}
       {@const similarEntry = similarSpecies[selectedSimilarIndex]}
-      {@const similarSections = similarEntry.sections ?? null}
+      {@const similarSections =
+        (
+          similarEntry as {
+            sections?: {
+              description?: string;
+              songs_and_calls?: string;
+              similar_species?: string[];
+            };
+          }
+        ).sections ?? null}
 
       <div class="comparison-panel">
         <h4 class="panel-title">
