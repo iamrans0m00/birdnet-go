@@ -230,7 +230,8 @@ func (m *Middleware) redirectToLogin(c echo.Context, path, ip string) error {
 }
 
 // buildLoginRedirectURL constructs the login URL with a safe redirect parameter.
-// Supports reverse proxy prefixes via X-Ingress-Path / X-Forwarded-Prefix headers.
+// Supports reverse proxy prefixes via X-Ingress-Path / X-Forwarded-Prefix headers
+// and direct access with configured BasePath (via context set by basepath middleware).
 func (m *Middleware) buildLoginRedirectURL(c echo.Context, ip string) string {
 	const loginPath = "/login"
 
@@ -244,24 +245,53 @@ func (m *Middleware) buildLoginRedirectURL(c echo.Context, ip string) string {
 	return basePath + loginPath + "?redirect=" + url.QueryEscape(safeRedirectPath)
 }
 
-// requestBasePath returns the reverse proxy base path from request headers.
-// Priority: X-Ingress-Path > X-Forwarded-Prefix > empty.
-// Note: Unlike the version in api/v2/app.go, this does not fall back to config
-// BasePath because the auth context requires matching the actual request prefix.
+// requestBasePath returns the effective base path for the current request.
+// Uses the basePath value set in Echo context by the server's basepath middleware,
+// which already handles the priority chain: X-Ingress-Path > X-Forwarded-Prefix > config BasePath.
+// Falls back to checking proxy headers directly if the context value is not set.
+//
+// Header values are trimmed of trailing slashes before the safety check so that
+// real-world values like "/ingress/token///" are accepted (and normalized) while
+// embedded dangerous sequences like "//evil" or "/../admin" still get rejected.
 func requestBasePath(c echo.Context) string {
-	if p := c.Request().Header.Get("X-Ingress-Path"); isSafePathPrefix(p) {
-		return strings.TrimRight(p, "/")
+	// Prefer the authoritative value from the basepath context middleware.
+	if bp, ok := c.Get("basePath").(string); ok && bp != "" {
+		return bp
 	}
-	if p := c.Request().Header.Get("X-Forwarded-Prefix"); isSafePathPrefix(p) {
-		return strings.TrimRight(p, "/")
+	// Fallback: check proxy headers directly (for cases where context middleware hasn't run).
+	if p := strings.TrimRight(c.Request().Header.Get("X-Ingress-Path"), "/"); isSafePathPrefix(p) {
+		return p
+	}
+	if p := strings.TrimRight(c.Request().Header.Get("X-Forwarded-Prefix"), "/"); isSafePathPrefix(p) {
+		return p
 	}
 	return ""
 }
 
-// isSafePathPrefix validates that a path prefix is safe for use in redirects.
-// Rejects empty strings, protocol-relative URLs (//...), and absolute URLs (://...).
+// isSafePathPrefix validates that a path prefix (typically from a proxy header)
+// is safe for use in redirects. Must stay in sync with the copy in
+// internal/api/server.go. Rules align with validateBasePath() in
+// internal/conf/validate.go so header-supplied and YAML-configured basepaths
+// share the same rejection rules.
+//
+// Rejects:
+//   - empty strings
+//   - values not starting with "/"
+//   - protocol-relative URLs ("//...") and embedded "//" sequences
+//   - absolute URLs ("://")
+//   - backslashes ("/\..." normalizes to "//" in browsers)
+//   - path traversal ("..")
+//   - CR/LF/NUL injection
 func isSafePathPrefix(p string) bool {
-	return p != "" && strings.HasPrefix(p, "/") && !strings.HasPrefix(p, "//") && !strings.Contains(p, "://")
+	if p == "" || !strings.HasPrefix(p, "/") {
+		return false
+	}
+	for _, bad := range []string{"//", "\\", "://", "..", "\n", "\r", "\x00"} {
+		if strings.Contains(p, bad) {
+			return false
+		}
+	}
+	return true
 }
 
 // getSafeRedirectPath validates and returns a safe redirect path.
