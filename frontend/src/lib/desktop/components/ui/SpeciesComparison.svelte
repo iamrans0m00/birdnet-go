@@ -23,6 +23,8 @@
   let focalSections = $state<ReturnType<typeof parseGuideDescription>>([]);
   let selectedSimilarIndex = $state<number>(0);
   let isLoadingFocal = $state(false);
+  let isLoadingSimilarGuide = $state(false);
+  let similarGuideSections = $state<ReturnType<typeof parseGuideDescription>>([]);
 
   // Collapsible section states - Description expanded by default, others collapsed
   let descriptionOpen = $state(true);
@@ -70,12 +72,35 @@
     }
   }
 
-  function selectSimilar(index: number) {
+  async function selectSimilar(index: number) {
     selectedSimilarIndex = index;
     // Reset collapsible states when switching
     descriptionOpen = true;
     songsOpen = false;
     similarOpen = false;
+    // Fetch guide for the selected similar species
+    if (index >= 0 && index < similarSpecies.length) {
+      isLoadingSimilarGuide = true;
+      similarGuideSections = [];
+      try {
+        const entry = similarSpecies[index];
+        const encoded = encodeURIComponent(entry.scientific_name);
+        const locale = getLocale();
+        const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
+        const url = buildAppUrl(`/api/v2/species/${encoded}/guide${localeParam}`);
+        const response = await fetch(url);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.description) {
+            similarGuideSections = parseGuideDescription(data.description);
+          }
+        }
+      } catch (err) {
+        logger.error('Failed to fetch similar species guide', err);
+      } finally {
+        isLoadingSimilarGuide = false;
+      }
+    }
   }
 
   $effect(() => {
@@ -107,7 +132,7 @@
     </button>
   </div>
 
-  {#if isLoading || isLoadingFocal}
+  {#if isLoading}
     <div class="flex items-center gap-2 p-4 text-sm opacity-60">
       <div
         class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
@@ -115,6 +140,12 @@
       <span>{t('analytics.species.similar.loading')}</span>
     </div>
   {:else if similarSpecies.length === 0}
+    <div class="species-row">
+      <button class="species-card focal">
+        <span class="species-common">{commonName}</span>
+        <span class="species-scientific">{scientificName}</span>
+      </button>
+    </div>
     <p class="p-4 text-sm opacity-50">{t('analytics.species.similar.empty')}</p>
   {:else}
     <!-- Single row of species cards -->
@@ -169,6 +200,24 @@
         <h4 class="panel-title">
           {commonName} vs {similarEntry.common_name}
         </h4>
+
+        {#if isLoadingSimilarGuide}
+          <div class="flex items-center gap-2 p-4 text-sm opacity-60">
+            <div
+              class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
+            ></div>
+            <span>{t('analytics.species.guide.loading')}</span>
+          </div>
+        {:else if similarGuideSections.length > 0}
+          <div class="similar-guide-sections">
+            {#each similarGuideSections as section}
+              <div class="guide-section">
+                <h5 class="guide-section-heading">{section.heading}</h5>
+                <p class="guide-section-body">{section.body}</p>
+              </div>
+            {/each}
+          </div>
+        {/if}
 
         <!-- Description Section - Expanded by default -->
         <div class="section">
@@ -355,11 +404,6 @@
 
   .species-card.focal {
     background: var(--color-base-200);
-  }
-
-  .species-card.focal.selected {
-    border-color: var(--color-primary);
-    background: color-mix(in srgb, var(--color-primary) 15%, var(--color-base-200));
   }
 
   .species-common {

@@ -229,7 +229,7 @@ describe('SpeciesComparison', () => {
     await waitFor(() => {
       const items = screen.getAllByText('Song Thrush');
       const item = items[0].closest('button');
-      expect(item).toHaveClass('active');
+      expect(item).toHaveClass('selected');
     });
   });
 
@@ -266,7 +266,7 @@ describe('SpeciesComparison', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Song Thrush')).toBeInTheDocument();
+      expect(screen.getAllByText('Song Thrush').length).toBeGreaterThan(0);
     });
 
     const items = screen.getAllByText('Song Thrush');
@@ -323,7 +323,7 @@ describe('SpeciesComparison', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Song Thrush')).toBeInTheDocument();
+      expect(screen.getAllByText('Song Thrush').length).toBeGreaterThan(0);
     });
 
     const allItems = screen.getAllByText('Song Thrush');
