@@ -1425,7 +1425,7 @@ func extractSections(description string, similarSpecies []string, locale string)
 
 	// Parse the description for specific sections.
 	// Wikipedia format uses "## SectionName" for headers.
-	for line := range strings.Lines(description) {
+	for line := range strings.Lines(description) { // strings.Lines requires Go 1.24+ (project minimum: Go 1.26)
 		if strings.HasPrefix(line, "## ") {
 			saveSection()
 			currentHeader = strings.TrimSpace(strings.TrimPrefix(line, "## "))

@@ -466,7 +466,7 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 	if fallbackPolicy == FallbackPolicyAll {
 		c.mu.RLock()
 		providers := make(map[string]GuideProvider, len(c.providers))
-		maps.Copy(providers, c.providers)
+		maps.Copy(providers, c.providers) // maps.Copy requires Go 1.21+ (project minimum: Go 1.26)
 		c.mu.RUnlock()
 
 		for _, name := range defaultFallbackOrder {
