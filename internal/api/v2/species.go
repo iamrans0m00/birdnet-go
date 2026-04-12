@@ -1367,7 +1367,7 @@ func extractSections(description string, similarSpecies []string, locale string)
 	// Get localized section header names for the requested language.
 	descHeaders := guideprovider.DescriptionSectionNames(locale)
 	songHeaders := guideprovider.SongCallSectionNames(locale)
-	similarHeaders := []string{"Similar species", "Similar Species", "Similar species", "Ähnliche Arten", "Espèces similaires"} // Add localized versions as needed
+	similarHeaders := []string{"Similar species", "Similar Species", "Ähnliche Arten", "Espèces similaires"} // Add localized versions as needed
 
 	// saveSection writes the accumulated content into the appropriate field.
 	var currentSection strings.Builder

@@ -385,7 +385,9 @@ describe('SpeciesComparison', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('A small to medium-sized bird')).toBeInTheDocument();
+      // Summary appears in both the species card and the comparison panel description
+      const summaryElements = screen.getAllByText('A small to medium-sized bird');
+      expect(summaryElements.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

@@ -65,6 +65,10 @@
         const data = await response.json();
         if (signal?.aborted) return;
         similarSpecies = data.similar ?? [];
+        trackEvent(AnalyticsEvents.SPECIES_COMPARISON_OPENED, {
+          focal_species: scientificName,
+          comparison_count: similarSpecies.length,
+        });
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
@@ -116,10 +120,6 @@
       fetchSimilarSpecies(controller.signal),
       fetchFocalSpeciesGuide(controller.signal),
     ]);
-    trackEvent(AnalyticsEvents.SPECIES_COMPARISON_OPENED, {
-      focal_species: scientificName,
-      comparison_count: 0,
-    });
     return () => controller.abort();
   });
 
@@ -189,6 +189,9 @@
           {#if entry.relationship}
             <span class="species-relationship">{entry.relationship.replace('_', ' ')}</span>
           {/if}
+          {#if entry.guide_summary}
+            <span class="species-summary">{entry.guide_summary}</span>
+          {/if}
         </button>
       {/each}
     </div>
@@ -240,6 +243,7 @@
                   <p class="side-content">
                     {#if focalSections.length > 0}
                       {getSectionContent(focalSections, 'Description') ||
+                        getSectionContent(focalSections, '') ||
                         focalGuide?.description?.substring(0, 300) ||
                         'No description available'}
                     {:else}
@@ -424,6 +428,14 @@
     font-size: 0.6rem;
     opacity: 40;
     text-transform: capitalize;
+  }
+
+  .species-summary {
+    font-size: 0.6rem;
+    opacity: 50;
+    line-height: 1.3;
+    margin-top: 0.125rem;
+    white-space: normal;
   }
 
   .vs-divider {
