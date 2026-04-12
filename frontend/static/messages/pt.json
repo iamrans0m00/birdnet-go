@@ -1532,6 +1532,51 @@
         "detections": "Detecções:",
         "confidence": "Confiança:",
         "first": "Primeira:"
+      },
+      "guide": {
+        "title": "Guia de espécies",
+        "loading": "Carregando informações da espécie...",
+        "source": "Fonte:",
+        "description": "Descrição",
+        "songs": "Cantos e chamadas",
+        "similar": "Espécies semelhantes",
+        "qualityFull": "Detalhado",
+        "qualityIntroOnly": "Breve",
+        "qualityStub": "Rascunho",
+        "expectedness": {
+          "expected": "Esperado",
+          "uncommon": "Incomum",
+          "rare": "Raro",
+          "unexpected": "Inesperado"
+        },
+        "season": {
+          "spring": "Primavera",
+          "summer": "Verão",
+          "fall": "Outono",
+          "winter": "Inverno",
+          "wet1": "Estação chuvosa",
+          "dry1": "Estação seca",
+          "wet2": "Estação chuvosa",
+          "dry2": "Estação seca"
+        }
+      },
+      "notes": {
+        "title": "Notas da Espécie",
+        "placeholder": "Adicionar uma nota sobre esta espécie...",
+        "save": "Salvar Nota",
+        "empty": "Sem notas ainda. Adicione suas observações sobre esta espécie.",
+        "deleteConfirm": "Excluir esta nota?",
+        "saving": "Salvando...",
+        "deleteFailed": "Falha ao excluir nota",
+        "saveFailed": "Falha ao salvar nota"
+      },
+      "similar": {
+        "title": "Espécies semelhantes",
+        "compare": "Comparar com semelhantes",
+        "loading": "Carregando espécies semelhantes...",
+        "empty": "Nenhuma espécie semelhante encontrada neste gênero.",
+        "sameGenus": "Mesmo gênero",
+        "sameFamily": "Mesma família"
       }
     },
     "advanced": {
@@ -3876,7 +3921,8 @@
         "appearance": "Aparência",
         "language": "Idioma e regional",
         "visualContent": "Conteúdo visual",
-        "audioPlayback": "Reprodução de Áudio"
+        "audioPlayback": "Reprodução de Áudio",
+        "speciesGuide": "Guia de espécies"
       },
       "appearance": {
         "title": "Aparência",
@@ -3896,6 +3942,56 @@
         "defaultGain": "Amplificação de Volume Padrão",
         "defaultGainHelpText": "Ganho inicial aplicado ao reproduzir gravações. Os sons de aves são frequentemente baixos, pelo que um reforço de 6-12 dB é recomendado.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Guia de espécies",
+        "description": "Configure o guia de identificação de espécies.",
+        "enabled": {
+          "label": "Ativar guia de espécies",
+          "helpText": "Exibir guias de identificação baseados na Wikipédia."
+        },
+        "provider": {
+          "label": "Fornecedor do guia",
+          "helpText": "Qual fonte de dados usar para guias de identificação de espécies.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Política de fallback",
+          "helpText": "O que fazer quando o fornecedor preferido não pode fornecer um guia.",
+          "options": {
+            "all": "Tentar todos os fornecedores",
+            "none": "Sem fallback"
+          }
+        },
+        "sections": {
+          "title": "Seções do guia"
+        },
+        "showEnrichments": {
+          "label": "Mostrar enriquecimentos",
+          "helpText": "Contexto sazonal, emblemas de distribuição e links externos."
+        },
+        "showSimilarSpecies": {
+          "label": "Mostrar espécies similares",
+          "helpText": "Painel de comparação com espécies do mesmo gênero."
+        },
+        "showNotes": {
+          "label": "Mostrar notas da espécie",
+          "helpText": "Painel de notas pessoais."
+        },
+        "cache": {
+          "title": "Cache do guia"
+        },
+        "preFetchEnabled": {
+          "label": "Pré-carregar guias",
+          "helpText": "Buscar guias automaticamente em segundo plano."
+        },
+        "warmTopN": {
+          "label": "Aquecer cache na inicialização",
+          "helpText": "Número de espécies a pré-carregar. 0 = desativado."
+        }
       }
     },
     "restartRequired": "Algumas alterações requerem um reinício do servidor para terem efeito. Por favor, reinicie o BirdNET-Go."

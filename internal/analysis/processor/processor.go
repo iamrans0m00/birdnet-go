@@ -165,6 +165,10 @@ type Processor struct {
 	// hot-reload requirement in CLAUDE.md while still suppressing the
 	// per-detection Sentry spam between rechecks.
 	invalidCommandPaths sync.Map
+
+	// Guide pre-fetch callback (optional, injected by api_service)
+	guidePreFetch   func(scientificName string)
+	guidePreFetchMu sync.RWMutex
 }
 
 type Detections struct {
@@ -1268,6 +1272,14 @@ func (p *Processor) processApprovedDetection(item *PendingDetection, speciesName
 	if p.Settings.Realtime.Telemetry.Enabled && p.Metrics != nil && p.Metrics.BirdNET != nil {
 		p.Metrics.BirdNET.IncrementDetectionCounter(item.Detection.Result.Species.CommonName)
 	}
+
+	// Pre-fetch species guide for this detection (non-blocking)
+	p.guidePreFetchMu.RLock()
+	preFetch := p.guidePreFetch
+	p.guidePreFetchMu.RUnlock()
+	if preFetch != nil {
+		preFetch(item.Detection.Result.Species.ScientificName)
+	}
 }
 
 // calculateMinDetections computes the minimum number of required detections based on
@@ -2035,6 +2047,13 @@ func (p *Processor) SetPendingBroadcaster(broadcaster func(snapshot []SSEPending
 	p.pendingBroadcasterMu.Lock()
 	defer p.pendingBroadcasterMu.Unlock()
 	p.PendingBroadcaster = broadcaster
+}
+
+// SetGuidePreFetch sets a callback to pre-fetch species guide data for new detections.
+func (p *Processor) SetGuidePreFetch(fn func(scientificName string)) {
+	p.guidePreFetchMu.Lock()
+	defer p.guidePreFetchMu.Unlock()
+	p.guidePreFetch = fn
 }
 
 // SetBackupManager safely sets the backup manager
