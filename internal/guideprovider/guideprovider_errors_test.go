@@ -34,7 +34,7 @@ func TestGuideCache_ProviderTimeout(t *testing.T) {
 	defer cache.Close()
 
 	// Request with short timeout should fail gracefully
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
 	defer cancel()
 
 	guide, err := cache.Get(ctx, testSpeciesMerula, FetchOptions{})
@@ -77,13 +77,13 @@ func TestGuideCache_TransientFailureNoNegativeCache(t *testing.T) {
 	defer cache.Close()
 
 	// First call fails with transient error
-	guide, err := cache.Get(context.Background(), testSpeciesMerula, FetchOptions{})
+	guide, err := cache.Get(t.Context(), testSpeciesMerula, FetchOptions{})
 	assert.Nil(t, guide)
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, ErrGuideNotFound), "Should NOT be ErrGuideNotFound for transient errors")
 
 	// Second call should retry successfully (not use negative cache)
-	guide, err = cache.Get(context.Background(), testSpeciesMerula, FetchOptions{})
+	guide, err = cache.Get(t.Context(), testSpeciesMerula, FetchOptions{})
 	assert.NotNil(t, guide)
 	require.NoError(t, err)
 	assert.Equal(t, testSpeciesMerula, guide.ScientificName)
@@ -112,13 +112,13 @@ func TestGuideCache_NegativeCachePreventsFutureErrors(t *testing.T) {
 	defer cache.Close()
 
 	// First call: not found
-	guide, err := cache.Get(context.Background(), testSpeciesMerula, FetchOptions{})
+	guide, err := cache.Get(t.Context(), testSpeciesMerula, FetchOptions{})
 	assert.Nil(t, guide)
 	require.ErrorIs(t, err, ErrGuideNotFound)
 	assert.Equal(t, 1, callCount)
 
 	// Second call: should use negative cache (not call provider again)
-	guide, err = cache.Get(context.Background(), testSpeciesMerula, FetchOptions{})
+	guide, err = cache.Get(t.Context(), testSpeciesMerula, FetchOptions{})
 	assert.Nil(t, guide)
 	require.ErrorIs(t, err, ErrGuideNotFound)
 	assert.Equal(t, 1, callCount, "Provider should NOT be called again (negative cache should be used)")
@@ -154,12 +154,12 @@ func TestGuideCache_DescriptionTruncation(t *testing.T) {
 	cache.Start()
 	defer cache.Close()
 
-	guide, err := cache.Get(context.Background(), testSpeciesMerula, FetchOptions{})
+	guide, err := cache.Get(t.Context(), testSpeciesMerula, FetchOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, guide)
 
 	// Check that description stored in DB is truncated
-	entry, err := store.GetGuideCache(context.Background(), testSpeciesMerula, WikipediaProviderName, "en")
+	entry, err := store.GetGuideCache(t.Context(), testSpeciesMerula, WikipediaProviderName, "en")
 	require.NoError(t, err)
 	require.NotNil(t, entry)
 	assert.LessOrEqual(t, len(entry.Description), maxRichDescriptionLength, "Database entry should have truncated description")
@@ -178,19 +178,19 @@ func TestGuideCache_DeleteStaleEntries(t *testing.T) {
 	oldTime := time.Now().Add(-40 * 24 * time.Hour)   // 40 days old (beyond retention)
 	recentTime := time.Now().Add(-5 * 24 * time.Hour) // 5 days old (within retention)
 
-	require.NoError(t, store.SaveGuideCache(context.Background(), &GuideCacheEntry{
+	require.NoError(t, store.SaveGuideCache(t.Context(), &GuideCacheEntry{
 		ProviderName:   WikipediaProviderName,
 		ScientificName: "Old Species 1",
 		Locale:         "en",
 		CachedAt:       oldTime,
 	}))
-	require.NoError(t, store.SaveGuideCache(context.Background(), &GuideCacheEntry{
+	require.NoError(t, store.SaveGuideCache(t.Context(), &GuideCacheEntry{
 		ProviderName:   WikipediaProviderName,
 		ScientificName: "Old Species 2",
 		Locale:         "en",
 		CachedAt:       oldTime,
 	}))
-	require.NoError(t, store.SaveGuideCache(context.Background(), &GuideCacheEntry{
+	require.NoError(t, store.SaveGuideCache(t.Context(), &GuideCacheEntry{
 		ProviderName:   WikipediaProviderName,
 		ScientificName: "Recent Species",
 		Locale:         "en",
@@ -198,19 +198,19 @@ func TestGuideCache_DeleteStaleEntries(t *testing.T) {
 	}))
 
 	// Verify entries exist
-	allBefore, err := store.GetAllGuideCaches(context.Background(), WikipediaProviderName)
+	allBefore, err := store.GetAllGuideCaches(t.Context(), WikipediaProviderName)
 	require.NoError(t, err)
 	assert.Len(t, allBefore, 3, "Should have 3 entries before cleanup")
 
 	// Delete old entries
 	cutoffTime := time.Now().Add(-dbRetentionPeriod)
-	deleted, err := store.DeleteStaleGuideCaches(context.Background(), WikipediaProviderName, cutoffTime)
+	deleted, err := store.DeleteStaleGuideCaches(t.Context(), WikipediaProviderName, cutoffTime)
 
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), deleted, "Should delete 2 old entries")
 
 	// Verify only recent entry remains
-	allAfter, err := store.GetAllGuideCaches(context.Background(), WikipediaProviderName)
+	allAfter, err := store.GetAllGuideCaches(t.Context(), WikipediaProviderName)
 	require.NoError(t, err)
 	assert.Len(t, allAfter, 1, "Should have 1 entry after cleanup")
 	assert.Equal(t, "Recent Species", allAfter[0].ScientificName, "Recent entry should remain")
@@ -296,7 +296,7 @@ func TestGuideCache_FallbackProviderSucceeds(t *testing.T) {
 	defer cache.Close()
 
 	// Request should succeed using fallback data
-	guide, err := cache.Get(context.Background(), testSpeciesMerula, FetchOptions{})
+	guide, err := cache.Get(t.Context(), testSpeciesMerula, FetchOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, guide)
 	assert.Equal(t, testSpeciesMerula, guide.ScientificName)
@@ -343,7 +343,7 @@ func TestGuideCache_MergesFallbackResults(t *testing.T) {
 	cache.Start()
 	defer cache.Close()
 
-	guide, err := cache.Get(context.Background(), testSpeciesMerula, FetchOptions{})
+	guide, err := cache.Get(t.Context(), testSpeciesMerula, FetchOptions{})
 	require.NoError(t, err)
 	require.NotNil(t, guide)
 

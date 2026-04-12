@@ -28,6 +28,17 @@ const (
 	// sectionNameCanto is the localized section heading used in Spanish, Portuguese, and Italian.
 	sectionNameCanto = "Canto"
 
+	// English Wikipedia section heading constants used across identification and song slices.
+	sectionDescription   = "Description"
+	sectionSongsAndCalls = "Songs and calls"
+	sectionSongAndCalls  = "Song and calls"
+	sectionVocalisation  = "Vocalisation"
+	sectionVoice         = "Voice"
+
+	// Multi-language section heading constants shared across locale maps.
+	sectionNameVoz = "Voz"  // Spanish/Portuguese for "Voice"
+	sectionNameOpisLang = "Opis" // Polish/Slovak for "Description"
+
 	// User-Agent following Wikimedia policy
 	wikiUserAgent = "BirdNETGo/1.0 (https://github.com/tphakala/birdnet-go) Go-HTTP-Client"
 
@@ -57,14 +68,14 @@ const (
 // identificationSections lists English Wikipedia section headings that contain
 // bird identification information, in priority order.
 var identificationSections = []string{
-	"Description",
-	"Songs and calls",
-	"Song and calls",
-	"Vocalisation",
+	sectionDescription,
+	sectionSongsAndCalls,
+	sectionSongAndCalls,
+	sectionVocalisation,
 	"Vocalisations",
 	"Vocalization",
 	"Vocalizations",
-	"Voice",
+	sectionVoice,
 	"Similar species",
 }
 
@@ -72,17 +83,17 @@ var identificationSections = []string{
 // Languages not listed here will only get the intro paragraph (no section extraction).
 var localizedSectionNames = map[string][]string{
 	"de": {"Beschreibung", "Merkmale", "Stimme", "Aussehen", "Verwechslungsmöglichkeiten", "Ähnliche Arten"},
-	"fr": {"Description", "Chant et cris", "Voix", "Plumage", "Espèces similaires"},
-	"es": {"Descripción", "Voz", sectionNameCanto, "Vocalización", "Especies similares"},
+	"fr": {sectionDescription, "Chant et cris", "Voix", "Plumage", "Espèces similaires"},
+	"es": {"Descripción", sectionNameVoz, sectionNameCanto, "Vocalización", "Especies similares"},
 	"nl": {"Beschrijving", "Geluid", "Stem", "Herkenning"},
-	"pl": {"Opis", "Wygląd", "Głos", "Odgłosy"},
-	"pt": {"Descrição", "Vocalização", sectionNameCanto, "Voz"},
+	"pl": {sectionNameOpisLang, "Wygląd", "Głos", "Odgłosy"},
+	"pt": {"Descrição", "Vocalização", sectionNameCanto, sectionNameVoz},
 	"it": {"Descrizione", "Voce", sectionNameCanto, "Piumaggio"},
 	"sv": {"Utseende", "Läte", "Kännetecken"},
 	"da": {"Udseende", "Stemme", "Kendetegn"},
 	"fi": {"Kuvaus", "Ääntelyt", "Ulkonäkö"},
 	"hu": {"Leírás", "Megjelenés", "Hang"},
-	"sk": {"Opis", "Hlas", "Vzhľad"},
+	"sk": {sectionNameOpisLang, "Hlas", "Vzhľad"},
 	"lv": {"Apraksts", "Balss", "Izskats"},
 }
 
@@ -90,17 +101,17 @@ var localizedSectionNames = map[string][]string{
 // a bird's physical appearance. Used by the species comparison API.
 var localizedDescriptionSections = map[string][]string{
 	"de": {"Beschreibung", "Merkmale", "Aussehen"},
-	"fr": {"Description", "Plumage"},
+	"fr": {sectionDescription, "Plumage"},
 	"es": {"Descripción"},
 	"nl": {"Beschrijving", "Herkenning"},
-	"pl": {"Opis", "Wygląd"},
+	"pl": {sectionNameOpisLang, "Wygląd"},
 	"pt": {"Descrição"},
 	"it": {"Descrizione", "Piumaggio"},
 	"sv": {"Utseende", "Kännetecken"},
 	"da": {"Udseende", "Kendetegn"},
 	"fi": {"Kuvaus", "Ulkonäkö"},
 	"hu": {"Leírás", "Megjelenés"},
-	"sk": {"Opis", "Vzhľad"},
+	"sk": {sectionNameOpisLang, "Vzhľad"},
 	"lv": {"Apraksts", "Izskats"},
 }
 
@@ -109,10 +120,10 @@ var localizedDescriptionSections = map[string][]string{
 var localizedSongSections = map[string][]string{
 	"de": {"Stimme"},
 	"fr": {"Chant et cris", "Voix"},
-	"es": {"Voz", sectionNameCanto, "Vocalización"},
+	"es": {sectionNameVoz, sectionNameCanto, "Vocalización"},
 	"nl": {"Geluid", "Stem"},
 	"pl": {"Głos", "Odgłosy"},
-	"pt": {"Vocalização", sectionNameCanto, "Voz"},
+	"pt": {"Vocalização", sectionNameCanto, sectionNameVoz},
 	"it": {"Voce", sectionNameCanto},
 	"sv": {"Läte"},
 	"da": {"Stemme"},
@@ -127,12 +138,12 @@ var localizedSongSections = map[string][]string{
 // Falls back to English if the locale is unsupported.
 func DescriptionSectionNames(locale string) []string {
 	if locale == "" || locale == defaultLocale {
-		return []string{"Description"}
+		return []string{sectionDescription}
 	}
 	if sections, ok := localizedDescriptionSections[locale]; ok {
 		return sections
 	}
-	return []string{"Description"}
+	return []string{sectionDescription}
 }
 
 // SongCallSectionNames returns the Wikipedia section headings for a species'
@@ -140,12 +151,12 @@ func DescriptionSectionNames(locale string) []string {
 // Falls back to English if the locale is unsupported.
 func SongCallSectionNames(locale string) []string {
 	if locale == "" || locale == defaultLocale {
-		return []string{"Songs and calls", "Song and calls", "Vocalisation", "Vocalisations", "Vocalization", "Vocalizations", "Voice"}
+		return []string{sectionSongsAndCalls, sectionSongAndCalls, sectionVocalisation, "Vocalisations", "Vocalization", "Vocalizations", sectionVoice}
 	}
 	if sections, ok := localizedSongSections[locale]; ok {
 		return sections
 	}
-	return []string{"Songs and calls", "Song and calls", "Vocalisation", "Voice"}
+	return []string{sectionSongsAndCalls, sectionSongAndCalls, sectionVocalisation, sectionVoice}
 }
 
 // getIdentificationSections returns the section names to look for based on locale.
@@ -653,7 +664,7 @@ func truncate(s string, maxLen int) string {
 	}
 	truncated := s[:idx]
 	// Walk back to a valid UTF-8 boundary to avoid cutting mid-character.
-	for len(truncated) > 0 && (truncated[len(truncated)-1]&0xC0) == 0x80 {
+	for truncated != "" && (truncated[len(truncated)-1]&0xC0) == 0x80 {
 		truncated = truncated[:len(truncated)-1]
 	}
 	return truncated + "..."
