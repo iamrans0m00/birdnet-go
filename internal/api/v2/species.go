@@ -1389,19 +1389,20 @@ func extractSections(description string, similarSpecies []string, locale string)
 		}
 
 		// Handle description sections
-		if slices.Contains(descHeaders, currentHeader) {
+		switch {
+		case slices.Contains(descHeaders, currentHeader):
 			if sections.Description == "" {
 				sections.Description = content
 			} else {
 				sections.Description += "\n\n" + content
 			}
-		} else if slices.Contains(songHeaders, currentHeader) {
+		case slices.Contains(songHeaders, currentHeader):
 			if sections.SongsAndCalls == "" {
 				sections.SongsAndCalls = content
 			} else {
 				sections.SongsAndCalls += "\n\n" + content
 			}
-		} else if slices.Contains(similarHeaders, currentHeader) {
+		case slices.Contains(similarHeaders, currentHeader):
 			// Include similar species section in description for now
 			if sections.Description == "" {
 				sections.Description = content

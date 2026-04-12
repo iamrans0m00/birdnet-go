@@ -220,11 +220,12 @@ func (c *Controller) Login(ctx echo.Context) error {
 		// Use the security package's validation
 		if security.IsValidRedirect(req.RedirectURL) {
 			// Ensure the redirect stays within the detected base path
-			if strings.HasPrefix(req.RedirectURL, basePath) {
+			switch {
+			case strings.HasPrefix(req.RedirectURL, basePath):
 				finalRedirect = req.RedirectURL
-			} else if strings.HasPrefix(req.RedirectURL, "/") && !strings.HasPrefix(req.RedirectURL, "//") {
+			case strings.HasPrefix(req.RedirectURL, "/") && !strings.HasPrefix(req.RedirectURL, "//"):
 				finalRedirect = basePath + strings.TrimPrefix(req.RedirectURL, "/")
-			} else {
+			default:
 				finalRedirect = basePath
 			}
 
@@ -254,11 +255,12 @@ func (c *Controller) Login(ctx echo.Context) error {
 	// Normalize finalRedirect against the request base path so the post-auth
 	// redirect goes through the proxy (e.g., /birdnet/ui/ instead of /ui/).
 	if requestBase != "" {
-		if strings.HasPrefix(finalRedirect, requestBase+"/") {
+		switch {
+		case strings.HasPrefix(finalRedirect, requestBase+"/"):
 			// Already within base path
-		} else if strings.HasPrefix(finalRedirect, "/") && !strings.HasPrefix(finalRedirect, "//") {
+		case strings.HasPrefix(finalRedirect, "/") && !strings.HasPrefix(finalRedirect, "//"):
 			finalRedirect = requestBase + "/" + strings.TrimPrefix(finalRedirect, "/")
-		} else {
+		default:
 			finalRedirect = requestBase + "/"
 		}
 	}
