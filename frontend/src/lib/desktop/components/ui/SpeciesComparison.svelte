@@ -100,9 +100,12 @@
         const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
         const url = buildAppUrl(`/api/v2/species/${encoded}/guide${localeParam}`);
         const response = await fetch(url);
+        // Guard against stale responses: if the user clicked a different species
+        // while this fetch was in flight, discard the result.
+        if (selectedSimilarIndex !== index) return;
         if (response.ok) {
           const data = await response.json();
-          if (data.description) {
+          if (selectedSimilarIndex === index && data.description) {
             similarGuideSections = parseGuideDescription(data.description);
           }
         }

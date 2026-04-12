@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -65,6 +66,19 @@ const (
 	guideRateLimitBurst  = 5
 	guideRateLimitWindow = 1 * time.Minute
 )
+
+// truncateUTF8 truncates s to at most maxBytes while preserving valid UTF-8.
+// It never splits a multi-byte character and appends suffix (e.g. "…") to the result.
+func truncateUTF8(s string, maxBytes int, suffix string) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	truncated := s[:maxBytes]
+	for !utf8.ValidString(truncated) && truncated != "" {
+		truncated = truncated[:len(truncated)-1]
+	}
+	return truncated + suffix
+}
 
 // maxSimilarSpeciesResults is the maximum number of similar species to return.
 const maxSimilarSpeciesResults = 5
@@ -1096,10 +1110,7 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 					return
 				}
 				// Truncate to a short summary for the similar species list.
-				summary := guide.Description
-				if len(summary) > maxGuideSummaryLen {
-					summary = summary[:maxGuideSummaryLen] + "…"
-				}
+				summary := truncateUTF8(guide.Description, maxGuideSummaryLen, "…")
 				sections := extractSections(guide.Description, guide.SimilarSpecies, locale)
 				mu.Lock()
 				similar[idx].GuideSummary = summary
@@ -1217,7 +1228,7 @@ func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
 			Build(), "Note entry is required", http.StatusBadRequest)
 	}
 	if len(entry) > maxNoteEntryLength {
-		return c.HandleError(ctx, errors.Newf("note entry exceeds maximum length of %d characters", maxNoteEntryLength).
+		return c.HandleError(ctx, errors.Newf("note entry exceeds maximum length of %d bytes", maxNoteEntryLength).
 			Category(errors.CategoryValidation).
 			Component("api-species").
 			Build(), "Note entry too long", http.StatusBadRequest)
@@ -1317,7 +1328,7 @@ func (c *Controller) UpdateSpeciesNote(ctx echo.Context) error {
 	}
 
 	if len(entry) > maxNoteEntryLength {
-		return c.HandleError(ctx, errors.Newf("note entry exceeds maximum length of %d characters", maxNoteEntryLength).
+		return c.HandleError(ctx, errors.Newf("note entry exceeds maximum length of %d bytes", maxNoteEntryLength).
 			Category(errors.CategoryValidation).
 			Component("api-species").
 			Build(), "Note entry too long", http.StatusBadRequest)
@@ -1428,16 +1439,7 @@ func extractSections(description string, similarSpecies []string, locale string)
 
 	// If no sections found but there is description content, use it as a fallback.
 	if sections.Description == "" && description != "" {
-		if len(description) > 200 {
-			// Walk back to a valid UTF-8 boundary to avoid slicing mid-character.
-			truncated := description[:200]
-			for truncated != "" && (truncated[len(truncated)-1]&0xC0) == 0x80 {
-				truncated = truncated[:len(truncated)-1]
-			}
-			sections.Description = truncated + "..."
-		} else {
-			sections.Description = description
-		}
+		sections.Description = truncateUTF8(description, 200, "...")
 	}
 
 	return sections
