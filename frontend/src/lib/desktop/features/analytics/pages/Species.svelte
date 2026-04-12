@@ -516,7 +516,7 @@
       {#if !isLoading && viewMode === 'grid' && filteredSpecies.length > 0}
         <div class="species-grid hidden sm:grid">
           {#each filteredSpecies as species, index (`${species.scientific_name}_${index}`)}
-            <SpeciesCard {species} />
+            <SpeciesCard {species} onClick={handleSpeciesClick} />
           {/each}
         </div>
       {/if}
@@ -538,9 +538,10 @@
             <tbody>
               {#each filteredSpecies as species, index (`${species.scientific_name}_${index}`)}
                 <tr
-                  class={index % 2 === 0
+                  class="{index % 2 === 0
                     ? 'bg-[var(--color-base-100)]'
-                    : 'bg-[var(--color-base-200)]'}
+                    : 'bg-[var(--color-base-200)]'} cursor-pointer hover:bg-[var(--color-base-300)] transition-colors"
+                  onclick={() => handleSpeciesClick(species)}
                 >
                   <td>
                     <div class="flex items-center gap-3">
@@ -623,7 +624,7 @@
   </div>
 </div>
 
-<!-- Mobile Species Detail Modal -->
+<!-- Species Detail Modal -->
 <SpeciesDetailModal
   species={selectedSpecies}
   isOpen={showDetailModal}

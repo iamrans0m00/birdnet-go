@@ -65,6 +65,8 @@ var (
 	ErrImageCacheNotFound = errors.Newf("image cache not found").Component("datastore").Category(errors.CategoryNotFound).Build()
 	// ErrNotificationHistoryNotFound indicates no notification history record exists for the given species and type.
 	ErrNotificationHistoryNotFound = errors.Newf("notification history not found").Component("datastore").Category(errors.CategoryNotFound).Build()
+	// ErrSpeciesNoteNotFound indicates the requested species note was not found.
+	ErrSpeciesNoteNotFound = errors.Newf("species note not found").Component("datastore").Category(errors.CategoryNotFound).Build()
 	// ErrDBNotConnected indicates the database is not connected, but partial stats may be available.
 	ErrDBNotConnected = errors.Newf("database not connected").Component("datastore").Category(errors.CategorySystem).Build()
 )
@@ -219,6 +221,12 @@ type Interface interface {
 	GetNotificationHistory(scientificName string, notificationType string) (*NotificationHistory, error)
 	GetActiveNotificationHistory(after time.Time) ([]NotificationHistory, error)
 	DeleteExpiredNotificationHistory(before time.Time) (int64, error) // Returns count deleted
+	// Species notes methods
+	GetSpeciesNotes(scientificName string) ([]SpeciesNote, error)
+	GetSpeciesNoteByID(id uint) (*SpeciesNote, error)
+	SaveSpeciesNote(note *SpeciesNote) error
+	DeleteSpeciesNote(noteID string) error
+	UpdateSpeciesNote(noteID string, entry string) error
 	// Database stats method for runtime statistics
 	GetDatabaseStats() (*DatabaseStats, error)
 	// SchemaVersion returns the datastore schema version ("legacy" or "v2").
@@ -1615,6 +1623,124 @@ func (ds *DataStore) UpdateNoteComment(commentID, entry string) error {
 	}
 
 	return nil
+}
+
+// GetSpeciesNotes retrieves all notes for a species by scientific name.
+func (ds *DataStore) GetSpeciesNotes(scientificName string) ([]SpeciesNote, error) {
+	var notes []SpeciesNote
+	if err := ds.DB.Where("scientific_name = ?", scientificName).
+		Order("created_at DESC").
+		Find(&notes).Error; err != nil {
+		return nil, errors.New(err).
+			Component("datastore").
+			Category(errors.CategoryDatabase).
+			Context("operation", "get_species_notes").
+			Context("scientific_name", scientificName).
+			Build()
+	}
+	return notes, nil
+}
+
+// GetSpeciesNoteByID retrieves a single species note by its primary key.
+func (ds *DataStore) GetSpeciesNoteByID(id uint) (*SpeciesNote, error) {
+	var note SpeciesNote
+	if err := ds.DB.First(&note, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrSpeciesNoteNotFound
+		}
+		return nil, errors.New(err).
+			Component("datastore").
+			Category(errors.CategoryDatabase).
+			Context("operation", "get_species_note_by_id").
+			Context("note_id", id).
+			Build()
+	}
+	return &note, nil
+}
+
+// SaveSpeciesNote saves a new species note.
+func (ds *DataStore) SaveSpeciesNote(note *SpeciesNote) error {
+	if note == nil {
+		return validationError("note cannot be nil", "note", nil)
+	}
+	if note.ScientificName == "" {
+		return validationError("scientific name cannot be empty", "scientific_name", "")
+	}
+	if note.Entry == "" {
+		return validationError("note entry cannot be empty", "entry", "")
+	}
+
+	return RetryOnLock(context.Background(), "save_species_note", func() error {
+		if err := ds.DB.Create(note).Error; err != nil {
+			return dbError(err, "save_species_note", errors.PriorityMedium,
+				"scientific_name", note.ScientificName,
+				"table", "species_notes",
+				"action", "add_species_note")
+		}
+		return nil
+	}, ds.getMetrics())
+}
+
+// DeleteSpeciesNote deletes a species note by ID.
+func (ds *DataStore) DeleteSpeciesNote(noteID string) error {
+	id, err := strconv.ParseUint(noteID, 10, 32)
+	if err != nil {
+		return errors.New(err).
+			Component("datastore").
+			Category(errors.CategoryValidation).
+			Context("operation", "delete_species_note").
+			Context("note_id", noteID).
+			Build()
+	}
+
+	return RetryOnLock(context.Background(), "delete_species_note", func() error {
+		result := ds.DB.Delete(&SpeciesNote{}, id)
+		if result.Error != nil {
+			return errors.New(result.Error).
+				Component("datastore").
+				Category(errors.CategoryDatabase).
+				Context("operation", "delete_species_note").
+				Context("note_id", noteID).
+				Build()
+		}
+		if result.RowsAffected == 0 {
+			return ErrSpeciesNoteNotFound
+		}
+		return nil
+	}, ds.getMetrics())
+}
+
+// UpdateSpeciesNote updates an existing species note's entry.
+func (ds *DataStore) UpdateSpeciesNote(noteID, entry string) error {
+	if entry == "" {
+		return validationError("note entry cannot be empty", "entry", "")
+	}
+
+	id, err := strconv.ParseUint(noteID, 10, 32)
+	if err != nil {
+		return errors.New(err).
+			Component("datastore").
+			Category(errors.CategoryValidation).
+			Context("operation", "update_species_note").
+			Context("note_id", noteID).
+			Build()
+	}
+
+	return RetryOnLock(context.Background(), "update_species_note", func() error {
+		result := ds.DB.Model(&SpeciesNote{}).Where("id = ?", id).Update("entry", entry)
+		if result.Error != nil {
+			return errors.New(result.Error).
+				Component("datastore").
+				Category(errors.CategoryDatabase).
+				Context("operation", "update_species_note").
+				Context("note_id", noteID).
+				Build()
+		}
+		if result.RowsAffected == 0 {
+			return ErrSpeciesNoteNotFound
+		}
+		return nil
+	}, ds.getMetrics())
 }
 
 // getHourRange returns the start and end times for a given hour and duration.

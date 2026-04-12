@@ -1532,6 +1532,51 @@
         "detections": "Erkennungen:",
         "confidence": "Konfidenz:",
         "first": "Erste:"
+      },
+      "guide": {
+        "title": "Artenleitfaden",
+        "loading": "Artinformationen werden geladen...",
+        "source": "Quelle:",
+        "description": "Beschreibung",
+        "songs": "Stimmen und Rufe",
+        "similar": "Ähnliche Arten",
+        "qualityFull": "Ausführlich",
+        "qualityIntroOnly": "Kurz",
+        "qualityStub": "Entwurf",
+        "expectedness": {
+          "expected": "Erwartet",
+          "uncommon": "Ungewöhnlich",
+          "rare": "Selten",
+          "unexpected": "Unerwartet"
+        },
+        "season": {
+          "spring": "Frühling",
+          "summer": "Sommer",
+          "fall": "Herbst",
+          "winter": "Winter",
+          "wet1": "Regenzeit",
+          "dry1": "Trockenzeit",
+          "wet2": "Regenzeit",
+          "dry2": "Trockenzeit"
+        }
+      },
+      "notes": {
+        "title": "Artnotizen",
+        "placeholder": "Notiz zu dieser Art hinzufügen...",
+        "save": "Notiz speichern",
+        "empty": "Noch keine Notizen. Fügen Sie Ihre Beobachtungen zu dieser Art hinzu.",
+        "deleteConfirm": "Diese Notiz löschen?",
+        "saving": "Speichern...",
+        "deleteFailed": "Notiz konnte nicht gelöscht werden",
+        "saveFailed": "Notiz konnte nicht gespeichert werden"
+      },
+      "similar": {
+        "title": "Ähnliche Arten",
+        "compare": "Mit ähnlichen vergleichen",
+        "loading": "Ähnliche Arten werden geladen...",
+        "empty": "Keine ähnlichen Arten in dieser Gattung gefunden.",
+        "sameGenus": "Gleiche Gattung",
+        "sameFamily": "Gleiche Familie"
       }
     },
     "advanced": {
@@ -3876,7 +3921,8 @@
         "appearance": "Erscheinungsbild",
         "language": "Sprache & Region",
         "visualContent": "Visuelle Inhalte",
-        "audioPlayback": "Audiowiedergabe"
+        "audioPlayback": "Audiowiedergabe",
+        "speciesGuide": "Artenführer"
       },
       "appearance": {
         "title": "Erscheinungsbild",
@@ -3896,6 +3942,56 @@
         "defaultGain": "Standard-Lautstärkeverstärkung",
         "defaultGainHelpText": "Anfangsverstärkung bei der Wiedergabe von Aufnahmen. Vogelstimmen sind oft leise, daher wird eine Verstärkung von 6-12 dB empfohlen.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Artenführer",
+        "description": "Artenführer konfigurieren.",
+        "enabled": {
+          "label": "Artenführer aktivieren",
+          "helpText": "Wikipedia-basierte Führerinhalte anzeigen."
+        },
+        "provider": {
+          "label": "Datenquelle",
+          "helpText": "Welche Datenquelle für Artenführer verwendet werden soll.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Fallback-Richtlinie",
+          "helpText": "Was zu tun ist, wenn der bevorzugte Anbieter keinen Führerinhalt liefern kann.",
+          "options": {
+            "all": "Alle Anbieter versuchen",
+            "none": "Kein Fallback"
+          }
+        },
+        "sections": {
+          "title": "Führerabschnitte"
+        },
+        "showEnrichments": {
+          "label": "Anreicherungen anzeigen",
+          "helpText": "Saisonkontext, Verbreitungsabzeichen und externe Links anzeigen."
+        },
+        "showSimilarSpecies": {
+          "label": "Ähnliche Arten anzeigen",
+          "helpText": "Vergleichsbereich mit oft verwechselten Arten der gleichen Gattung."
+        },
+        "showNotes": {
+          "label": "Artennotizen anzeigen",
+          "helpText": "Persönliches Notizfeld für Artenbeobachtungen."
+        },
+        "cache": {
+          "title": "Guide-Cache"
+        },
+        "preFetchEnabled": {
+          "label": "Führerinhalte vorabrufen",
+          "helpText": "Inhalte automatisch im Hintergrund abrufen."
+        },
+        "warmTopN": {
+          "label": "Cache beim Start vorwärmen",
+          "helpText": "Anzahl vorgeladener Arten. 0 = deaktiviert."
+        }
       }
     },
     "restartRequired": "Einige Änderungen erfordern einen Neustart des Servers. Bitte starten Sie BirdNET-Go neu."
