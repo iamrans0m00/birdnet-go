@@ -1532,6 +1532,51 @@
         "detections": "Détections :",
         "confidence": "Confiance :",
         "first": "Première :"
+      },
+      "guide": {
+        "title": "Guide des espèces",
+        "loading": "Chargement des informations sur l'espèce...",
+        "source": "Source :",
+        "description": "Description",
+        "songs": "Chants et appels",
+        "similar": "Espèces similaires",
+        "qualityFull": "Détaillé",
+        "qualityIntroOnly": "Bref",
+        "qualityStub": "Ébauche",
+        "expectedness": {
+          "expected": "Attendu",
+          "uncommon": "Peu commun",
+          "rare": "Rare",
+          "unexpected": "Inattendu"
+        },
+        "season": {
+          "spring": "Printemps",
+          "summer": "Été",
+          "fall": "Automne",
+          "winter": "Hiver",
+          "wet1": "Saison humide",
+          "dry1": "Saison sèche",
+          "wet2": "Saison humide",
+          "dry2": "Saison sèche"
+        }
+      },
+      "notes": {
+        "title": "Notes d'espèce",
+        "placeholder": "Ajouter une note sur cette espèce...",
+        "save": "Enregistrer la note",
+        "empty": "Pas encore de notes. Ajoutez vos observations sur cette espèce.",
+        "deleteConfirm": "Supprimer cette note ?",
+        "saving": "Enregistrement...",
+        "deleteFailed": "Échec de la suppression de la note",
+        "saveFailed": "Échec de l'enregistrement de la note"
+      },
+      "similar": {
+        "title": "Espèces similaires",
+        "compare": "Comparer avec similaires",
+        "loading": "Chargement des espèces similaires...",
+        "empty": "Aucune espèce similaire trouvée dans ce genre.",
+        "sameGenus": "Même genre",
+        "sameFamily": "Même famille"
       }
     },
     "advanced": {
@@ -3876,7 +3921,8 @@
         "appearance": "Apparence",
         "language": "Langue et régional",
         "visualContent": "Contenu visuel",
-        "audioPlayback": "Lecture audio"
+        "audioPlayback": "Lecture audio",
+        "speciesGuide": "Guide des espèces"
       },
       "appearance": {
         "title": "Apparence",
@@ -3896,6 +3942,56 @@
         "defaultGain": "Amplification du volume par défaut",
         "defaultGainHelpText": "Gain initial appliqué lors de la lecture des enregistrements. Les sons d'oiseaux sont souvent faibles, une amplification de 6 à 12 dB est recommandée.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Guide des espèces",
+        "description": "Configurez le guide d identification affiché dans les détails.",
+        "enabled": {
+          "label": "Activer le guide des espèces",
+          "helpText": "Afficher des guides basés sur Wikipedia."
+        },
+        "provider": {
+          "label": "Fournisseur de guide",
+          "helpText": "Quelle source de données utiliser pour les guides d'identification.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Politique de repli",
+          "helpText": "Que faire lorsque le fournisseur préféré ne peut pas fournir un guide.",
+          "options": {
+            "all": "Essayer tous les fournisseurs",
+            "none": "Pas de repli"
+          }
+        },
+        "sections": {
+          "title": "Sections du guide"
+        },
+        "showEnrichments": {
+          "label": "Afficher les enrichissements",
+          "helpText": "Afficher le contexte saisonnier, les badges et les liens externes."
+        },
+        "showSimilarSpecies": {
+          "label": "Afficher les espèces similaires",
+          "helpText": "Panneau de comparaison avec les espèces du même genre."
+        },
+        "showNotes": {
+          "label": "Afficher les notes",
+          "helpText": "Panneau de notes personnelles."
+        },
+        "cache": {
+          "title": "Cache du guide"
+        },
+        "preFetchEnabled": {
+          "label": "Précharger les guides",
+          "helpText": "Récupérer automatiquement les guides en arrière-plan."
+        },
+        "warmTopN": {
+          "label": "Préchauffer le cache au démarrage",
+          "helpText": "Nombre d espèces à précharger. 0 = désactivé."
+        }
       }
     },
     "restartRequired": "Certaines modifications nécessitent un redémarrage du serveur pour prendre effet. Veuillez redémarrer BirdNET-Go."
