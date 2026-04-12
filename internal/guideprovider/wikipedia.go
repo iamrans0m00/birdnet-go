@@ -178,8 +178,13 @@ var sectionHeaderRe = regexp.MustCompile(`(?m)^={2,4}\s*(.+?)\s*={2,4}\s*$`)
 var referenceCleanupRe = regexp.MustCompile(`\[\d+\]`)
 
 // wikipediaURLs returns the REST summary base URL and action API URL for a locale.
+// The locale is validated against the known-safe allowlist to prevent SSRF via subdomain injection.
 func wikipediaURLs(locale string) (restBase, actionAPI string) {
-	if locale == "" {
+	if locale == "" || locale == defaultLocale {
+		locale = defaultLocale
+	} else if _, ok := localizedSectionNames[locale]; !ok {
+		// Unknown locale — fall back to English rather than passing arbitrary input
+		// into the URL subdomain (e.g., "evil.com" → https://evil.com.wikipedia.org/…).
 		locale = defaultLocale
 	}
 	return fmt.Sprintf(wikipediaRESTTemplate, locale), fmt.Sprintf(wikipediaActionTemplate, locale)

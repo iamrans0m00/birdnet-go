@@ -1429,7 +1429,12 @@ func extractSections(description string, similarSpecies []string, locale string)
 	// If no sections found but there is description content, use it as a fallback.
 	if sections.Description == "" && description != "" {
 		if len(description) > 200 {
-			sections.Description = description[:200] + "..."
+			// Walk back to a valid UTF-8 boundary to avoid slicing mid-character.
+			truncated := description[:200]
+			for truncated != "" && (truncated[len(truncated)-1]&0xC0) == 0x80 {
+				truncated = truncated[:len(truncated)-1]
+			}
+			sections.Description = truncated + "..."
 		} else {
 			sections.Description = description
 		}
