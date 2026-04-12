@@ -198,7 +198,7 @@ func TestGuideCache_DeleteStaleEntries(t *testing.T) {
 	}))
 
 	// Verify entries exist
-	allBefore, err := store.GetAllGuideCaches(t.Context(), WikipediaProviderName)
+	allBefore, err := store.GetAllGuideCaches(t.Context(), WikipediaProviderName, time.Time{})
 	require.NoError(t, err)
 	assert.Len(t, allBefore, 3, "Should have 3 entries before cleanup")
 
@@ -210,7 +210,7 @@ func TestGuideCache_DeleteStaleEntries(t *testing.T) {
 	assert.Equal(t, int64(2), deleted, "Should delete 2 old entries")
 
 	// Verify only recent entry remains
-	allAfter, err := store.GetAllGuideCaches(t.Context(), WikipediaProviderName)
+	allAfter, err := store.GetAllGuideCaches(t.Context(), WikipediaProviderName, time.Time{})
 	require.NoError(t, err)
 	assert.Len(t, allAfter, 1, "Should have 1 entry after cleanup")
 	assert.Equal(t, "Recent Species", allAfter[0].ScientificName, "Recent entry should remain")

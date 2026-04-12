@@ -94,14 +94,18 @@ func (s *GORMGuideStore) SaveGuideCache(ctx context.Context, entry *GuideCacheEn
 	return err
 }
 
-// GetAllGuideCaches retrieves all guide cache entries for a specific provider.
-func (s *GORMGuideStore) GetAllGuideCaches(ctx context.Context, providerName string) ([]GuideCacheEntry, error) {
+// GetAllGuideCaches retrieves guide cache entries for a specific provider,
+// filtering out entries cached before notBefore to bound memory at startup.
+func (s *GORMGuideStore) GetAllGuideCaches(ctx context.Context, providerName string, notBefore time.Time) ([]GuideCacheEntry, error) {
 	start := time.Now()
 	var entries []GuideCacheEntry
-	err := s.db.WithContext(ctx).
+	query := s.db.WithContext(ctx).
 		Session(&gorm.Session{Logger: gormlogger.Default.LogMode(gormlogger.Silent)}).
-		Where("provider_name = ?", providerName).
-		Find(&entries).Error
+		Where("provider_name = ?", providerName)
+	if !notBefore.IsZero() {
+		query = query.Where("cached_at >= ?", notBefore)
+	}
+	err := query.Find(&entries).Error
 
 	status := DBResultSuccess
 	if err != nil {

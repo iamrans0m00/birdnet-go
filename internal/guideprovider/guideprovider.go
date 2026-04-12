@@ -130,7 +130,7 @@ type GuideProvider interface {
 type GuideStore interface {
 	GetGuideCache(ctx context.Context, scientificName, providerName, locale string) (*GuideCacheEntry, error)
 	SaveGuideCache(ctx context.Context, entry *GuideCacheEntry) error
-	GetAllGuideCaches(ctx context.Context, providerName string) ([]GuideCacheEntry, error)
+	GetAllGuideCaches(ctx context.Context, providerName string, notBefore time.Time) ([]GuideCacheEntry, error)
 	DeleteStaleGuideCaches(ctx context.Context, providerName string, beforeTime time.Time) (int64, error)
 }
 
@@ -635,7 +635,9 @@ func (c *GuideCache) loadFromDB() {
 		providerName = settings.Realtime.Dashboard.SpeciesGuide.Provider
 	}
 
-	entries, err := c.store.GetAllGuideCaches(c.rootCtx, providerName)
+	// Only fetch entries within the retention period — avoids loading the entire table.
+	cutoff := time.Now().Add(-dbRetentionPeriod)
+	entries, err := c.store.GetAllGuideCaches(c.rootCtx, providerName, cutoff)
 	if err != nil {
 		getLogger().Warn("Failed to load guide caches from database",
 			logger.Any("error", err))
@@ -695,7 +697,10 @@ func (c *GuideCache) refreshStaleEntries() {
 		providerName = settings.Realtime.Dashboard.SpeciesGuide.Provider
 	}
 
-	entries, err := c.store.GetAllGuideCaches(c.rootCtx, providerName)
+	// Only fetch entries within retention period — no point refreshing entries
+	// that will be deleted by the next cleanup cycle.
+	cutoff := time.Now().Add(-dbRetentionPeriod)
+	entries, err := c.store.GetAllGuideCaches(c.rootCtx, providerName, cutoff)
 	if err != nil {
 		log.Warn("Failed to get guide caches for refresh", logger.Any("error", err))
 		return

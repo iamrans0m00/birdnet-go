@@ -61,10 +61,10 @@ func (s *mockGuideStore) SaveGuideCache(_ context.Context, entry *GuideCacheEntr
 	return nil
 }
 
-func (s *mockGuideStore) GetAllGuideCaches(_ context.Context, providerName string) ([]GuideCacheEntry, error) {
+func (s *mockGuideStore) GetAllGuideCaches(_ context.Context, providerName string, notBefore time.Time) ([]GuideCacheEntry, error) {
 	var result []GuideCacheEntry
 	for _, entry := range s.entries {
-		if entry.ProviderName == providerName {
+		if entry.ProviderName == providerName && (notBefore.IsZero() || !entry.CachedAt.Before(notBefore)) {
 			result = append(result, *entry)
 		}
 	}
