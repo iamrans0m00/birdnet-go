@@ -651,5 +651,10 @@ func truncate(s string, maxLen int) string {
 	if idx < maxLen/2 {
 		idx = maxLen // No good break point, just cut.
 	}
-	return s[:idx] + "..."
+	truncated := s[:idx]
+	// Walk back to a valid UTF-8 boundary to avoid cutting mid-character.
+	for len(truncated) > 0 && (truncated[len(truncated)-1]&0xC0) == 0x80 {
+		truncated = truncated[:len(truncated)-1]
+	}
+	return truncated + "..."
 }

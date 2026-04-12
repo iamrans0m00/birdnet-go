@@ -30,44 +30,52 @@
   let songsOpen = $state(false);
   let similarOpen = $state(false);
 
-  async function fetchFocalSpeciesGuide() {
+  async function fetchFocalSpeciesGuide(signal?: AbortSignal) {
     try {
       const locale = getLocale();
       const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
       const encodedName = encodeURIComponent(scientificName);
       const url = buildAppUrl(`/api/v2/species/${encodedName}/guide${localeParam}`);
-      const response = await fetch(url);
+      const response = await fetch(url, { signal });
+      if (signal?.aborted) return;
       if (response.ok) {
         const data = await response.json();
+        if (signal?.aborted) return;
         focalGuide = data;
         if (focalGuide?.description) {
           focalSections = parseGuideDescription(focalGuide.description);
         }
       }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       logger.error('Failed to fetch focal species guide', err);
     }
   }
 
-  async function fetchSimilarSpecies() {
+  async function fetchSimilarSpecies(signal?: AbortSignal) {
     isLoading = true;
     try {
       const locale = getLocale();
       const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
       const encodedName = encodeURIComponent(scientificName);
       const url = buildAppUrl(`/api/v2/species/${encodedName}/similar${localeParam}`);
-      const response = await fetch(url);
+      const response = await fetch(url, { signal });
+      if (signal?.aborted) return;
       if (response.ok) {
         const data = await response.json();
+        if (signal?.aborted) return;
         similarSpecies = data.similar ?? [];
-        if (similarSpecies.length > 0) {
-          await selectSimilar(0);
-        }
       }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       logger.error('Failed to fetch similar species', err);
     } finally {
       isLoading = false;
+    }
+    // Auto-select first species after list-loading state clears.
+    // Fire-and-forget: isLoadingSimilarGuide tracks the guide fetch independently.
+    if (similarSpecies.length > 0) {
+      void selectSimilar(0);
     }
   }
 
@@ -103,11 +111,16 @@
   }
 
   $effect(() => {
-    void Promise.all([fetchSimilarSpecies(), fetchFocalSpeciesGuide()]);
+    const controller = new AbortController();
+    void Promise.all([
+      fetchSimilarSpecies(controller.signal),
+      fetchFocalSpeciesGuide(controller.signal),
+    ]);
     trackEvent(AnalyticsEvents.SPECIES_COMPARISON_OPENED, {
       focal_species: scientificName,
       comparison_count: 0,
     });
+    return () => controller.abort();
   });
 
   // Helper to extract specific section from focal guide
@@ -183,16 +196,7 @@
     <!-- Comparison panel -->
     {#if selectedSimilarIndex >= 0 && selectedSimilarIndex < similarSpecies.length}
       {@const similarEntry = similarSpecies[selectedSimilarIndex]}
-      {@const similarSections =
-        (
-          similarEntry as {
-            sections?: {
-              description?: string;
-              songs_and_calls?: string;
-              similar_species?: string[];
-            };
-          }
-        ).sections ?? null}
+      {@const similarSections = similarEntry.sections ?? null}
 
       <div class="comparison-panel">
         <h4 class="panel-title">

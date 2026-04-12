@@ -152,6 +152,7 @@
   let taxonomyController: AbortController | null = null;
   let attributionController: AbortController | null = null;
   let guideController: AbortController | null = null;
+  let notesController: AbortController | null = null;
 
   // Validate detection ID to prevent path traversal attacks
   // Only allow alphanumeric characters, hyphens, and underscores
@@ -397,18 +398,26 @@
   // Fetch species notes
   async function fetchSpeciesNotes() {
     if (!detection?.scientificName) return;
+
+    notesController?.abort();
+    notesController = new AbortController();
+
     isLoadingNotes = true;
     try {
       const response = await fetch(
-        buildAppUrl(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`)
+        buildAppUrl(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`),
+        { signal: notesController?.signal }
       );
+      if (notesController?.signal.aborted) return;
       if (response.ok) {
         speciesNotes = await response.json();
       }
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
       // Notes are non-critical — fail silently
     } finally {
       isLoadingNotes = false;
+      notesController = null;
     }
   }
 

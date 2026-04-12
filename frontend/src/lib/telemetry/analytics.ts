@@ -28,7 +28,7 @@ const ANALYTICS_CATEGORY = 'analytics';
 
 /** Sensitive key patterns to redact from event labels */
 const SENSITIVE_KEYS =
-  /^(token|password|secret|apikey|api_key|authorization|cookie|session|sessionid|email|ip_address)$/i;
+  /(token|password|secret|apikey|api_key|authorization|cookie|session|sessionid|email|ip_address)/i;
 
 /**
  * Redact sensitive keys from an object to prevent PII leakage

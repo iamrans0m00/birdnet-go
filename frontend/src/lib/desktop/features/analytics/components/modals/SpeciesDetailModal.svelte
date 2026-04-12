@@ -89,17 +89,19 @@
   // Fetch guide data and notes when species changes
   $effect(() => {
     if (species?.scientific_name) {
+      const controller = new AbortController();
       void Promise.all([
-        fetchGuideData(species.scientific_name),
-        fetchSpeciesNotes(species.scientific_name),
+        fetchGuideData(species.scientific_name, controller.signal),
+        fetchSpeciesNotes(species.scientific_name, controller.signal),
       ]);
+      return () => controller.abort();
     }
   });
 
   // Use cached data for rendering, fall back to current prop
   let displaySpecies = $derived(species ?? cachedSpecies);
 
-  async function fetchGuideData(scientificName: string) {
+  async function fetchGuideData(scientificName: string, signal?: AbortSignal) {
     guideLoading = true;
     guideData = null;
 
@@ -108,8 +110,10 @@
       const locale = getLocale();
       const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
       const response = await fetch(
-        buildAppUrl(`/api/v2/species/${encodedName}/guide${localeParam}`)
+        buildAppUrl(`/api/v2/species/${encodedName}/guide${localeParam}`),
+        { signal }
       );
+      if (signal?.aborted) return;
       if (!response.ok) {
         if (response.status !== 404) {
           logger.debug('Guide fetch failed', { status: response.status, species: scientificName });
@@ -125,22 +129,26 @@
         });
       }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       logger.debug('Guide fetch error', { species: scientificName, error: err });
     } finally {
       guideLoading = false;
     }
   }
 
-  async function fetchSpeciesNotes(scientificName: string) {
+  async function fetchSpeciesNotes(scientificName: string, signal?: AbortSignal) {
     isLoadingNotes = true;
     try {
       const response = await fetch(
-        buildAppUrl(`/api/v2/species/${encodeURIComponent(scientificName)}/notes`)
+        buildAppUrl(`/api/v2/species/${encodeURIComponent(scientificName)}/notes`),
+        { signal }
       );
+      if (signal?.aborted) return;
       if (response.ok) {
         speciesNotes = await response.json();
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       // Non-critical
     } finally {
       isLoadingNotes = false;
