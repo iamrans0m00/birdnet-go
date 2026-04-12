@@ -25,6 +25,9 @@
   let isLoadingSimilarGuide = $state(false);
   let similarGuideSections = $state<ReturnType<typeof parseGuideDescription>>([]);
 
+  // AbortController for the per-species guide fetch — cancelled when switching species.
+  let similarGuideController: AbortController | null = null;
+
   // Collapsible section states - Description expanded by default, others collapsed
   let descriptionOpen = $state(true);
   let songsOpen = $state(false);
@@ -89,8 +92,12 @@
     descriptionOpen = true;
     songsOpen = false;
     similarOpen = false;
+    // Cancel any in-flight guide fetch from a previous selection.
+    similarGuideController?.abort();
     // Fetch guide for the selected similar species
     if (index >= 0 && index < similarSpecies.length) {
+      const controller = new AbortController();
+      similarGuideController = controller;
       isLoadingSimilarGuide = true;
       similarGuideSections = [];
       try {
@@ -99,10 +106,8 @@
         const locale = getLocale();
         const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
         const url = buildAppUrl(`/api/v2/species/${encoded}/guide${localeParam}`);
-        const response = await fetch(url);
-        // Guard against stale responses: if the user clicked a different species
-        // while this fetch was in flight, discard the result.
-        if (selectedSimilarIndex !== index) return;
+        const response = await fetch(url, { signal: controller.signal });
+        if (controller.signal.aborted) return;
         if (response.ok) {
           const data = await response.json();
           if (selectedSimilarIndex === index && data.description) {
@@ -110,9 +115,13 @@
           }
         }
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return;
         logger.error('Failed to fetch similar species guide', err);
       } finally {
         isLoadingSimilarGuide = false;
+        if (similarGuideController === controller) {
+          similarGuideController = null;
+        }
       }
     }
   }
@@ -126,13 +135,22 @@
     return () => controller.abort();
   });
 
-  // Helper to extract specific section from focal guide
+  // Helper to extract specific section from focal guide by heading name.
   function getSectionContent(
     sections: ReturnType<typeof parseGuideDescription>,
     heading: string
   ): string {
     const section = sections.find(s => s.heading?.toLowerCase() === heading.toLowerCase());
     return section?.body ?? '';
+  }
+
+  // Helper to get the first section with content, regardless of locale-specific heading.
+  // Falls back gracefully when the heading language doesn't match a hardcoded English name.
+  function getFirstSectionBody(sections: ReturnType<typeof parseGuideDescription>): string {
+    for (const s of sections) {
+      if (s.body) return s.body;
+    }
+    return '';
   }
 </script>
 
@@ -245,8 +263,7 @@
                   <span class="side-label">{commonName}</span>
                   <p class="side-content">
                     {#if focalSections.length > 0}
-                      {getSectionContent(focalSections, 'Description') ||
-                        getSectionContent(focalSections, '') ||
+                      {getFirstSectionBody(focalSections) ||
                         focalGuide?.description?.substring(0, 300) ||
                         'No description available'}
                     {:else}
@@ -287,6 +304,15 @@
                     {getSectionContent(focalSections, 'Songs and calls') ||
                       getSectionContent(focalSections, 'Song and calls') ||
                       getSectionContent(focalSections, 'Vocalisation') ||
+                      getSectionContent(focalSections, 'Voice') ||
+                      getSectionContent(focalSections, 'Stimme') ||
+                      getSectionContent(focalSections, 'Chant et cris') ||
+                      getSectionContent(focalSections, 'Voix') ||
+                      getSectionContent(focalSections, 'Voz') ||
+                      getSectionContent(focalSections, 'Canto') ||
+                      getSectionContent(focalSections, 'Głos') ||
+                      getSectionContent(focalSections, 'Ääntelyt') ||
+                      getSectionContent(focalSections, 'Läte') ||
                       'No songs/calls info available'}
                   </p>
                 </div>
@@ -320,6 +346,10 @@
                   <p class="side-content">
                     {#if focalSections.length > 0}
                       {getSectionContent(focalSections, 'Similar species') ||
+                        getSectionContent(focalSections, 'Ähnliche Arten') ||
+                        getSectionContent(focalSections, 'Espèces similaires') ||
+                        getSectionContent(focalSections, 'Especies similares') ||
+                        getSectionContent(focalSections, 'Verwechslungsmöglichkeiten') ||
                         'No similar species listed'}
                     {:else}
                       No similar species listed
