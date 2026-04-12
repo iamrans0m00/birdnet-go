@@ -14,6 +14,7 @@ import (
 	"github.com/tphakala/birdnet-go/internal/alerting"
 	"github.com/tphakala/birdnet-go/internal/audiocore"
 	"github.com/tphakala/birdnet-go/internal/audiocore/engine"
+	"github.com/tphakala/birdnet-go/internal/audiocore/equalizer"
 	"github.com/tphakala/birdnet-go/internal/audiocore/schedule"
 	"github.com/tphakala/birdnet-go/internal/audiocore/soundlevel"
 	"github.com/tphakala/birdnet-go/internal/classifier"
@@ -427,9 +428,14 @@ func (p *AudioPipelineService) registerSoundLevelConsumers(sourceIDs []string, o
 	if slInterval <= 0 {
 		slInterval = 10 // default 10-second aggregation window
 	}
+	audioSettings := &settings.Realtime.Audio
 	for _, sid := range sourceIDs {
 		// Look up per-source gain from the registry.
 		gainDB, _ := p.engine.Registry().GetGain(sid)
+
+		// Resolve per-source EQ filter chain.
+		srcCfg := audioSettings.FindSourceByID(sid)
+		eqChain := equalizer.BuildFilterChainForSource(srcCfg, audioSettings.Equalizer, conf.SampleRate)
 
 		slProc, slErr := soundlevel.NewProcessor(sid, sid, conf.SampleRate, slInterval)
 		if slErr != nil {
@@ -447,7 +453,7 @@ func (p *AudioPipelineService) registerSoundLevelConsumers(sourceIDs []string, o
 				logger.String("operation", operation))
 			continue
 		}
-		if routeErr := p.engine.Router().AddRoute(sid, slc, conf.SampleRate, gainDB); routeErr != nil {
+		if routeErr := p.engine.Router().AddRoute(sid, slc, conf.SampleRate, gainDB, eqChain); routeErr != nil {
 			log.Warn("failed to add sound level route",
 				logger.String("source_id", sid),
 				logger.Error(routeErr),
@@ -498,10 +504,17 @@ func (p *AudioPipelineService) registerConsumersForSources(sourceIDs []string, s
 	primaryTargets := []classifier.ModelInfo{*primaryInfo}
 
 	bufMgr := p.engine.BufferManager()
+	currentSettings := conf.Setting()
+	audioSettings := &currentSettings.Realtime.Audio
 
 	for _, sid := range sourceIDs {
 		// Look up per-source gain from the registry.
 		gainDB, _ := p.engine.Registry().GetGain(sid)
+
+		// Resolve per-source EQ config for building per-route filter chains.
+		// Each route needs its own FilterChain because biquad filters have
+		// mutable state (in1/in2/out1/out2) — sharing would cause a data race.
+		srcCfg := audioSettings.FindSourceByID(sid)
 
 		// Resolve per-source model targets. Fall back to primary if the
 		// source has no configured models or none could be resolved.
@@ -567,13 +580,15 @@ func (p *AudioPipelineService) registerConsumersForSources(sourceIDs []string, s
 				logger.String("source_id", sid), logger.Error(bcErr), logger.String("operation", operation))
 			continue
 		}
-		if routeErr := p.engine.Router().AddRoute(sid, bc, conf.SampleRate, gainDB); routeErr != nil {
+		bcChain := equalizer.BuildFilterChainForSource(srcCfg, audioSettings.Equalizer, conf.SampleRate)
+		if routeErr := p.engine.Router().AddRoute(sid, bc, conf.SampleRate, gainDB, bcChain); routeErr != nil {
 			log.Warn("failed to add buffer route",
 				logger.String("source_id", sid), logger.Error(routeErr), logger.String("operation", operation))
 		}
 
 		alc, alcOutCh := NewAudioLevelConsumer("audio_level_"+sid, conf.SampleRate, conf.BitDepth, 1)
-		if routeErr := p.engine.Router().AddRoute(sid, alc, conf.SampleRate, gainDB); routeErr != nil {
+		alcChain := equalizer.BuildFilterChainForSource(srcCfg, audioSettings.Equalizer, conf.SampleRate)
+		if routeErr := p.engine.Router().AddRoute(sid, alc, conf.SampleRate, gainDB, alcChain); routeErr != nil {
 			log.Warn("failed to add audio level route",
 				logger.String("source_id", sid), logger.Error(routeErr), logger.String("operation", operation))
 			continue
