@@ -4,6 +4,7 @@ package api
 import (
 	"reflect"
 
+	"github.com/tphakala/birdnet-go/internal/audiocore/equalizer"
 	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/notification"
 )
@@ -49,12 +50,42 @@ func equalizerSettingsChanged(oldSettings, newSettings conf.EqualizerSettings) b
 	return !reflect.DeepEqual(oldSettings, newSettings)
 }
 
-// handleEqualizerChange updates the audio filter chain when equalizer settings change
-func (c *Controller) handleEqualizerChange(_ *conf.Settings) error {
-	// TODO: Equalizer filter chains need to be migrated to audiocore.
-	// For now, this is a no-op; equalizer settings changes will take effect on restart.
-	c.Debug("Equalizer filter chain update is a no-op pending audiocore filter migration")
+// handleEqualizerChange rebuilds EQ filter chains and hot-swaps them on all
+// affected routes. Sources with per-source EQ are updated only when their own
+// settings changed; sources using the global default are updated when the
+// global EQ changed.
+func (c *Controller) handleEqualizerChange(currentSettings *conf.Settings) error {
+	if c.engine == nil {
+		return nil
+	}
+
+	router := c.engine.Router()
+	audioSettings := &currentSettings.Realtime.Audio
+
+	for _, src := range c.engine.Registry().List() {
+		srcCfg := audioSettings.FindSourceByID(src.ID)
+		router.UpdateFilterChain(src.ID, func(sampleRate int) *equalizer.FilterChain {
+			return equalizer.BuildFilterChainForSource(srcCfg, audioSettings.Equalizer, sampleRate)
+		})
+	}
+
+	c.Debug("EQ filter chains updated for all sources")
 	return nil
+}
+
+// perSourceEqualizerChanged checks if any per-source equalizer settings have changed.
+func perSourceEqualizerChanged(oldSettings, currentSettings *conf.Settings) bool {
+	oldSources := oldSettings.Realtime.Audio.Sources
+	newSources := currentSettings.Realtime.Audio.Sources
+	if len(oldSources) != len(newSources) {
+		return true
+	}
+	for i := range oldSources {
+		if !reflect.DeepEqual(oldSources[i].Equalizer, newSources[i].Equalizer) {
+			return true
+		}
+	}
+	return false
 }
 
 // getAudioBlockedFields returns the blocked fields map for the audio section
@@ -117,10 +148,10 @@ func (c *Controller) handleAudioSettingsChanges(oldSettings, currentSettings *co
 
 	// Check audio device settings
 	if audioDeviceSettingChanged(oldSettings, currentSettings) {
-		c.Debug("Audio device changed. A restart will be required.")
-		// Send toast notification about restart requirement
-		_ = c.SendToastWithKey("Audio device changed. Restart required to apply changes.", "warning", toastDurationExtended,
-			notification.MsgSettingsAudioDeviceRestart, nil)
+		c.Debug("Audio device settings changed, triggering reconfiguration")
+		reconfigActions = append(reconfigActions, "reconfigure_audio_sources")
+		_ = c.SendToastWithKey("Reconfiguring audio sources...", "info", toastDurationMedium,
+			notification.MsgSettingsReconfiguringAudioSources, nil)
 	}
 
 	// Check extended capture filter settings (hot-reloadable: Enabled, Species, MaxDuration)
@@ -138,10 +169,15 @@ func (c *Controller) handleAudioSettingsChanges(oldSettings, currentSettings *co
 			notification.MsgSettingsExtendedCaptureRestart, nil)
 	}
 
-	// Check audio equalizer settings
-	if equalizerSettingsChanged(oldSettings.Realtime.Audio.Equalizer, currentSettings.Realtime.Audio.Equalizer) {
-		c.Debug("Audio equalizer settings changed; will take effect on restart (audiocore filter migration pending)")
-		_ = c.SendToast("Equalizer settings saved. Restart required to apply changes.", "warning", toastDurationExtended)
+	// Check audio equalizer settings (global or per-source) — hot-swap filter chains.
+	globalEQChanged := equalizerSettingsChanged(oldSettings.Realtime.Audio.Equalizer, currentSettings.Realtime.Audio.Equalizer)
+	perSourceEQChanged := perSourceEqualizerChanged(oldSettings, currentSettings)
+	if globalEQChanged || perSourceEQChanged {
+		c.Debug("Audio equalizer settings changed, updating filter chains")
+		if err := c.handleEqualizerChange(currentSettings); err != nil {
+			c.Debug("Failed to update EQ filter chains: %v", err)
+		}
+		_ = c.SendToast("Audio equalizer settings updated.", "success", toastDurationShort)
 	}
 
 	return reconfigActions, nil

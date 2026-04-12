@@ -395,7 +395,7 @@
         "reconfiguringDynamicThresholds": "Ponowna konfiguracja progów dynamicznych...",
         "webserverRestartRequired": "Ustawienia serwera WWW zmienione. Wymagany restart.",
         "reconfiguringSoundLevel": "Aktualizacja monitorowania poziomu dźwięku...",
-        "audioDeviceRestartRequired": "Zmieniono urządzenie audio. Wymagany restart.",
+        "reconfiguringAudioSources": "Ponowna konfiguracja źródeł audio...",
         "rebuildingExtendedCapture": "Przebudowa filtru rozszerzonego nagrywania...",
         "extendedCaptureRestartRequired": "Zmieniono ustawienia rozszerzonego nagrywania. Wymagany restart.",
         "equalizerUpdateFailed": "Nie udało się zaktualizować ustawień korektora dźwięku",
@@ -2810,7 +2810,7 @@
       },
       "audioFilters": {
         "title": "Filtry Audio",
-        "description": "Konfiguruj filtry przetwarzania audio",
+        "description": "Skonfiguruj domyślne filtry audio stosowane do wszystkich źródeł. Ustawienia korektora dla poszczególnych źródeł są dostępne w ustawieniach każdej karty dźwiękowej.",
         "enableEqualizer": "Włącz Equalizer Audio",
         "enableEqualizerHelp": "Zastosuj filtrowanie częstotliwości, aby poprawić detekcję odgłosów ptaków, redukując niechciany hałas i częstotliwości.",
         "filterType": "Typ Filtra",

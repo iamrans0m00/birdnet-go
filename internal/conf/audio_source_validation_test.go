@@ -95,13 +95,10 @@ func TestAudioSourceConfig_Validate_RejectsGPSCoordinates(t *testing.T) {
 		{"positive lat/lon", ":45.5,-120.5"},
 		{"negative lat", ":-45.5,120.5"},
 		{"explicit signs", ":+45.5,-120.5"},
-		{"integer coords", ":45,-120"},
-		// Naked variant — same nonsense, no leading colon. Must also be
-		// rejected even though it does not mimic the ALSA device-prefix
-		// shape, since real ALSA/Pulse device strings always start with
-		// a letter.
+		{"decimal first only", ":45.5,-120"},
+		{"decimal second only", ":45,-120.5"},
+		// Naked variant — same nonsense, no leading colon.
 		{"naked decimal coords", "45.5,-120.5"},
-		{"naked integer coords", "45,120"},
 		// Whitespace variants — copy-pasted from map services or
 		// spreadsheet exports often include a space after (or around)
 		// the comma. The shape is still nonsense as an audio device
@@ -142,6 +139,15 @@ func TestAudioSourceConfig_Validate_AcceptsRealDeviceStrings(t *testing.T) {
 		"pulse:0",
 		"pulse",
 		"Built-in Microphone",
+		// ALSA shorthand — colon + card,subdevice without a prefix
+		// keyword. These are pure-integer pairs and must not be
+		// mistaken for GPS coordinates.
+		":0,0",
+		":2,0",
+		":1,1",
+		// Pure-integer pairs without colon (unlikely but valid).
+		"45,120",
+		"0,0",
 	}
 	for _, device := range tests {
 		t.Run(device, func(t *testing.T) {

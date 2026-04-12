@@ -1,6 +1,7 @@
 package audiocore
 
 import (
+	"math"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -8,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tphakala/birdnet-go/internal/audiocore/equalizer"
 )
 
 // mockConsumer implements AudioConsumer for testing.
@@ -87,7 +89,7 @@ func TestRouter_AddAndRemoveRoute(t *testing.T) {
 
 	consumer := newMockConsumer("consumer-1")
 
-	err := router.AddRoute("src-1", consumer, 48000)
+	err := router.AddRoute("src-1", consumer, 48000, 0.0, nil)
 	require.NoError(t, err)
 	assert.True(t, router.HasConsumers("src-1"))
 
@@ -104,7 +106,7 @@ func TestRouter_DispatchSingleConsumer(t *testing.T) {
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newMockConsumer("consumer-1")
-	err := router.AddRoute("src-1", consumer, 48000)
+	err := router.AddRoute("src-1", consumer, 48000, 0.0, nil)
 	require.NoError(t, err)
 
 	frame := testFrame("src-1")
@@ -129,8 +131,8 @@ func TestRouter_DispatchFanOut(t *testing.T) {
 	c1 := newMockConsumer("consumer-1")
 	c2 := newMockConsumer("consumer-2")
 
-	require.NoError(t, router.AddRoute("src-1", c1, 48000))
-	require.NoError(t, router.AddRoute("src-1", c2, 48000))
+	require.NoError(t, router.AddRoute("src-1", c1, 48000, 0.0, nil))
+	require.NoError(t, router.AddRoute("src-1", c2, 48000, 0.0, nil))
 
 	frame := testFrame("src-1")
 	router.Dispatch(frame)
@@ -166,7 +168,7 @@ func TestRouter_DropOnFullInbox(t *testing.T) {
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newBlockingConsumer("slow-consumer")
-	require.NoError(t, router.AddRoute("src-1", consumer, 48000))
+	require.NoError(t, router.AddRoute("src-1", consumer, 48000, 0.0, nil))
 
 	// Fill the inbox buffer (capacity 64) plus extra to guarantee drops.
 	const totalFrames = 128
@@ -190,8 +192,8 @@ func TestRouter_RemoveAllRoutes(t *testing.T) {
 	c1 := newMockConsumer("consumer-1")
 	c2 := newMockConsumer("consumer-2")
 
-	require.NoError(t, router.AddRoute("src-1", c1, 48000))
-	require.NoError(t, router.AddRoute("src-1", c2, 48000))
+	require.NoError(t, router.AddRoute("src-1", c1, 48000, 0.0, nil))
+	require.NoError(t, router.AddRoute("src-1", c2, 48000, 0.0, nil))
 	assert.True(t, router.HasConsumers("src-1"))
 
 	router.RemoveAllRoutes("src-1")
@@ -210,9 +212,9 @@ func TestRouter_DuplicateRouteError(t *testing.T) {
 	c1 := newMockConsumer("consumer-1")
 	c2 := newMockConsumer("consumer-1") // same ID
 
-	require.NoError(t, router.AddRoute("src-1", c1, 48000))
+	require.NoError(t, router.AddRoute("src-1", c1, 48000, 0.0, nil))
 
-	err := router.AddRoute("src-1", c2, 48000)
+	err := router.AddRoute("src-1", c2, 48000, 0.0, nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, ErrRouteExists)
 }
@@ -231,7 +233,7 @@ func TestRouter_DispatchWithResampling(t *testing.T) {
 	consumer.sampleRate = 32000
 
 	// Add route with source at 48kHz.
-	err := router.AddRoute("src-resample", consumer, 48000)
+	err := router.AddRoute("src-resample", consumer, 48000, 0.0, nil)
 	require.NoError(t, err)
 
 	// Build a 48kHz frame with 4800 samples (100 ms of 16-bit PCM, 9600 bytes).
@@ -285,8 +287,8 @@ func TestRouter_ConcurrentDispatch(t *testing.T) {
 
 	c1 := newMockConsumer("consumer-1")
 	c2 := newMockConsumer("consumer-2")
-	require.NoError(t, router.AddRoute("src-1", c1, 48000))
-	require.NoError(t, router.AddRoute("src-1", c2, 48000))
+	require.NoError(t, router.AddRoute("src-1", c1, 48000, 0.0, nil))
+	require.NoError(t, router.AddRoute("src-1", c2, 48000, 0.0, nil))
 
 	const goroutines = 8
 	const framesPerGoroutine = 100
@@ -326,7 +328,7 @@ func TestDrainRoutePanicRecovery(t *testing.T) {
 		sampleRate: 48000,
 	}
 
-	err := router.AddRoute("src1", panicConsumer, 48000)
+	err := router.AddRoute("src1", panicConsumer, 48000, 0.0, nil)
 	require.NoError(t, err)
 
 	// Dispatch a frame — the consumer will panic on Write.
@@ -360,4 +362,319 @@ func (c *panicOnWriteConsumer) Channels() int   { return 1 }
 func (c *panicOnWriteConsumer) Close() error    { return nil }
 func (c *panicOnWriteConsumer) Write(_ AudioFrame) error { //nolint:gocritic // hugeParam: signature required by AudioConsumer interface
 	panic("consumer exploded")
+}
+
+// TestRouter_DrainRouteAppliesGain verifies that per-route gain amplifies,
+// attenuates, or leaves audio data unchanged depending on the dB value.
+func TestRouter_DrainRouteAppliesGain(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		gainDB     float64
+		inputPCM   []int16
+		wantScaled bool // true if output should differ from input
+	}{
+		{
+			name:       "positive_gain_amplifies",
+			gainDB:     6.0,
+			inputPCM:   []int16{1000, -1000, 500, -500},
+			wantScaled: true,
+		},
+		{
+			name:       "negative_gain_attenuates",
+			gainDB:     -6.0,
+			inputPCM:   []int16{1000, -1000, 500, -500},
+			wantScaled: true,
+		},
+		{
+			name:       "zero_gain_no_change",
+			gainDB:     0.0,
+			inputPCM:   []int16{1000, -1000, 500, -500},
+			wantScaled: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			router := NewAudioRouter(GetLogger())
+			defer router.Close()
+
+			consumer := newMockConsumer("c1")
+			err := router.AddRoute("src-1", consumer, 48000, tt.gainDB, nil)
+			require.NoError(t, err)
+
+			// Build PCM byte data from int16 samples.
+			inputBytes := make([]byte, len(tt.inputPCM)*2)
+			for i, s := range tt.inputPCM {
+				inputBytes[i*2] = byte(s)
+				inputBytes[i*2+1] = byte(s >> 8)
+			}
+
+			router.Dispatch(AudioFrame{
+				SourceID:   "src-1",
+				SourceName: "Test",
+				Data:       inputBytes,
+				SampleRate: 48000,
+				BitDepth:   16,
+				Channels:   1,
+			})
+
+			var received AudioFrame
+			select {
+			case received = <-consumer.frames:
+			case <-time.After(2 * time.Second):
+				t.Fatal("timed out waiting for frame")
+			}
+
+			if tt.wantScaled {
+				assert.NotEqual(t, inputBytes, received.Data,
+					"gain %.1f dB should change the audio data", tt.gainDB)
+			} else {
+				assert.Equal(t, inputBytes, received.Data,
+					"0 dB gain should leave audio data unchanged")
+			}
+		})
+	}
+}
+
+// TestRouter_GainClipping verifies that high gain correctly clips signals
+// to the int16 range rather than producing corrupted output.
+func TestRouter_GainClipping(t *testing.T) {
+	t.Parallel()
+
+	router := NewAudioRouter(GetLogger())
+	defer router.Close()
+
+	consumer := newMockConsumer("c1")
+	// +40 dB is 100x linear — will clip a signal near max.
+	err := router.AddRoute("src-1", consumer, 48000, 40.0, nil)
+	require.NoError(t, err)
+
+	// Input: near-max signal (30000 out of 32767).
+	inputPCM := []int16{30000, -30000}
+	inputBytes := make([]byte, len(inputPCM)*2)
+	for i, s := range inputPCM {
+		inputBytes[i*2] = byte(s)
+		inputBytes[i*2+1] = byte(s >> 8)
+	}
+
+	router.Dispatch(AudioFrame{
+		SourceID:   "src-1",
+		SourceName: "Test",
+		Data:       inputBytes,
+		SampleRate: 48000,
+		BitDepth:   16,
+		Channels:   1,
+	})
+
+	var received AudioFrame
+	select {
+	case received = <-consumer.frames:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for frame")
+	}
+
+	// Verify output is clipped to max int16 range, not corrupted.
+	require.Len(t, received.Data, 4)
+	sample0 := int16(received.Data[0]) | int16(received.Data[1])<<8
+	sample1 := int16(received.Data[2]) | int16(received.Data[3])<<8
+
+	// Float64ToBytesPCM16 clamps to [-1.0, 1.0] before conversion,
+	// so output should be at or near ±32767.
+	assert.InDelta(t, 32767, int(sample0), 1, "positive sample should clip to max")
+	assert.InDelta(t, -32767, int(sample1), 1, "negative sample should clip to min")
+}
+
+// TestRouter_AddRouteWithGain verifies that AddRoute correctly converts
+// a dB gain value to the corresponding linear multiplier and stores it
+// on the Route.
+func TestRouter_AddRouteWithGain(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name       string
+		gainDB     float64
+		wantLinear float64
+	}{
+		{"zero_dB_no_change", 0.0, 1.0},
+		{"positive_6dB", 6.0, 1.9953},
+		{"negative_6dB", -6.0, 0.5012},
+		{"max_40dB", 40.0, 100.0},
+		{"min_neg40dB", -40.0, 0.01},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			router := NewAudioRouter(GetLogger())
+			t.Cleanup(func() { router.Close() })
+			consumer := newMockConsumer("c1")
+			err := router.AddRoute("src-1", consumer, 48000, tt.gainDB, nil)
+			require.NoError(t, err)
+			router.mu.RLock()
+			routes := router.routes["src-1"]
+			require.Len(t, routes, 1)
+			assert.InDelta(t, tt.wantLinear, routes[0].gainLinear, 0.01)
+			router.mu.RUnlock()
+		})
+	}
+}
+
+func TestRouter_UpdateFilterChain(t *testing.T) {
+	t.Parallel()
+	router := NewAudioRouter(GetLogger())
+	t.Cleanup(func() { router.Close() })
+
+	consumer := newMockConsumer("c1")
+	require.NoError(t, router.AddRoute("src-1", consumer, 48000, 0.0, nil))
+
+	// Initially nil.
+	router.mu.RLock()
+	routes := router.routes["src-1"]
+	require.Len(t, routes, 1)
+	assert.Nil(t, routes[0].filterChain.Load(), "initial chain should be nil")
+	router.mu.RUnlock()
+
+	// Build a chain via builder and update.
+	router.UpdateFilterChain("src-1", func(sampleRate int) *equalizer.FilterChain {
+		chain := equalizer.NewFilterChain()
+		hp, hpErr := equalizer.NewHighPass(float64(sampleRate), 100, 0.707, 1)
+		require.NoError(t, hpErr)
+		require.NoError(t, chain.AddFilter(hp))
+		return chain
+	})
+
+	router.mu.RLock()
+	routes = router.routes["src-1"]
+	loaded := routes[0].filterChain.Load()
+	assert.NotNil(t, loaded, "chain should be set after update")
+	assert.Equal(t, 1, loaded.Length())
+	router.mu.RUnlock()
+
+	// Update to nil (disable EQ).
+	router.UpdateFilterChain("src-1", func(_ int) *equalizer.FilterChain {
+		return nil
+	})
+
+	router.mu.RLock()
+	routes = router.routes["src-1"]
+	assert.Nil(t, routes[0].filterChain.Load(), "chain should be nil after disable")
+	router.mu.RUnlock()
+}
+
+// TestRouter_ApplyProcessing_EQOnly verifies that a frame is filtered by the
+// EQ chain when gain is unity (1.0) and a filter chain is set.
+func TestRouter_ApplyProcessing_EQOnly(t *testing.T) {
+	t.Parallel()
+	router := NewAudioRouter(GetLogger())
+	t.Cleanup(func() { router.Close() })
+
+	consumer := newMockConsumer("c1")
+
+	// Build a HighPass at 8000 Hz — should strongly attenuate a 100 Hz tone.
+	chain := equalizer.NewFilterChain()
+	hp, err := equalizer.NewHighPass(48000, 8000, 0.707, 2)
+	require.NoError(t, err)
+	require.NoError(t, chain.AddFilter(hp))
+
+	require.NoError(t, router.AddRoute("src-eq", consumer, 48000, 0.0, chain))
+
+	// Generate a 100 Hz sine wave as 16-bit PCM (480 samples = 10ms at 48kHz).
+	const numSamples = 480
+	input := make([]byte, numSamples*2)
+	for i := range numSamples {
+		// 100 Hz sine at ~50% amplitude.
+		val := int16(16000 * math.Sin(2*math.Pi*100*float64(i)/48000))
+		input[i*2] = byte(val)
+		input[i*2+1] = byte(val >> 8)
+	}
+
+	frame := AudioFrame{
+		SourceID:   "src-eq",
+		SourceName: "test",
+		Data:       input,
+		SampleRate: 48000,
+		BitDepth:   16,
+		Channels:   1,
+	}
+	router.Dispatch(frame)
+
+	// Wait for the consumer to receive the filtered frame.
+	var received AudioFrame
+	select {
+	case received = <-consumer.frames:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for filtered frame")
+	}
+
+	// The 100 Hz signal should be heavily attenuated by the 8 kHz highpass.
+	inputRMS := rmsOfPCM16(input)
+	outputRMS := rmsOfPCM16(received.Data)
+	assert.Less(t, outputRMS, inputRMS*0.1,
+		"8 kHz highpass should attenuate 100 Hz signal by >90%%")
+}
+
+// TestRouter_ApplyProcessing_EQAndGain verifies that EQ and gain are both
+// applied in a single conversion pass.
+func TestRouter_ApplyProcessing_EQAndGain(t *testing.T) {
+	t.Parallel()
+	router := NewAudioRouter(GetLogger())
+	t.Cleanup(func() { router.Close() })
+
+	consumer := newMockConsumer("c1")
+
+	// Use a simple LowPass that passes a 100 Hz signal, combined with +6 dB gain.
+	chain := equalizer.NewFilterChain()
+	lp, err := equalizer.NewLowPass(48000, 15000, 0.707, 1)
+	require.NoError(t, err)
+	require.NoError(t, chain.AddFilter(lp))
+
+	require.NoError(t, router.AddRoute("src-both", consumer, 48000, 6.0, chain))
+
+	// 100 Hz sine, well below the 15kHz cutoff — should pass through LowPass.
+	const numSamples = 480
+	input := make([]byte, numSamples*2)
+	for i := range numSamples {
+		val := int16(8000 * math.Sin(2*math.Pi*100*float64(i)/48000))
+		input[i*2] = byte(val)
+		input[i*2+1] = byte(val >> 8)
+	}
+
+	frame := AudioFrame{
+		SourceID:   "src-both",
+		SourceName: "test",
+		Data:       input,
+		SampleRate: 48000,
+		BitDepth:   16,
+		Channels:   1,
+	}
+	router.Dispatch(frame)
+
+	var received AudioFrame
+	select {
+	case received = <-consumer.frames:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for processed frame")
+	}
+
+	// Signal passes through LowPass mostly unchanged, then +6 dB ≈ 2x amplitude.
+	inputRMS := rmsOfPCM16(input)
+	outputRMS := rmsOfPCM16(received.Data)
+	assert.InDelta(t, inputRMS*2.0, outputRMS, inputRMS*0.5,
+		"output should be ~2x input (6 dB gain) after passing through LowPass")
+}
+
+// rmsOfPCM16 computes the RMS of 16-bit little-endian PCM samples.
+func rmsOfPCM16(data []byte) float64 {
+	n := len(data) / 2
+	if n == 0 {
+		return 0
+	}
+	var sumSq float64
+	for i := range n {
+		sample := float64(int16(data[i*2]) | int16(data[i*2+1])<<8)
+		sumSq += sample * sample
+	}
+	return math.Sqrt(sumSq / float64(n))
 }

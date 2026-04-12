@@ -134,6 +134,7 @@ func (r *SourceRegistry) Register(cfg *SourceConfig) (*AudioSource, error) {
 		SampleRate:   cfg.SampleRate,
 		BitDepth:     cfg.BitDepth,
 		Channels:     cfg.Channels,
+		Gain:         cfg.Gain,
 		State:        SourceInactive,
 		RegisteredAt: time.Now(),
 		LastSeen:     time.Now(),
@@ -236,6 +237,31 @@ func (r *SourceRegistry) UpdateState(sourceID string, state SourceState) error {
 
 	r.notify(SourceEvent{Type: SourceStateChanged, SourceID: sourceID, Source: snapshot})
 	return nil
+}
+
+// UpdateGain updates the Gain field of the source with the given ID.
+// Returns false if the source does not exist.
+func (r *SourceRegistry) UpdateGain(sourceID string, gain float64) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	src, ok := r.sources[sourceID]
+	if !ok {
+		return false
+	}
+	src.Gain = gain
+	return true
+}
+
+// GetGain returns the current gain (in dB) for the given source, under
+// the registry read lock. Returns 0.0 and false if the source does not exist.
+func (r *SourceRegistry) GetGain(sourceID string) (float64, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	src, ok := r.sources[sourceID]
+	if !ok {
+		return 0.0, false
+	}
+	return src.Gain, true
 }
 
 // AddListener registers a callback that is called for every SourceEvent.

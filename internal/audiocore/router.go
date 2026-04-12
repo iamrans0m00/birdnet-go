@@ -4,10 +4,13 @@ package audiocore
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/tphakala/birdnet-go/internal/audiocore/convert"
+	"github.com/tphakala/birdnet-go/internal/audiocore/equalizer"
 	"github.com/tphakala/birdnet-go/internal/audiocore/resample"
 	"github.com/tphakala/birdnet-go/internal/errors"
 	"github.com/tphakala/birdnet-go/internal/logger"
@@ -46,9 +49,18 @@ type Route struct {
 	// sourceSampleRate is the sample rate of the source producing frames.
 	sourceSampleRate int
 
+	// gainLinear is the linear gain multiplier derived from the dB value.
+	// 1.0 means no gain (0 dB). Set at route creation time and immutable.
+	gainLinear float64
+
 	// resampler converts source-rate PCM to the consumer's expected rate.
 	// Nil when no rate conversion is required.
 	resampler *resample.Resampler
+
+	// filterChain holds the current EQ filter chain for this route.
+	// Accessed atomically so it can be swapped without rebuilding the route.
+	// Nil means no EQ filtering is applied.
+	filterChain atomic.Pointer[equalizer.FilterChain]
 
 	// inbox is the bounded channel between Dispatch and the drainer goroutine.
 	inbox chan AudioFrame
@@ -121,7 +133,7 @@ func NewAudioRouter(log logger.Logger) *AudioRouter {
 // the consumer ID for logging, metrics, and route lookup. Duplicate IDs on
 // different sources will not cause an error but may produce confusing log
 // output and make RemoveRoute ambiguous.
-func (r *AudioRouter) AddRoute(sourceID string, consumer AudioConsumer, sourceSampleRate int) error {
+func (r *AudioRouter) AddRoute(sourceID string, consumer AudioConsumer, sourceSampleRate int, gainDB float64, filterChain *equalizer.FilterChain) error {
 	// Reject routes after the router has been closed.
 	if r.ctx.Err() != nil {
 		return fmt.Errorf("router is closed: %w", r.ctx.Err())
@@ -138,14 +150,25 @@ func (r *AudioRouter) AddRoute(sourceID string, consumer AudioConsumer, sourceSa
 		return fmt.Errorf("%w: source=%s consumer=%s", ErrRouteExists, sourceID, consumer.ID())
 	}
 
+	// Reject NaN/Inf gain values before conversion.
+	if math.IsNaN(gainDB) || math.IsInf(gainDB, 0) {
+		return fmt.Errorf("invalid gain value for source=%s consumer=%s: %f", sourceID, consumer.ID(), gainDB)
+	}
+
+	// Convert dB to linear gain. 0 dB -> 1.0 (no change).
+	gainLinear := math.Pow(10, gainDB/20)
+
 	route := &Route{
 		SourceID:         sourceID,
 		Consumer:         consumer,
 		sourceSampleRate: sourceSampleRate,
+		gainLinear:       gainLinear,
 		inbox:            make(chan AudioFrame, routeInboxCapacity),
 		done:             make(chan struct{}),
 		stopped:          make(chan struct{}),
 	}
+
+	route.filterChain.Store(filterChain)
 
 	// Create a resampler when the source and consumer rates differ.
 	if sourceSampleRate != consumer.SampleRate() {
@@ -218,6 +241,24 @@ func (r *AudioRouter) RemoveAllRoutes(sourceID string) {
 		r.log.Info("all routes removed",
 			logger.String("source_id", sourceID),
 			logger.Int("count", len(routes)))
+	}
+}
+
+// FilterChainBuilder creates a FilterChain for a given sample rate.
+// Used by UpdateFilterChain to build per-route chains with correct
+// coefficients and independent biquad state (avoiding data races).
+type FilterChainBuilder func(sampleRate int) *equalizer.FilterChain
+
+// UpdateFilterChain atomically replaces the EQ filter chain for every route
+// on the given source. The builder is called once per route with the route's
+// consumer sample rate, producing a fresh chain with independent biquad state.
+// The drainer goroutine picks up the new chain on the next frame.
+func (r *AudioRouter) UpdateFilterChain(sourceID string, build FilterChainBuilder) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, rt := range r.routes[sourceID] {
+		rt.filterChain.Store(build(rt.Consumer.SampleRate()))
 	}
 }
 
@@ -428,6 +469,16 @@ func (r *AudioRouter) drainRoute(route *Route) {
 					Timestamp:  frame.Timestamp,
 				}
 			}
+			// Apply per-route EQ filtering and/or gain adjustment.
+			// Both require 16-bit PCM; skip for other formats.
+			chain := route.filterChain.Load()
+			if frame.BitDepth == 16 && (chain != nil || route.gainLinear != 1.0) {
+				processed, err := r.applyProcessing(frame, route, chain)
+				if err != nil {
+					continue
+				}
+				frame = processed
+			}
 			if err := route.Consumer.Write(frame); err != nil {
 				errCount := route.errors.Add(1)
 				if errCount%errorLogInterval == 1 {
@@ -444,4 +495,43 @@ func (r *AudioRouter) drainRoute(route *Route) {
 			return
 		}
 	}
+}
+
+// applyProcessing applies EQ filtering and/or gain scaling to a frame in a
+// single float64 conversion pass. The chain may be nil (EQ disabled); gain
+// at 1.0 means no scaling. At least one must be active for this to be called.
+func (r *AudioRouter) applyProcessing(frame AudioFrame, route *Route, chain *equalizer.FilterChain) (AudioFrame, error) { //nolint:gocritic // hugeParam: AudioFrame is large but copying is intentional
+	floats := convert.BytesToFloat64PCM16(frame.Data)
+
+	// EQ first — filters operate on the original signal shape.
+	if chain != nil {
+		chain.ApplyBatch(floats)
+	}
+
+	// Gain second — scales the (possibly filtered) signal.
+	if route.gainLinear != 1.0 {
+		convert.ScaleFloat64Slice(floats, route.gainLinear)
+	}
+
+	out := make([]byte, len(floats)*2)
+	if err := convert.Float64ToBytesPCM16(floats, out); err != nil {
+		errCount := route.errors.Add(1)
+		if errCount%errorLogInterval == 1 {
+			r.log.Warn("audio processing conversion error",
+				logger.String("source_id", route.SourceID),
+				logger.String("consumer_id", route.Consumer.ID()),
+				logger.Int64("total_errors", errCount),
+				logger.Error(err))
+		}
+		return AudioFrame{}, err
+	}
+	return AudioFrame{
+		SourceID:   frame.SourceID,
+		SourceName: frame.SourceName,
+		Data:       out,
+		SampleRate: frame.SampleRate,
+		BitDepth:   frame.BitDepth,
+		Channels:   frame.Channels,
+		Timestamp:  frame.Timestamp,
+	}, nil
 }

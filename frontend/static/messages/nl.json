@@ -395,7 +395,7 @@
         "reconfiguringDynamicThresholds": "Dynamische drempels worden opnieuw geconfigureerd...",
         "webserverRestartRequired": "Webserverinstellingen gewijzigd. Herstart vereist.",
         "reconfiguringSoundLevel": "Geluidsniveaubewaking wordt bijgewerkt...",
-        "audioDeviceRestartRequired": "Audioapparaat gewijzigd. Herstart vereist.",
+        "reconfiguringAudioSources": "Audiobronnen worden opnieuw geconfigureerd...",
         "rebuildingExtendedCapture": "Filter voor uitgebreide opname wordt opnieuw opgebouwd...",
         "extendedCaptureRestartRequired": "Instellingen voor uitgebreide opname gewijzigd. Herstart vereist.",
         "equalizerUpdateFailed": "Bijwerken van audio-equalizerinstellingen mislukt",
@@ -2804,7 +2804,7 @@
       },
       "audioFilters": {
         "title": "Audiofilters",
-        "description": "Configureer audio verwerkings filters",
+        "description": "Standaard audiofilters configureren voor alle bronnen. Per-bron EQ-instellingen zijn beschikbaar in de instellingen van elke geluidskaart.",
         "enableEqualizer": "Schakel Audio Equalizer in",
         "enableEqualizerHelp": "Pas frequentie filtering toe om vogelroep detectie te verbeteren door ongewenste ruis en frequenties te verminderen.",
         "filterType": "Filtertype",

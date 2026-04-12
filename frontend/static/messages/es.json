@@ -395,7 +395,7 @@
         "reconfiguringDynamicThresholds": "Reconfigurando umbrales dinámicos...",
         "webserverRestartRequired": "Los ajustes del servidor web han cambiado. Se requiere reinicio.",
         "reconfiguringSoundLevel": "Actualizando monitorización del nivel de sonido...",
-        "audioDeviceRestartRequired": "Dispositivo de audio cambiado. Se requiere reinicio.",
+        "reconfiguringAudioSources": "Reconfigurando fuentes de audio...",
         "rebuildingExtendedCapture": "Reconstruyendo filtro de captura extendida...",
         "extendedCaptureRestartRequired": "Ajustes de captura extendida cambiados. Se requiere reinicio.",
         "equalizerUpdateFailed": "Error al actualizar los ajustes del ecualizador de audio",
@@ -2577,7 +2577,7 @@
       },
       "audioFilters": {
         "title": "Filtros de audio",
-        "description": "Configurar filtros de procesamiento de audio",
+        "description": "Configurar filtros de audio predeterminados aplicados a todas las fuentes. Los ajustes de EQ por fuente están disponibles en la configuración de cada tarjeta de sonido.",
         "enableEqualizer": "Habilitar ecualizador de audio",
         "enableEqualizerHelp": "Aplica filtrado de frecuencia para mejorar la detección de cantos de aves reduciendo el ruido no deseado y frecuencias.",
         "filterType": "Tipo de filtro",
