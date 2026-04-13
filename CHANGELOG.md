@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### 🚀 Features
 
 - _(species)_ Species Guide feature with Wikipedia-based species information, external links to All About Birds and Xeno-canto, user-authored species notes (CRUD), and similar species comparison with side-by-side descriptions
+- _(dashboard)_ Real-time bird detections in "Currently Hearing" are now clickable, allowing quick access to species guide provider information
 
 ### 🐛 Bug Fixes
 
