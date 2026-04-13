@@ -229,6 +229,8 @@ func (cm *ControlMonitor) handleControlSignal(signal string) {
 		cm.handleRecalculateDynamicThresholds()
 	case "reconfigure_dynamic_thresholds":
 		cm.handleReconfigureDynamicThresholds()
+	case "reconfigure_species_guide":
+		cm.handleReconfigureSpeciesGuide()
 	case schedule.SignalReconfigureQuietHours:
 		cm.handleReconfigureQuietHours()
 	case schedule.SignalQuietHoursStopSoundCard:
@@ -782,5 +784,60 @@ func (cm *ControlMonitor) handleQuietHoursStartSoundCard() {
 		GetLogger().Info("Quiet hours: sound card restart signal sent")
 	default:
 		GetLogger().Warn("Quiet hours: restart channel full, could not signal sound card restart")
+	}
+}
+
+// handleReconfigureSpeciesGuide reinitializes the species guide cache with updated settings.
+// This allows the settings for enabled state, provider selection, and warm-up configuration
+// to take effect without requiring a server restart.
+func (cm *ControlMonitor) handleReconfigureSpeciesGuide() {
+	GetLogger().Info("Reconfiguring species guide cache")
+
+	if cm.apiController == nil {
+		GetLogger().Error("API controller not available for species guide reconfiguration")
+		cm.notifyError("Failed to reconfigure species guide", errors.Newf("API controller not available").
+			Component("analysis").
+			Category(errors.CategoryConfiguration).
+			Context("operation", "reconfigure_species_guide").
+			Build())
+		return
+	}
+
+	settings := conf.Setting()
+	if cm.proc == nil || cm.proc.Ds == nil {
+		GetLogger().Error("Processor or datastore not available for species guide reconfiguration")
+		cm.notifyError("Failed to reconfigure species guide", errors.Newf("processor or datastore unavailable").
+			Component("analysis").
+			Category(errors.CategoryConfiguration).
+			Context("operation", "reconfigure_species_guide").
+			Build())
+		return
+	}
+
+	// Get metrics instance from processor
+	metrics := cm.proc.Metrics
+	if metrics == nil {
+		GetLogger().Error("Metrics not available for species guide reconfiguration")
+		cm.notifyError("Failed to reconfigure species guide", errors.Newf("metrics not available").
+			Component("analysis").
+			Category(errors.CategoryConfiguration).
+			Context("operation", "reconfigure_species_guide").
+			Build())
+		return
+	}
+
+	// Initialize a new guide cache with the current settings
+	newGuideCache := initGuideCacheIfNeeded(settings, cm.proc.Ds, cm.proc.Ds, metrics.GuideProvider)
+
+	// If the cache was successfully created (or is intentionally nil if feature is disabled),
+	// replace the old cache with the new one. SetGuideCache will handle closing the old cache.
+	cm.apiController.SetGuideCache(newGuideCache)
+
+	if settings.Realtime.Dashboard.SpeciesGuide.Enabled {
+		GetLogger().Info("Species guide cache reconfigured successfully")
+		cm.notifySuccess("Species guide cache reconfigured successfully")
+	} else {
+		GetLogger().Info("Species guide feature disabled")
+		cm.notifySuccess("Species guide feature disabled")
 	}
 }

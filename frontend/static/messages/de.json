@@ -3948,7 +3948,7 @@
         "description": "Artenführer konfigurieren.",
         "enabled": {
           "label": "Artenführer aktivieren",
-          "helpText": "Wikipedia-basierte Führerinhalte anzeigen."
+          "helpText": "Online-Führerinhalte anzeigen (z. B. Wikipedia oder eBird)."
         },
         "provider": {
           "label": "Datenquelle",

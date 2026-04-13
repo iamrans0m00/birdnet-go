@@ -1051,6 +1051,15 @@ type SimilarSpeciesResponse struct {
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v2/species/{scientific_name}/similar [get]
 func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
+	// Check if main species guide feature is enabled
+	if !c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
+		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
+			Category(errors.CategoryConfiguration).
+			Component("api-species").
+			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
+	}
+
+	// Check if similar species UI component is enabled
 	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowSimilarSpecies() {
 		return c.HandleError(ctx, errors.Newf("similar species feature is disabled").
 			Category(errors.CategoryConfiguration).

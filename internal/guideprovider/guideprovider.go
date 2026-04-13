@@ -6,6 +6,7 @@ import (
 	"maps"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/errors"
@@ -544,15 +545,18 @@ func mergeGuides(primary, secondary *SpeciesGuide) SpeciesGuide {
 
 // truncateDescription ensures description fits within database limits.
 // Uses maxRichDescriptionLength to accommodate identification and feature content.
+// Safely removes any partial UTF-8 rune at the end to prevent data corruption.
 func truncateDescription(desc string) string {
 	if len(desc) <= maxRichDescriptionLength {
 		return desc
 	}
-	// Truncate to limit and ensure we don't break UTF-8 sequences
 	truncated := desc[:maxRichDescriptionLength]
-	// Find the last complete UTF-8 character boundary
-	for truncated != "" && (truncated[len(truncated)-1]&0xC0) == 0x80 {
-		truncated = truncated[:len(truncated)-1]
+	// Remove any partial or invalid UTF-8 rune at the end.
+	// This handles both orphaned leading bytes (1110xxxx without continuation)
+	// and trailing continuation bytes (10xxxxxx without the lead).
+	for len(truncated) > 0 && !utf8.ValidString(truncated) {
+		_, size := utf8.DecodeLastRuneInString(truncated)
+		truncated = truncated[:len(truncated)-size]
 	}
 	return truncated
 }

@@ -20,27 +20,33 @@ All features enabled for testing:
 ```yaml
 realtime:
   dashboard:
-    speciesGuide:
+    speciesguide:
       enabled: true
       provider: wikipedia
-      fallbackPolicy: all
-      warmTopN: 10
-      preFetchEnabled: true
+      fallbackpolicy: all
+      warmtopn: 10
+      prefetchenabled: true
+      shownotes: true
+      showenrichments: true
+      showsimilarspecies: true
 ```
 
 ### Staging
 
-Notes disabled to test core functionality:
+With notes and enrichments enabled for full testing:
 
 ```yaml
 realtime:
   dashboard:
-    speciesGuide:
+    speciesguide:
       enabled: true
       provider: wikipedia
-      fallbackPolicy: all
-      warmTopN: 50
-      preFetchEnabled: true
+      fallbackpolicy: all
+      warmtopn: 50
+      prefetchenabled: true
+      shownotes: true
+      showenrichments: true
+      showsimilarspecies: true
 ```
 
 ### Production
@@ -50,13 +56,37 @@ Gradual rollout with monitoring:
 ```yaml
 realtime:
   dashboard:
-    speciesGuide:
+    speciesguide:
       enabled: true
       provider: wikipedia
-      fallbackPolicy: all
-      warmTopN: 0  # Disable warm-up to observe natural cache behavior
-      preFetchEnabled: false  # Disable pre-fetch until cache hit rate is established
+      fallbackpolicy: all
+      warmtopn: 100        # Pre-warm common species on startup
+      prefetchenabled: true # Pre-fetch guides for newly detected species
+      shownotes: true
+      showenrichments: true
+      showsimilarspecies: true
 ```
+
+## Monitoring During Rollout
+
+### Key Metrics
+
+### UI Feature Toggles
+
+Three independent toggles control which guide sections render:
+
+```yaml
+shownotes: true             # Show user-authored species notes with CRUD interface
+showenrichments: true       # Show season/expectedness badges and external links:
+                            #   - All About Birds (Cornell Lab)
+                            #   - Xeno-canto (recordings)
+showsimilarspecies: true    # Show similar species comparison modal with:
+                            #   - Scientific names
+                            #   - Side-by-side descriptions
+                            #   - Identification tips
+```
+
+**Note:** These are independent toggles. You can show notes but hide comparisons, for example.
 
 ## Monitoring During Rollout
 
@@ -64,23 +94,26 @@ realtime:
 
 | Metric | Description | Alert Threshold |
 |--------|-------------|-----------------|
-| `guidecache_hit_ratio` | Cache hit ratio (0-1) | < 0.5 after 24h |
 | `guidecache_hits_total` | Cache hits by provider/quality | N/A |
 | `guidecache_misses_total` | Cache misses by provider | Spike > 2x baseline |
-| `guidecache_wikipedia_duration_seconds` | Wikipedia API latency | > 10s p95 |
+| `guidecache_positive_entry_ratio` | Fraction of cached entries with data (0-1) | < 0.5 after warm-up |
+| `guidecache_wikipedia_duration_seconds` | Wikipedia API latency by endpoint | > 10s p95 |
 | `guidecache_db_operation_duration_seconds` | DB operation latency | > 1s p95 |
 
 ### Prometheus Query Examples
 
 ```promql
-# Cache hit ratio
+# Cache hit ratio (request-level)
 rate(guidecache_hits_total[5m]) / (rate(guidecache_hits_total[5m]) + rate(guidecache_misses_total[5m]))
+
+# Positive cache entry ratio (storage-level: % of entries with data vs not-found markers)
+guidecache_positive_entry_ratio
 
 # Wikipedia API p95 latency
 histogram_quantile(0.95, rate(guidecache_wikipedia_duration_seconds_bucket[5m]))
 
-# Cache size
-guidecache_hits_total + guidecache_misses_total
+# Total API requests by endpoint and result
+guide_cache_wikipedia_requests_total
 ```
 
 ## Troubleshooting
@@ -89,40 +122,57 @@ guidecache_hits_total + guidecache_misses_total
 
 1. Check Species Guide is enabled:
    ```bash
-   curl http://localhost:8080/api/v2/settings | jq '.realtime.dashboard.speciesGuide.enabled'
+   curl http://localhost:8080/api/v2/settings | jq '.realtime.dashboard.speciesguide.enabled'
    ```
 
-2. Check provider is configured:
+2. Check appropriate toggle is enabled:
    ```bash
-   curl http://localhost:8080/api/v2/settings | jq '.realtime.dashboard.speciesGuide.provider'
+   curl http://localhost:8080/api/v2/settings | jq '.realtime.dashboard.speciesguide'
+   ```
+   Verify `shownotes`, `showenrichments`, and/or `showsimilarspecies` are true
+
+3. Check provider is configured:
+   ```bash
+   curl http://localhost:8080/api/v2/settings | jq '.realtime.dashboard.speciesguide.provider'
    ```
 
-3. Check server logs for guide cache initialization:
+4. Check server logs for guide cache initialization:
    ```bash
-   grep -i "species guide" /var/log/birdnet.log
+   grep -i "guide" logs/api.log | head -20
    ```
 
 ### Notes not saving
 
-1. Verify storage is working:
+1. Verify `shownotes` is enabled:
    ```bash
-   curl http://localhost:8080/api/v2/prerequisites
+   curl http://localhost:8080/api/v2/settings | jq '.realtime.dashboard.speciesguide.shownotes'
    ```
 
-2. Check database has write permissions
+2. Check database has write permissions and `guide_caches` table exists
 
-3. Look for auth errors in logs
+3. Verify authentication (notes are per-user):
+   ```bash
+   curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v2/auth/status
+   ```
+
+4. Look for errors in logs:
+   ```bash
+   grep -i "error.*note" logs/api.log
+   ```
 
 ### Wikipedia errors in logs
 
 1. Check circuit breaker status:
    ```bash
-   grep -i "circuit breaker" /var/log/birdnet.log
+   grep -i "circuit breakeropen" logs/api.log
    ```
 
-2. Rate limiting: Wikipedia limits requests to 1/sec. If hitting limit, pre-fetch or reduce usage.
+2. Rate limiting: BirdNET-Go throttles to 1 request/sec per instance (by design, not required by Wikipedia). Wikipedia itself allows ~200 req/sec per IP. If you see rate limit errors, check:
+   - Wikipedia's HTTP status page for outages
+   - Circuit breaker duration (opens for 5 minutes on repeated failures)
+   - Pre-fetch cache hit ratio (enable warm-up to reduce live lookups)
 
-3. Network issues: Check DNS resolution and connectivity to wikipedia.org
+3. Network issues: Check DNS resolution and connectivity to en.wikipedia.org
 
 ## Rollback Procedure
 
@@ -132,11 +182,19 @@ guidecache_hits_total + guidecache_misses_total
    ```bash
    curl -X PATCH http://localhost:8080/api/v2/settings \
      -H "Content-Type: application/json" \
-     -d '{"realtime":{"dashboard":{"speciesGuide":{"enabled":false}}}}'
+     -d '{"realtime":{"dashboard":{"speciesguide":{"enabled":false}}}}'
    ```
 
 2. Pre-fetch and memory cache will stop immediately
 3. Database cache remains for next enable
+
+4. Or selectively disable UI components:
+   ```bash
+   # Hide similar species comparisons while keeping guides enabled
+   curl -X PATCH http://localhost:8080/api/v2/settings \
+     -H "Content-Type: application/json" \
+     -d '{"realtime":{"dashboard":{"speciesguide":{"showsimilarspecies":false}}}}'
+   ```
 
 ### Full Rollback (Requires Restart)
 
@@ -144,7 +202,7 @@ guidecache_hits_total + guidecache_misses_total
    ```yaml
    realtime:
      dashboard:
-       speciesGuide:
+       speciesguide:
          enabled: false
    ```
 
@@ -157,7 +215,7 @@ guidecache_hits_total + guidecache_misses_total
   ```sql
   SELECT pg_size_pretty(pg_total_relation_size('guide_caches'));
   ```
-- **Wikipedia API**: Rate limited to 1 request/second. Pre-fetch helps avoid misses.
+- **Wikipedia API**: BirdNET-Go enforces **1 request/second** per instance (voluntary throttle to be respectful). Wikipedia's actual limit is ~200 req/sec per IP. Pre-warming cache on startup helps avoid repeated lookups.
 
 ## Security
 

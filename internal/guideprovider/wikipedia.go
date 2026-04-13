@@ -37,7 +37,7 @@ const (
 	sectionVoice         = "Voice"
 
 	// Multi-language section heading constants shared across locale maps.
-	sectionNameVoz = "Voz"  // Spanish/Portuguese for "Voice"
+	sectionNameVoz      = "Voz"  // Spanish/Portuguese for "Voice"
 	sectionNameOpisLang = "Opis" // Polish/Slovak for "Description"
 
 	// User-Agent following Wikimedia policy
@@ -63,7 +63,7 @@ const (
 	WikiResultSuccess   = "success"
 	WikiResultNotFound  = "not_found"
 	WikiResultRateLimit = "rate_limited"
-	WikiResultError    = "error"
+	WikiResultError     = "error"
 )
 
 // identificationSections lists English Wikipedia section headings that contain
@@ -193,7 +193,7 @@ func wikipediaURLs(locale string) (restBase, actionAPI string) {
 
 // wikipediaSummaryResponse represents the Wikipedia REST API summary response.
 type wikipediaSummaryResponse struct {
-	Type        string `json:"type"`    // "standard", "disambiguation", "no-extract", etc.
+	Type        string `json:"type"` // "standard", "disambiguation", "no-extract", etc.
 	Title       string `json:"title"`
 	Extract     string `json:"extract"` // Plain text summary
 	ContentURLs struct {
@@ -236,9 +236,9 @@ func NewWikipediaGuideProvider() *WikipediaGuideProvider {
 // NewWikipediaGuideProviderWithMetrics creates a new WikipediaGuideProvider with metrics.
 func NewWikipediaGuideProviderWithMetrics(metrics GuideCacheMetrics) *WikipediaGuideProvider {
 	transport := &http.Transport{
-		MaxIdleConns:        10,
-		IdleConnTimeout:     wikiIdleConnTimeout,
-		DisableCompression:  false,
+		MaxIdleConns:       10,
+		IdleConnTimeout:    wikiIdleConnTimeout,
+		DisableCompression: false,
 	}
 
 	return &WikipediaGuideProvider{
@@ -247,7 +247,7 @@ func NewWikipediaGuideProviderWithMetrics(metrics GuideCacheMetrics) *WikipediaG
 			Transport: transport,
 		},
 		limiter: rate.NewLimiter(rate.Limit(wikiRateLimitPerSec), 1),
-		metrics:  metrics,
+		metrics: metrics,
 	}
 }
 
@@ -368,19 +368,19 @@ func (p *WikipediaGuideProvider) buildRichDescription(ctx context.Context, title
 func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title, locale string) (*wikipediaSummaryResponse, error) {
 	start := time.Now()
 	var fetchErr error
-		defer func() {
-			if p.metrics != nil {
-				result := WikiResultSuccess
-				if fetchErr != nil {
-					if errors.Is(fetchErr, ErrGuideNotFound) {
-						result = WikiResultNotFound
-					} else {
-						result = WikiResultError
-					}
+	defer func() {
+		if p.metrics != nil {
+			result := WikiResultSuccess
+			if fetchErr != nil {
+				if errors.Is(fetchErr, ErrGuideNotFound) {
+					result = WikiResultNotFound
+				} else {
+					result = WikiResultError
 				}
-				p.metrics.RecordWikipediaAPICall("summary", result, time.Since(start).Seconds())
 			}
-		}()
+			p.metrics.RecordWikipediaAPICall("summary", result, time.Since(start).Seconds())
+		}
+	}()
 
 	restBase, _ := wikipediaURLs(locale)
 	baseURL := restBase
@@ -403,7 +403,10 @@ func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title, locale
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		fetchErr = err
-		p.tripCircuitBreaker(cbNetworkDuration, "network error: "+err.Error())
+		// Don't trip circuit breaker for context cancellations (caller timeout) — only for actual provider errors
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+			p.tripCircuitBreaker(cbNetworkDuration, "network error: "+err.Error())
+		}
 		return nil, errors.Newf("HTTP request failed: %w", err).
 			Component("guideprovider").
 			Category(errors.CategoryNetwork).
@@ -509,7 +512,10 @@ func (p *WikipediaGuideProvider) fetchFullExtract(ctx context.Context, title, lo
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		fetchErr = err
-		p.tripCircuitBreaker(cbNetworkDuration, "extract network error: "+err.Error())
+		// Don't trip circuit breaker for context cancellations (caller timeout) — only for actual provider errors
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+			p.tripCircuitBreaker(cbNetworkDuration, "extract network error: "+err.Error())
+		}
 		return "", errors.Newf("extract HTTP request failed: %w", err).
 			Component("guideprovider").
 			Category(errors.CategoryNetwork).
