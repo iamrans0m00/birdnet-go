@@ -574,7 +574,8 @@
     "currentlyHearing": {
       "title": "Ouvindo agora",
       "subtitle": "Espécies identificadas em tempo real",
-      "empty": "Tudo calmo — nenhuma ave detectada no momento"
+      "empty": "Tudo calmo — nenhuma ave detectada no momento",
+      "viewGuide": "Ver guia para {species}"
     },
     "rejected": "Rejeitado",
     "dailySummary": {

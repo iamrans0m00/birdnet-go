@@ -574,7 +574,8 @@
     "currentlyHearing": {
       "title": "Aktualnie słychać",
       "subtitle": "Gatunki identyfikowane w czasie rzeczywistym",
-      "empty": "Cisza — nie wykryto żadnych ptaków w tej chwili"
+      "empty": "Cisza — nie wykryto żadnych ptaków w tej chwili",
+      "viewGuide": "Wyświetl przewodnik dla {species}"
     },
     "rejected": "Odrzucone",
     "dailySummary": {

@@ -574,7 +574,8 @@
     "currentlyHearing": {
       "title": "En écoute",
       "subtitle": "Espèces identifiées en temps réel",
-      "empty": "Tout est calme — aucun oiseau détecté pour le moment"
+      "empty": "Tout est calme — aucun oiseau détecté pour le moment",
+      "viewGuide": "Voir le guide pour {species}"
     },
     "rejected": "Rejeté",
     "dailySummary": {

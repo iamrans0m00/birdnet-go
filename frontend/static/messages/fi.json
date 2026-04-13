@@ -574,7 +574,8 @@
     "currentlyHearing": {
       "title": "Kuunnellaan nyt",
       "subtitle": "Lajeja tunnistetaan reaaliajassa",
-      "empty": "Kaikki hiljaista — lintuja ei havaittu juuri nyt"
+      "empty": "Kaikki hiljaista — lintuja ei havaittu juuri nyt",
+      "viewGuide": "Näytä opas lajille {species}"
     },
     "rejected": "Hylätty",
     "dailySummary": {

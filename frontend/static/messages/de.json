@@ -574,7 +574,8 @@
     "currentlyHearing": {
       "title": "Gerade gehört",
       "subtitle": "Arten werden in Echtzeit identifiziert",
-      "empty": "Alles ruhig — derzeit keine Vögel erkannt"
+      "empty": "Alles ruhig — derzeit keine Vögel erkannt",
+      "viewGuide": "Anleitung für {species} anzeigen"
     },
     "rejected": "Abgelehnt",
     "dailySummary": {
