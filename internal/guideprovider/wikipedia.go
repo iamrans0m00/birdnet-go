@@ -404,7 +404,8 @@ func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title, locale
 	if err != nil {
 		fetchErr = err
 		// Don't trip circuit breaker for context cancellations (caller timeout) — only for actual provider errors
-		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+		// If ctx.Err() == nil and we get DeadlineExceeded, it's the internal client timeout (provider is slow) → trip the breaker
+		if !errors.Is(err, context.Canceled) && ctx.Err() == nil {
 			p.tripCircuitBreaker(cbNetworkDuration, "network error: "+err.Error())
 		}
 		return nil, errors.Newf("HTTP request failed: %w", err).
@@ -513,7 +514,8 @@ func (p *WikipediaGuideProvider) fetchFullExtract(ctx context.Context, title, lo
 	if err != nil {
 		fetchErr = err
 		// Don't trip circuit breaker for context cancellations (caller timeout) — only for actual provider errors
-		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) && ctx.Err() == nil {
+		// If ctx.Err() == nil and we get DeadlineExceeded, it's the internal client timeout (provider is slow) → trip the breaker
+		if !errors.Is(err, context.Canceled) && ctx.Err() == nil {
 			p.tripCircuitBreaker(cbNetworkDuration, "extract network error: "+err.Error())
 		}
 		return "", errors.Newf("extract HTTP request failed: %w", err).
