@@ -1,0 +1,141 @@
+name: Bug Report
+description: Report a bug or unexpected behaviour in BirdNET-Go
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report.
+
+        Before submitting, please make sure:
+        1. You are running the latest release: https://github.com/tphakala/birdnet-go/releases
+        2. You have searched existing issues (open and closed) for duplicates.
+
+        **Bug reports with missing required information will be closed without investigation** — without the details below it is not possible to debug the issue.
+
+  - type: input
+    id: version
+    attributes:
+      label: BirdNET-Go version / build date
+      description: |
+        Run `./birdnet-go` or copy from the web UI (Settings > About). Expected format: `BirdNET-Go build date: YYYY-MM-DDTHH:MM:SSZ ...`
+      placeholder: "e.g. BirdNET-Go build date: 2026-04-10T08:15:00Z"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: Install method
+      options:
+        - Docker (ghcr.io/tphakala/birdnet-go)
+        - Docker (tphakala/birdnet-go Docker Hub)
+        - Native binary (install.sh)
+        - Native binary (downloaded release)
+        - Built from source
+        - Other (describe in Additional context)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device_type
+    attributes:
+      label: Device type
+      options:
+        - Raspberry Pi 3
+        - Raspberry Pi 4
+        - Raspberry Pi 5
+        - Raspberry Pi Zero 2 W
+        - Other SBC (describe in Additional context)
+        - PC / Server (x86_64)
+        - PC / Server (ARM64)
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and version
+      placeholder: "e.g. Raspberry Pi OS Bookworm 64-bit, Ubuntu 24.04, Debian 12"
+    validations:
+      required: true
+
+  - type: textarea
+    id: hardware
+    attributes:
+      label: Hardware details
+      description: RAM, storage type/size, audio capture device, any other relevant peripherals.
+      placeholder: |
+        - RAM: 4 GB
+        - Storage: 64 GB microSD
+        - Audio input: USB soundcard [brand/model]
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can I reproduce the problem?
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What happens instead? Paste any error messages exactly as they appear.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: |
+        Paste logs from around the time the bug occurred. Remove or redact anything private (IPs, hostnames, credentials, API keys).
+      render: shell
+
+  - type: textarea
+    id: rtsp
+    attributes:
+      label: RTSP source (only if the bug is RTSP related)
+      description: Exact make and model of the camera/NVR providing the RTSP stream.
+      placeholder: "Make / Model / Firmware, and the RTSP URL path pattern (redact host/credentials)"
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Pre-submission checks
+      options:
+        - label: I am running the latest release or have tested with the `:dev` container image.
+          required: true
+        - label: I have searched existing open and closed issues and this does not appear to be a duplicate.
+          required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that might help (custom config, unusual network setup, recent changes).
