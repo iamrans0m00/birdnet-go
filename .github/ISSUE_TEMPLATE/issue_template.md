@@ -6,6 +6,9 @@ labels: ""
 assignees: ""
 ---
 
+> [!IMPORTANT]
+> **Bug reports that do not fill in this issue template will be closed without investigation.** Without the requested information (version, OS, hardware, logs, steps to reproduce) it is impossible to debug or troubleshoot the issue. Please take the time to fill out every relevant section below.
+
 1. Please check that you are running latest release available at https://github.com/tphakala/birdnet-go/releases
 2. Please fill in this issue template in as detail as possible
 
