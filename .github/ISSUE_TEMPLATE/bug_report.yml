@@ -28,11 +28,14 @@ body:
     id: install_method
     attributes:
       label: Install method
+      description: |
+        Note: `install.sh` installs BirdNET-Go as a Docker container managed by a systemd service. It is NOT a native binary install.
       options:
-        - Docker (ghcr.io/tphakala/birdnet-go)
-        - Docker (tphakala/birdnet-go Docker Hub)
-        - Native binary (install.sh)
-        - Native binary (downloaded release)
+        - Docker via install.sh (recommended installer script)
+        - Docker run / docker-compose (manual, ghcr.io/tphakala/birdnet-go)
+        - Docker run / docker-compose (manual, Docker Hub tphakala/birdnet-go)
+        - Podman / rootless container
+        - Native binary (downloaded release, no container)
         - Built from source
         - Other (describe in Additional context)
     validations:
