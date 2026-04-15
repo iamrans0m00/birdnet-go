@@ -34,17 +34,15 @@ const (
 	// Endpoints
 	sseEndpoint = "/api/v2/notifications/stream"
 
+	// SSE event names.
+	sseEventConnected = "connected" // Initial handshake event name emitted to every subscriber.
+
 	// Buffer sizes
 	notificationChannelBuffer = 10 // Buffer size for notification channels
 
 	// Rate limits
 	rateLimitRequestsPerWindow = 10 // Maximum requests per rate limit window for notifications (increased from 1 to match other SSE endpoints)
 	rateLimitBurst             = 15 // Rate limit burst allowance (increased to handle quick navigation)
-
-	// guestUnreadCountPageSize is the page size used when counting unread
-	// detection notifications for unauthenticated dashboard viewers. Avoids
-	// the magic 1000 cap while keeping per-iteration memory bounded.
-	guestUnreadCountPageSize = 500
 )
 
 // Test notification constants
@@ -448,7 +446,7 @@ func (c *Controller) setupNotificationSSEClient(ctx echo.Context) (*Notification
 	}
 
 	// Send initial connection message
-	if err := c.sendSSEMessage(ctx, "connected", map[string]string{
+	if err := c.sendSSEMessage(ctx, sseEventConnected, map[string]string{
 		"clientId": clientID,
 		"message":  "Connected to notification stream",
 	}); err != nil {
@@ -457,7 +455,7 @@ func (c *Controller) setupNotificationSSEClient(ctx echo.Context) (*Notification
 	}
 
 	if c.metrics != nil && c.metrics.HTTP != nil {
-		c.metrics.HTTP.RecordSSEMessageSent(sseEndpoint, "connected")
+		c.metrics.HTTP.RecordSSEMessageSent(sseEndpoint, sseEventConnected)
 	}
 
 	// Log the connection
@@ -858,38 +856,17 @@ func (c *Controller) GetUnreadCount(ctx echo.Context) error {
 	service := notification.GetService()
 
 	if c.isGuestNotificationRequest(ctx) {
-		// Count unread detection non-toast notifications only. Paginate
-		// through service.List rather than relying on a single large Limit
-		// so the count is exact even if a user has thousands of unread
-		// detections. Toasts are excluded defensively (see processNotifi-
-		// cationEvent): today they are never TypeDetection, but guarding
-		// here avoids a regression if that changes.
-		total := 0
-		offset := 0
-		for {
-			notifications, err := service.List(&notification.FilterOptions{
-				Types:  []notification.Type{notification.TypeDetection},
-				Status: []notification.Status{notification.StatusUnread},
-				Limit:  guestUnreadCountPageSize,
-				Offset: offset,
-			})
-			if err != nil {
-				c.logErrorIfEnabled("failed to list detection notifications for guest count", logger.Error(err))
-				return c.HandleError(ctx, err, "Failed to get unread count", http.StatusInternalServerError)
-			}
-			for _, n := range notifications {
-				if n == nil {
-					continue
-				}
-				if isToast, _ := n.Metadata[notification.MetadataKeyIsToast].(bool); isToast {
-					continue
-				}
-				total++
-			}
-			if len(notifications) < guestUnreadCountPageSize {
-				break
-			}
-			offset += guestUnreadCountPageSize
+		// Count unread detection non-toast notifications only. The store's
+		// matchesFilter excludes toast-flagged entries, so no explicit toast
+		// filter is needed here. service.Count avoids allocating a result
+		// slice, which matters when NotificationBell polls this endpoint.
+		total, err := service.Count(&notification.FilterOptions{
+			Types:  []notification.Type{notification.TypeDetection},
+			Status: []notification.Status{notification.StatusUnread},
+		})
+		if err != nil {
+			c.logErrorIfEnabled("failed to count detection notifications for guest", logger.Error(err))
+			return c.HandleError(ctx, err, "Failed to get unread count", http.StatusInternalServerError)
 		}
 		return ctx.JSON(http.StatusOK, map[string]any{
 			"unreadCount": total,
