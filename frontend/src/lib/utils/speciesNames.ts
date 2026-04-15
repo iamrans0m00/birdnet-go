@@ -6,10 +6,22 @@
  * (nameMaps struct with common and species maps).
  */
 
-/** Shape of a species entry from /api/v2/species/all */
+/**
+ * Shape of a species entry from /api/v2/species/all.
+ *
+ * The canonical endpoint (`RangeFilterSpecies` in internal/api/v2/range.go)
+ * serialises as camelCase. A few other species-related Go structs
+ * (e.g. `SpeciesInfo`) use snake_case tags, so this interface accepts both
+ * key shapes defensively. Callers should not rely on snake_case from
+ * `/api/v2/species/all` specifically, but the fallback keeps us safe if
+ * a different species endpoint is ever plumbed through this helper.
+ */
 export interface SpeciesApiEntry {
   commonName?: string;
   scientificName?: string;
+  // Fallback snake_case keys for endpoints that serialise in that style.
+  common_name?: string;
+  scientific_name?: string;
   label: string;
 }
 
@@ -39,8 +51,10 @@ export function buildSpeciesNameMaps(species: SpeciesApiEntry[]): SpeciesNameMap
   const namesSet = new Set<string>();
 
   for (const s of species) {
-    const commonName = s.commonName ?? s.label;
-    const scientificName = s.scientificName ?? '';
+    // Prefer camelCase (the canonical shape for /api/v2/species/all); fall
+    // back to snake_case, then to the combined `label` for common name only.
+    const commonName = s.commonName ?? s.common_name ?? s.label;
+    const scientificName = s.scientificName ?? s.scientific_name ?? '';
 
     // Always add common name to allNames for autocomplete, even without scientific name
     if (commonName) {
@@ -104,6 +118,40 @@ export function resolveSpeciesDisplayNames(
     displayCommonName: storedValue,
     displayScientificName: '',
   };
+}
+
+/**
+ * Resolve a free-text species query (common name or scientific name) to a
+ * scientific name suitable for the backend search filter, using a prebuilt
+ * species name map (derived from /api/v2/species/all, which follows the
+ * BirdNET label locale).
+ *
+ * Behavior:
+ *   - Empty input returns empty string.
+ *   - If a common name exactly matches (case-insensitive), returns the matching
+ *     scientific name.
+ *   - Otherwise the input passes through unchanged so the backend can run its
+ *     own partial scientific-name match (e.g. "Turdus" matching multiple
+ *     species). We deliberately do not collapse ambiguous partial common-name
+ *     fragments like "owl" to a single arbitrary scientific name; that would
+ *     hide other matches behind whichever entry happened to be inserted first
+ *     in the underlying Map.
+ */
+export function resolveSpeciesQuery(input: string, maps: SpeciesNameMaps | null): string {
+  const trimmed = input.trim();
+  if (!trimmed) return '';
+  if (!maps) return trimmed;
+
+  const lower = trimmed.toLowerCase();
+
+  // Exact common-name hit wins.
+  const exactCommon = maps.commonToScientific.get(lower);
+  if (exactCommon !== undefined) return exactCommon;
+
+  // Anything else (looks-like-scientific input, exact scientific match,
+  // ambiguous partial fragment, unknown text) passes through verbatim so
+  // the backend's LIKE match on scientific_name keeps working.
+  return trimmed;
 }
 
 /**
