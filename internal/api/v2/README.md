@@ -156,15 +156,15 @@ Lightweight connectivity check. Returns a minimal response with no database quer
 
 | Method | Route                              | Handler                            | Auth | Description                                                                                                                                                   |
 | ------ | ---------------------------------- | ---------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/notifications/stream`            | `StreamNotifications`              | ✅⚡ | SSE notification & toast stream (authenticated)                                                                                                               |
-| GET    | `/notifications`                   | `GetNotifications`                 | ✅   | List notifications                                                                                                                                            |
+| GET    | `/notifications/stream`            | `StreamNotifications`              | ❌⚡ | SSE notification & toast stream (public read-only, rate-limited). Used by dashboard NotificationBell.                                                         |
+| GET    | `/notifications`                   | `GetNotifications`                 | ❌   | List notifications (public read-only). Used by dashboard NotificationBell.                                                                                    |
 | GET    | `/notifications/:id`               | `GetNotification`                  | ✅   | Get specific notification                                                                                                                                     |
 | PUT    | `/notifications/:id/read`          | `MarkNotificationRead`             | ✅   | Mark notification as read                                                                                                                                     |
 | PUT    | `/notifications/:id/acknowledge`   | `MarkNotificationAcknowledged`     | ✅   | Acknowledge notification                                                                                                                                      |
 | DELETE | `/notifications/:id`               | `DeleteNotification`               | ✅   | Delete notification                                                                                                                                           |
-| GET    | `/notifications/unread/count`      | `GetUnreadCount`                   | ✅   | Count unread notifications                                                                                                                                    |
+| GET    | `/notifications/unread/count`      | `GetUnreadCount`                   | ❌   | Count unread notifications (public read-only). Used by dashboard NotificationBell.                                                                            |
 | POST   | `/notifications/test/new-species`  | `CreateTestNewSpeciesNotification` | ✅   | Create test new-species notification                                                                                                                          |
-| GET    | `/notifications/check-ntfy-server` | `CheckNtfyServer`                  | ✅   | Probe NTFY host for HTTPS/HTTP connectivity. Query: `host=<hostname[:port]>`. Response: `{"recommended":"https\|http\|unreachable","https":bool,"http":bool}` |
+| GET    | `/notifications/check-ntfy-server` | `CheckNtfyServer`                  | ✅   | Probe NTFY host for HTTPS/HTTP connectivity (authenticated to prevent SSRF relay). Query: `host=<hostname[:port]>`.                                           |
 
 ### Range Filter (`range.go`)
 
@@ -339,16 +339,16 @@ HLS playlist and segment routes use token-based authentication instead of standa
 
 | Method | Route                    | Handler                   | Auth | Description                                               |
 | ------ | ------------------------ | ------------------------- | ---- | --------------------------------------------------------- |
-| GET    | `/streams/health`        | `GetAllStreamsHealth`     | ✅   | Get detailed health status of all RTSP streams            |
-| GET    | `/streams/health/:url`   | `GetStreamHealth`         | ✅   | Get detailed health status of a specific RTSP stream      |
-| GET    | `/streams/status`        | `GetStreamsStatusSummary` | ✅   | Get high-level summary of all stream statuses with counts |
-| GET    | `/streams/health/stream` | `StreamHealthUpdates`     | ✅⚡ | Real-time stream health updates via SSE                   |
+| GET    | `/streams/health`        | `GetAllStreamsHealth`     | ✅   | Get detailed health status of all RTSP streams (settings-only; URLs sanitized)        |
+| GET    | `/streams/health/:url`   | `GetStreamHealth`         | ✅   | Get detailed health status of a specific RTSP stream (settings-only; URLs sanitized)  |
+| GET    | `/streams/status`        | `GetStreamsStatusSummary` | ✅   | Get high-level summary of all stream statuses with counts (settings-only)             |
+| GET    | `/streams/health/stream` | `StreamHealthUpdates`     | ✅⚡ | Real-time stream health updates via SSE (settings page, not dashboard)                |
 
 ### Quiet Hours Status (`quiet_hours.go`)
 
 | Method | Route                         | Handler               | Auth | Description                                               |
 | ------ | ----------------------------- | --------------------- | ---- | --------------------------------------------------------- |
-| GET    | `/streams/quiet-hours/status` | `GetQuietHoursStatus` | ✅   | Get current quiet hours suppression state for all sources |
+| GET    | `/streams/quiet-hours/status` | `GetQuietHoursStatus` | ❌   | Get current quiet hours suppression state for all sources (URLs sanitized). Used by dashboard "Currently Hearing" card. |
 
 **Response Format:**
 
@@ -630,23 +630,23 @@ SSE endpoints are rate limited to prevent abuse:
 
 - Detection streams: 10 requests/minute per IP
 - Sound level streams: 10 requests/minute per IP
-- Stream health streams: 5 requests/minute per IP (authenticated)
-- Notification streams: 1 request/second, burst of 5 (authenticated)
+- Stream health streams: 5 requests/minute per IP (authenticated, settings page)
+- Notification streams: 10 requests/minute per IP, burst of 15 (public, used by dashboard NotificationBell)
 
 ## Server-Sent Events (SSE)
 
 ### Unified Notification Stream
 
-The `/notifications/stream` endpoint provides both notifications and toast messages:
+The `/notifications/stream` endpoint provides both notifications and toast messages and is consumed by the dashboard's NotificationBell.
 
 **Event Types:**
 
-- `notification` - System notifications (errors, warnings, info)
-- `toast` - Temporary UI messages (success, info, warning, error)
+- `notification` - System notifications (errors, warnings, info — delivered to authenticated subscribers)
+- `toast` - Temporary UI messages (success, info, warning, error — authenticated only)
 - `connected` - Connection established
 - `heartbeat` - Keep-alive signal
 
-**Authentication:** Required (uses session or bearer token)
+**Authentication:** Public read-only SSE, rate-limited (10 connections per minute per IP, burst of 15). Guests receive bird-detection events only; operational/admin notifications and toast messages are suppressed for unauthenticated subscribers so that integration errors and system warnings are never exposed anonymously. Authenticated subscribers receive the full stream.
 
 **Toast Event Format:**
 
@@ -668,7 +668,7 @@ The `/notifications/stream` endpoint provides both notifications and toast messa
 
 ## Stream Health Monitoring API
 
-The Stream Health API provides comprehensive real-time monitoring of RTSP stream status, leveraging the FFmpeg error detection system from PR #1380. These endpoints are designed to be safe for use in monitoring dashboards and provide actionable diagnostics for troubleshooting stream issues.
+The Stream Health API provides comprehensive real-time monitoring of RTSP stream status, leveraging the FFmpeg error detection system from PR #1380. These endpoints are **settings-page only** — they are consumed by the `StreamManager` component in the audio settings page and all require authentication, so the example `curl` calls below must be accompanied by the usual session cookie or bearer token. They are not called from the public dashboard.
 
 ### Key Features
 
@@ -760,7 +760,7 @@ Returns the same structure as a single stream from the `/streams/health` endpoin
 
 #### GET /api/v2/streams/status
 
-Returns a high-level summary for dashboard displays:
+Returns a high-level summary for the settings page stream list:
 
 ```json
 {
@@ -921,13 +921,13 @@ Updates are sent only when changes are detected, reducing bandwidth compared to 
 
 ### Integration Tips
 
-1. **Choose the Right Endpoint**:
+1. **Choose the Right Endpoint** (all require authentication — settings page only):
 
-   - Use SSE (`/streams/health/stream`) for real-time monitoring dashboards
-   - Use REST polling (`/streams/status`) for periodic background checks
+   - Use SSE (`/streams/health/stream`) for real-time settings-page monitoring
+   - Use REST polling (`/streams/status`) for periodic background checks on the settings page
    - Use REST (`/streams/health/:url`) for on-demand detailed diagnostics
 
-2. **Polling Interval (if not using SSE)**: Poll `/streams/status` every 5-10 seconds for dashboard updates
+2. **Polling Interval (if not using SSE)**: Poll `/streams/status` every 5-10 seconds for settings page updates
 3. **Detailed Diagnostics**: Use `/streams/health` when investigating specific issues
 4. **URL Encoding**: Always URL-encode the stream URL parameter for `/streams/health/:url`
 5. **Credential Safety**: All URLs in responses are automatically sanitized

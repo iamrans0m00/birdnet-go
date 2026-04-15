@@ -20,6 +20,7 @@ import (
 	"github.com/tphakala/birdnet-go/internal/notification"
 	"github.com/tphakala/birdnet-go/internal/observability/metrics"
 	"github.com/tphakala/birdnet-go/internal/privacy"
+	"golang.org/x/time/rate"
 )
 
 // SSE Connection configuration
@@ -39,6 +40,11 @@ const (
 	// Rate limits
 	rateLimitRequestsPerWindow = 10 // Maximum requests per rate limit window for notifications (increased from 1 to match other SSE endpoints)
 	rateLimitBurst             = 15 // Rate limit burst allowance (increased to handle quick navigation)
+
+	// guestUnreadCountPageSize is the page size used when counting unread
+	// detection notifications for unauthenticated dashboard viewers. Avoids
+	// the magic 1000 cap while keeping per-iteration memory bounded.
+	guestUnreadCountPageSize = 500
 )
 
 // Test notification constants
@@ -89,6 +95,10 @@ type NotificationClient struct {
 	Done         chan struct{} // Signal-only channel for shutdown notification
 	SubscriberCh <-chan *notification.Notification
 	Context      context.Context
+	// Guest is true when the SSE connection was opened by an unauthenticated
+	// request. Guests receive only bird-detection events; operational/admin
+	// notifications are filtered out before being sent to the wire.
+	Guest bool
 }
 
 // notificationAction represents a notification service operation
@@ -141,14 +151,19 @@ func (c *Controller) initNotificationRoutes() {
 
 // SetupNotificationRoutes configures notification-related routes
 func (c *Controller) SetupNotificationRoutes() {
-	// Rate limiter configuration for SSE connections
+	// Rate limiter configuration for SSE connections. `Rate` is interpreted
+	// as tokens per second by golang.org/x/time/rate, so
+	// `rateLimitRequestsPerWindow / rateLimitWindow` gives us the intended
+	// 10 connections per minute (≈0.1667/sec). A bare `10` here would mean
+	// 10/second — 60× too permissive for an unauthenticated SSE endpoint
+	// (Sentry flagged this on PR #2775).
 	rateLimiterConfig := middleware.RateLimiterConfig{
 		Skipper: middleware.DefaultSkipper,
 		Store: middleware.NewRateLimiterMemoryStoreWithConfig(
 			middleware.RateLimiterMemoryStoreConfig{
-				Rate:      rateLimitRequestsPerWindow, // Rate limit per window
-				Burst:     rateLimitBurst,             // Rate limit burst
-				ExpiresIn: rateLimitWindow,            // Rate limit window
+				Rate:      rate.Limit(float64(rateLimitRequestsPerWindow) / rateLimitWindow.Seconds()),
+				Burst:     rateLimitBurst,  // Rate limit burst
+				ExpiresIn: rateLimitWindow, // Rate limit window
 			},
 		),
 		IdentifierExtractor: func(ctx echo.Context) (string, error) {
@@ -160,25 +175,34 @@ func (c *Controller) SetupNotificationRoutes() {
 		},
 	}
 
-	// SSE endpoint for notification stream (authenticated, requires notification service)
-	c.Group.GET("/notifications/stream", c.StreamNotifications, c.authMiddleware, c.requireNotificationService, middleware.RateLimiterWithConfig(rateLimiterConfig))
+	// Public read-only endpoints: the dashboard's NotificationBell (list,
+	// unread count, live SSE updates) must work for guests when auth is
+	// enabled, matching the "dashboard is public read-only" design. See
+	// PR #2763 for the precedent with /settings/dashboard.
+	//
+	// Route priority: Echo matches static path segments before parameter
+	// routes ("/:id"), so /unread/count and /stream always win over the
+	// /:id routes registered in the auth group below. Register these on
+	// the parent c.Group so they are NOT wrapped by c.authMiddleware.
+	// (/check-ntfy-server is intentionally NOT public — see the auth group
+	// registration later in this function, kept authed to prevent SSRF.)
+	c.Group.GET("/notifications", c.GetNotifications, c.requireNotificationService)
+	c.Group.GET("/notifications/unread/count", c.GetUnreadCount, c.requireNotificationService)
+	c.Group.GET("/notifications/stream", c.StreamNotifications,
+		c.requireNotificationService, middleware.RateLimiterWithConfig(rateLimiterConfig))
 
-	// REST endpoints for notification management (authenticated)
-	// All notification endpoints require authentication when security is enabled
+	// Auth-protected endpoints: per-item read, mutations, the test-notification
+	// trigger, and the NTFY connectivity probe (kept authed to avoid being
+	// used as an SSRF relay by unauthenticated callers).
 	notificationsGroup := c.Group.Group("/notifications", c.authMiddleware)
 
-	// Endpoints that require the notification service to be initialized
 	notifServiceGroup := notificationsGroup.Group("", c.requireNotificationService)
-	notifServiceGroup.GET("", c.GetNotifications)
 	notifServiceGroup.GET("/:id", c.GetNotification)
 	notifServiceGroup.PUT("/:id/read", c.MarkNotificationRead)
 	notifServiceGroup.PUT("/:id/acknowledge", c.MarkNotificationAcknowledged)
 	notifServiceGroup.DELETE("/:id", c.DeleteNotification)
-	notifServiceGroup.GET("/unread/count", c.GetUnreadCount)
 	notifServiceGroup.POST("/test/new-species", c.CreateTestNewSpeciesNotification)
 
-	// Endpoints that do NOT require the notification service
-	// NTFY server connectivity probe (authenticated)
 	notificationsGroup.GET("/check-ntfy-server", c.CheckNtfyServer)
 }
 
@@ -410,7 +434,8 @@ func (c *Controller) setupNotificationSSEClient(ctx echo.Context) (*Notification
 	service := notification.GetService()
 	notificationCh, notificationCtx := service.Subscribe()
 
-	// Create notification client
+	// Create notification client. Record whether the caller is a guest so
+	// the event loop can filter operational/admin payloads before serving.
 	client := &NotificationClient{
 		ID:           clientID,
 		Channel:      make(chan *notification.Notification, notificationChannelBuffer),
@@ -419,6 +444,7 @@ func (c *Controller) setupNotificationSSEClient(ctx echo.Context) (*Notification
 		Done:         make(chan struct{}, 1), // Buffered signal channel to prevent deadlock during disconnect
 		SubscriberCh: notificationCh,
 		Context:      notificationCtx,
+		Guest:        c.isGuestNotificationRequest(ctx),
 	}
 
 	// Send initial connection message
@@ -480,6 +506,18 @@ func (c *Controller) runNotificationEventLoop(ctx echo.Context, client *Notifica
 			if notif == nil {
 				// Channel closed, service is shutting down
 				return nil
+			}
+
+			// Guest hardening: unauthenticated SSE subscribers only receive
+			// non-toast bird-detection events. Toast payloads are always
+			// created as TypeWarning/TypeInfo today (see toast.go), but we
+			// also check the IsToast metadata as defense-in-depth so a
+			// future TypeDetection toast cannot leak to anonymous clients.
+			if client.Guest {
+				isToast, _ := notif.Metadata[notification.MetadataKeyIsToast].(bool)
+				if notif.Type != notification.TypeDetection || isToast {
+					continue
+				}
 			}
 
 			if err := c.processNotificationEvent(ctx, client.ID, notif); err != nil {
@@ -648,6 +686,19 @@ func (c *Controller) logNotificationSent(clientID string, notif *notification.No
 	}
 }
 
+// isGuestNotificationRequest returns true when the current request should be
+// treated as an unauthenticated dashboard viewer. Used to restrict the public
+// notifications endpoints to detection-type notifications only so that
+// operational/admin notifications (integration errors, config problems) are
+// not leaked to anonymous clients.
+func (c *Controller) isGuestNotificationRequest(ctx echo.Context) bool {
+	if c.authService == nil {
+		// No auth service configured → auth is disabled, treat everyone as trusted.
+		return false
+	}
+	return !c.authService.IsAuthenticated(ctx)
+}
+
 // GetNotifications returns a list of notifications with optional filtering
 func (c *Controller) GetNotifications(ctx echo.Context) error {
 	service := notification.GetService()
@@ -663,6 +714,14 @@ func (c *Controller) GetNotifications(ctx echo.Context) error {
 	// Parse type filter
 	if typeParam := ctx.QueryParam("type"); typeParam != "" {
 		filter.Types = []notification.Type{notification.Type(typeParam)}
+	}
+
+	// Guest hardening: unauthenticated viewers only see bird-detection
+	// notifications, never operational/admin payloads that may contain
+	// integration errors, hostnames, or configuration hints. This overrides
+	// any type filter the caller may have supplied.
+	if c.isGuestNotificationRequest(ctx) {
+		filter.Types = []notification.Type{notification.TypeDetection}
 	}
 
 	// Parse priority filter
@@ -700,6 +759,25 @@ func (c *Controller) GetNotifications(ctx echo.Context) error {
 	if err != nil {
 		c.logErrorIfEnabled("failed to list notifications", logger.Error(err))
 		return c.HandleError(ctx, err, "Failed to retrieve notifications", http.StatusInternalServerError)
+	}
+
+	// Guest hardening (defense-in-depth): even though the type filter above
+	// narrows to TypeDetection, post-filter out anything with the IsToast
+	// metadata flag so a TypeDetection toast (if ever created) cannot reach
+	// an unauthenticated caller. Build a new slice to avoid aliasing caller
+	// state; the underlying store is shared across subscribers.
+	if c.isGuestNotificationRequest(ctx) {
+		filtered := make([]*notification.Notification, 0, len(notifications))
+		for _, n := range notifications {
+			if n == nil {
+				continue
+			}
+			if isToast, _ := n.Metadata[notification.MetadataKeyIsToast].(bool); isToast {
+				continue
+			}
+			filtered = append(filtered, n)
+		}
+		notifications = filtered
 	}
 
 	if c.Settings != nil && c.Settings.WebServer.Debug {
@@ -773,9 +851,51 @@ func (c *Controller) DeleteNotification(ctx echo.Context) error {
 	})
 }
 
-// GetUnreadCount returns the count of unread notifications
+// GetUnreadCount returns the count of unread notifications. For
+// unauthenticated dashboard requests, only unread detection notifications are
+// counted so the NotificationBell badge matches the filtered guest list.
 func (c *Controller) GetUnreadCount(ctx echo.Context) error {
 	service := notification.GetService()
+
+	if c.isGuestNotificationRequest(ctx) {
+		// Count unread detection non-toast notifications only. Paginate
+		// through service.List rather than relying on a single large Limit
+		// so the count is exact even if a user has thousands of unread
+		// detections. Toasts are excluded defensively (see processNotifi-
+		// cationEvent): today they are never TypeDetection, but guarding
+		// here avoids a regression if that changes.
+		total := 0
+		offset := 0
+		for {
+			notifications, err := service.List(&notification.FilterOptions{
+				Types:  []notification.Type{notification.TypeDetection},
+				Status: []notification.Status{notification.StatusUnread},
+				Limit:  guestUnreadCountPageSize,
+				Offset: offset,
+			})
+			if err != nil {
+				c.logErrorIfEnabled("failed to list detection notifications for guest count", logger.Error(err))
+				return c.HandleError(ctx, err, "Failed to get unread count", http.StatusInternalServerError)
+			}
+			for _, n := range notifications {
+				if n == nil {
+					continue
+				}
+				if isToast, _ := n.Metadata[notification.MetadataKeyIsToast].(bool); isToast {
+					continue
+				}
+				total++
+			}
+			if len(notifications) < guestUnreadCountPageSize {
+				break
+			}
+			offset += guestUnreadCountPageSize
+		}
+		return ctx.JSON(http.StatusOK, map[string]any{
+			"unreadCount": total,
+		})
+	}
+
 	count, err := service.GetUnreadCount()
 	if err != nil {
 		c.logErrorIfEnabled("failed to get unread count", logger.Error(err))

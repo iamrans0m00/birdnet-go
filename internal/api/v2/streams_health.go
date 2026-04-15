@@ -105,19 +105,25 @@ type StreamSummaryResponse struct {
 	TimeSinceData *float64 `json:"time_since_data_seconds,omitempty"` // Seconds since last data
 }
 
-// initStreamHealthRoutes registers all stream health monitoring endpoints
+// initStreamHealthRoutes registers all stream health monitoring endpoints.
+// These endpoints are consumed exclusively by the StreamManager component on
+// the (auth-protected) settings page; the dashboard does NOT use them. They
+// therefore remain auth-protected to avoid leaking stream topology, target
+// host/port, and FFmpeg diagnostic details to unauthenticated callers.
+// Output is still sanitized defensively (sanitizeFFmpegError / sanitizeStreamUrls)
+// so that if a handler is ever carved out in the future, raw RTSP credentials
+// cannot leak.
 func (c *Controller) initStreamHealthRoutes() {
-	// All health endpoints require authentication as they may contain sensitive data
 	authMiddleware := c.authMiddleware
 
-	// REST endpoints
+	// REST endpoints — authenticated
 	c.Group.GET("/streams/health", c.GetAllStreamsHealth, authMiddleware)
 	c.Group.GET("/streams/health/:url", c.GetStreamHealth, authMiddleware)
 	c.Group.GET("/streams/status", c.GetStreamsStatusSummary, authMiddleware)
 
-	// SSE endpoint for real-time stream health updates with rate limiting
-	// Configure for 5 connections per minute (5/60 = 0.0833 requests per second)
-	// Burst set to match rate limit to allow reconnections during page refreshes
+	// SSE endpoint for real-time stream health updates — authenticated and
+	// rate-limited to 5 connections per minute with burst of 5 to tolerate
+	// page-refresh reconnects.
 	rateLimiterConfig := middleware.RateLimiterConfig{
 		Store: middleware.NewRateLimiterMemoryStoreWithConfig(
 			middleware.RateLimiterMemoryStoreConfig{
@@ -190,9 +196,14 @@ func (c *Controller) getStreamInfo(rawURL string) streamInfo {
 // @Tags streams
 // @Produce json
 // @Success 200 {array} StreamHealthResponse "Array of stream health information"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 503 {object} ErrorResponse "Audio engine not initialized"
 // @Router /api/v2/streams/health [get]
 func (c *Controller) GetAllStreamsHealth(ctx echo.Context) error {
+	if c.engine == nil {
+		// No engine — we cannot report real stream health. Signal the
+		// caller with 503 rather than fabricating misleading zero counts.
+		return c.HandleError(ctx, nil, "Audio engine not initialized", http.StatusServiceUnavailable)
+	}
 	// Get health data from the FFmpeg manager (keyed by sourceID)
 	healthData := c.engine.FFmpegManager().AllStreamHealth()
 
@@ -229,7 +240,7 @@ func (c *Controller) GetAllStreamsHealth(ctx echo.Context) error {
 // @Success 200 {object} StreamHealthResponse "Stream health information"
 // @Failure 400 {object} ErrorResponse "Invalid or missing URL parameter"
 // @Failure 404 {object} ErrorResponse "Stream not found"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 503 {object} ErrorResponse "Audio engine not initialized"
 // @Router /api/v2/streams/health/{url} [get]
 func (c *Controller) GetStreamHealth(ctx echo.Context) error {
 	// Get URL parameter (URL-encoded) — may be a sourceID or a stream URL
@@ -244,6 +255,12 @@ func (c *Controller) GetStreamHealth(ctx echo.Context) error {
 		return c.HandleError(ctx, err, "Invalid URL encoding", http.StatusBadRequest)
 	}
 
+	if c.engine == nil {
+		// Match GetAllStreamsHealth / GetStreamsStatusSummary: 503, not
+		// 404. The stream may very well exist in config — we just cannot
+		// inspect its health without the audio engine running.
+		return c.HandleError(ctx, nil, "Audio engine not initialized", http.StatusServiceUnavailable)
+	}
 	// Try to find stream by sourceID first, then by connection URL
 	registry := c.engine.Registry()
 	ffmpegMgr := c.engine.FFmpegManager()
@@ -291,9 +308,15 @@ func (c *Controller) GetStreamHealth(ctx echo.Context) error {
 // @Tags streams
 // @Produce json
 // @Success 200 {object} StreamsStatusSummaryResponse "Streams status summary"
-// @Failure 500 {object} ErrorResponse "Internal server error"
+// @Failure 503 {object} ErrorResponse "Audio engine not initialized"
 // @Router /api/v2/streams/status [get]
 func (c *Controller) GetStreamsStatusSummary(ctx echo.Context) error {
+	if c.engine == nil {
+		// Zero counts would be technically accurate but misleading: clients
+		// cannot tell "no streams configured" apart from "audio engine not
+		// up yet". Return 503 so the UI can surface a proper state.
+		return c.HandleError(ctx, nil, "Audio engine not initialized", http.StatusServiceUnavailable)
+	}
 	// Get health data from the FFmpeg manager (keyed by sourceID)
 	healthData := c.engine.FFmpegManager().AllStreamHealth()
 	registry := c.engine.Registry()
@@ -364,9 +387,11 @@ func convertStreamHealthToResponse(rawURL string, health *ffmpeg.StreamHealth) S
 		response.TimeSinceData = &timeSince
 	}
 
-	// Handle error message
+	// Handle error message. These endpoints remain authenticated (see
+	// initStreamHealthRoutes) but we sanitize defensively so that a future
+	// carve-out cannot regress into leaking raw RTSP userinfo.
 	if health.Error != nil {
-		response.Error = health.Error.Error()
+		response.Error = privacy.SanitizeFFmpegError(health.Error.Error())
 	}
 
 	// Convert last error context
@@ -406,10 +431,16 @@ func convertErrorContextToResponse(errCtx *ffmpeg.ErrorContext) *ErrorContextRes
 		return nil
 	}
 
+	// Defensive sanitization: although these endpoints remain authenticated
+	// (see initStreamHealthRoutes), PrimaryMessage and UserFacingMsg come
+	// straight from the FFmpeg stderr pipeline and may still contain a raw
+	// RTSP URL with credentials if the upstream sanitizer misses an edge
+	// case. Scrubbing here guarantees no userinfo escapes to API clients
+	// even if the route becomes public in the future.
 	response := &ErrorContextResponse{
 		ErrorType:            errCtx.ErrorType,
-		PrimaryMessage:       errCtx.PrimaryMessage,
-		UserFacingMessage:    errCtx.UserFacingMsg,
+		PrimaryMessage:       privacy.SanitizeFFmpegError(errCtx.PrimaryMessage),
+		UserFacingMessage:    privacy.SanitizeStreamUrls(errCtx.UserFacingMsg),
 		TroubleshootingSteps: errCtx.TroubleShooting,
 		Timestamp:            errCtx.Timestamp,
 		ShouldOpenCircuit:    errCtx.ShouldOpenCircuit(),
