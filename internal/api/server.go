@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -84,6 +85,19 @@ type Server struct {
 	startTime time.Time
 }
 
+// currentSettings returns the latest *conf.Settings snapshot published via
+// conf.StoreSettings, or the server's constructor-provided pointer when no
+// snapshot has been published yet (test harnesses that skip the global
+// publish, or early startup before the first Load). Routing the hot-path
+// middleware through this helper keeps the basepath resolution race-free
+// while still handling the uninitialised-global case gracefully.
+func (s *Server) currentSettings() *conf.Settings {
+	if cur := conf.GetSettings(); cur != nil {
+		return cur
+	}
+	return s.settings
+}
+
 // ingressPath returns the effective base path prefix for the current request.
 // Priority: X-Ingress-Path header > X-Forwarded-Prefix header > config BasePath > empty.
 //
@@ -101,6 +115,34 @@ func ingressPath(c echo.Context, settings *conf.Settings) string {
 		return strings.TrimRight(settings.WebServer.BasePath, "/")
 	}
 	return ""
+}
+
+// hasPercentEncodedPrefix reports whether rawPath begins with encodedPrefix,
+// matching the hex digits inside any %XX sequences case-insensitively so that
+// reverse proxies that forward lowercase hex (%c3%9c) still match Go's
+// canonical uppercase form (%C3%9C). All non-%-prefixed bytes are compared
+// byte-for-byte because URL path components are case-sensitive.
+// Returns the matched prefix length (in rawPath bytes), or -1 on mismatch.
+func hasPercentEncodedPrefix(rawPath, encodedPrefix string) int {
+	i := 0
+	for i < len(encodedPrefix) {
+		if i >= len(rawPath) {
+			return -1
+		}
+		if encodedPrefix[i] == '%' && rawPath[i] == '%' &&
+			i+2 < len(encodedPrefix) && i+2 < len(rawPath) {
+			if !strings.EqualFold(rawPath[i+1:i+3], encodedPrefix[i+1:i+3]) {
+				return -1
+			}
+			i += 3
+			continue
+		}
+		if rawPath[i] != encodedPrefix[i] {
+			return -1
+		}
+		i++
+	}
+	return i
 }
 
 // isSafePathPrefix validates that a path prefix (typically from a proxy header)
@@ -295,7 +337,13 @@ func (s *Server) setupMiddleware() {
 	// effect without a server restart.
 	s.echo.Pre(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			bp := ingressPath(c, s.settings)
+			// Read the current *conf.Settings through the atomic pointer so a
+			// settings hot-reload (CoW publish via conf.StoreSettings) takes
+			// effect for the next request without restart, and so readers
+			// never observe a torn view of the basepath field. Fall back to
+			// the constructor-provided pointer if no snapshot has been
+			// published yet (test harnesses that skip the global publish).
+			bp := ingressPath(c, s.currentSettings())
 			if bp == "" {
 				return next(c)
 			}
@@ -319,13 +367,25 @@ func (s *Server) setupMiddleware() {
 						rest = "/"
 					}
 					req.URL.Path = rest
-					// Also update RawPath if set (percent-encoded paths).
-					if req.URL.RawPath != "" && strings.HasPrefix(req.URL.RawPath, bp) {
-						raw := req.URL.RawPath[len(bp):]
-						if raw == "" {
-							raw = "/"
+					// Also update RawPath if set (percent-encoded paths). The
+					// decoded bp must be encoded before the prefix check
+					// because RawPath is always in escaped form; comparing a
+					// decoded prefix against an encoded string breaks for
+					// basepaths that require encoding (spaces, non-ASCII),
+					// leaving Path stripped and RawPath prefixed. Echo then
+					// sees mismatched Path/RawPath and may route inconsistently.
+					// hasPercentEncodedPrefix treats %XX hex digits
+					// case-insensitively so lowercase-hex-forwarding proxies
+					// also match. Fixes Forgejo #447.
+					if req.URL.RawPath != "" {
+						encodedBP := (&url.URL{Path: bp}).EscapedPath()
+						if n := hasPercentEncodedPrefix(req.URL.RawPath, encodedBP); n >= 0 {
+							raw := req.URL.RawPath[n:]
+							if raw == "" {
+								raw = "/"
+							}
+							req.URL.RawPath = raw
 						}
-						req.URL.RawPath = raw
 					}
 				}
 			}
@@ -347,7 +407,7 @@ func (s *Server) setupMiddleware() {
 	// proxy headers and config in priority order.
 	s.echo.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			c.Set("basePath", ingressPath(c, s.settings))
+			c.Set("basePath", ingressPath(c, s.currentSettings()))
 			return next(c)
 		}
 	})
@@ -683,7 +743,7 @@ func (s *Server) IsDevMode() bool {
 func (s *Server) registerSPARoutes() {
 	// Redirect root path to dashboard
 	s.echo.GET("/", func(c echo.Context) error {
-		return c.Redirect(http.StatusFound, ingressPath(c, s.settings)+"/ui/dashboard")
+		return c.Redirect(http.StatusFound, ingressPath(c, s.currentSettings())+"/ui/dashboard")
 	})
 
 	// Public routes (no authentication required)
@@ -812,7 +872,7 @@ func (s *Server) handleOAuthBegin(c echo.Context) error {
 			logger.String("email", user.Email),
 		)
 		// User is already authenticated, redirect to dashboard
-		return c.Redirect(http.StatusFound, ingressPath(c, s.settings)+"/ui/dashboard")
+		return c.Redirect(http.StatusFound, ingressPath(c, s.currentSettings())+"/ui/dashboard")
 	}
 
 	// Begin OAuth flow - this will redirect to the provider
@@ -917,7 +977,7 @@ func (s *Server) handleOAuthCallback(c echo.Context) error {
 	)
 
 	// Redirect to dashboard after successful authentication
-	return c.Redirect(http.StatusFound, ingressPath(c, s.settings)+"/ui/dashboard")
+	return c.Redirect(http.StatusFound, ingressPath(c, s.currentSettings())+"/ui/dashboard")
 }
 
 // isValidOAuthProvider checks if the provider name is a valid goth provider name.

@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/spf13/viper"
@@ -1504,10 +1505,19 @@ type AlertSettings struct {
 // Must be set before the first call to Setting() or Load().
 var ConfigPath string
 
+// settingsInstance holds the current *Settings snapshot. Published via
+// Store() in Load/StoreSettings/SetTestSettings; read via Load() in
+// GetSettings. Lock-free reads keep the request hot path fast while copy-on-
+// write writes in api/v2.UpdateSettings keep readers race-free.
+//
+// loadMu guards the on-demand Load() that Setting() performs when
+// settingsInstance is nil. A plain sync.Mutex is used rather than sync.Once
+// so that cleanup paths which call SetTestSettings(nil) can trigger a fresh
+// Load on the next Setting() call; sync.Once cannot be reset safely from a
+// parallel test without racing on the Once value itself.
 var (
-	settingsInstance *Settings
-	once             sync.Once
-	settingsMutex    sync.RWMutex
+	settingsInstance atomic.Pointer[Settings]
+	loadMu           sync.Mutex
 )
 
 // persistMigration saves the config file after a successful migration.
@@ -1527,9 +1537,6 @@ func persistMigration(settings *Settings, label string) {
 //
 //nolint:gocognit // Config loading is inherently complex; splitting adds indirection without clarity.
 func Load() (*Settings, error) {
-	settingsMutex.Lock()
-	defer settingsMutex.Unlock()
-
 	// Create a new settings struct
 	settings := &Settings{}
 
@@ -1695,9 +1702,10 @@ func Load() (*Settings, error) {
 		}
 	}
 
-	// Save settings instance
-	settingsInstance = settings
-	return settingsInstance, nil
+	// Publish the loaded settings atomically. Readers calling GetSettings
+	// immediately after this point see this snapshot.
+	settingsInstance.Store(settings)
+	return settings, nil
 }
 
 // initViper initializes viper with default values and reads the configuration file.
@@ -1868,11 +1876,25 @@ func getDefaultConfig() string {
 	return string(data)
 }
 
-// GetSettings returns the current settings instance
+// GetSettings returns the current settings snapshot. Safe for concurrent use;
+// the returned pointer is published via atomic.Pointer.Store and never mutated
+// in place. Writers produce a new snapshot via CloneSettings + StoreSettings.
 func GetSettings() *Settings {
-	settingsMutex.RLock()
-	defer settingsMutex.RUnlock()
-	return settingsInstance
+	return settingsInstance.Load()
+}
+
+// StoreSettings publishes a new *Settings snapshot atomically. Callers must
+// not mutate the pointee after calling StoreSettings; readers may observe the
+// snapshot concurrently through GetSettings. The canonical writer pattern is:
+//
+//	current := conf.GetSettings()
+//	updated := conf.CloneSettings(current)
+//	// ... mutate updated ...
+//	conf.StoreSettings(updated)
+//
+// Passing nil is valid and clears the stored settings (mostly useful in tests).
+func StoreSettings(s *Settings) {
+	settingsInstance.Store(s)
 }
 
 // migrateLegacyProvider converts a legacy SocialProvider to the new OAuthProviderConfig format.
@@ -2280,20 +2302,32 @@ func prepareSettingsForSave(s *Settings, latitude float64) Settings {
 // SaveSettings saves the current settings to the configuration file.
 // It uses UpdateYAMLConfig to handle the atomic write process.
 func SaveSettings() error {
-	settingsMutex.RLock()
-	defer settingsMutex.RUnlock()
+	// Load the current snapshot through the atomic pointer; the pointee is
+	// immutable after publication so reading fields off it is race-free.
+	current := settingsInstance.Load()
+	if current == nil {
+		return errors.Newf("settings not initialized").
+			Category(errors.CategoryConfiguration).
+			Context("operation", "save-settings").
+			Build()
+	}
 
-	// Create a deep copy of the settings
-	settingsCopy := *settingsInstance
+	// Deep-clone the published snapshot before mutating it in
+	// prepareSettingsForSave. A shallow copy would leave slice and map
+	// backing arrays shared with concurrent readers that hold current;
+	// any transformation that mutates one of those nested fields would
+	// race against them.
+	settingsCopy := *CloneSettings(current)
 
-	// Create a separate copy of the species list with proper locking
-	// Note: This MUST stay here to maintain correct mutex semantics
+	// Refresh the species list under its dedicated lock so the runtime
+	// list (shared across Species.Include/Exclude updates) is captured
+	// atomically rather than via the clone that predates the save.
 	speciesListMutex.RLock()
-	settingsCopy.BirdNET.RangeFilter.Species = slices.Clone(settingsInstance.BirdNET.RangeFilter.Species)
+	settingsCopy.BirdNET.RangeFilter.Species = slices.Clone(current.BirdNET.RangeFilter.Species)
 	speciesListMutex.RUnlock()
 
-	// Apply data transformations (seasonal tracking, etc.)
-	settingsCopy = prepareSettingsForSave(&settingsCopy, settingsInstance.BirdNET.Latitude)
+	// Apply data transformations (seasonal tracking, etc.) on the clone.
+	settingsCopy = prepareSettingsForSave(&settingsCopy, current.BirdNET.Latitude)
 
 	// Find the path of the current config file
 	configPath, err := FindConfigFile()
@@ -2319,32 +2353,42 @@ func SaveSettings() error {
 
 // Setting returns the current settings instance, initializing it if necessary
 func Setting() *Settings {
-	once.Do(func() {
-		if settingsInstance == nil {
-			_, err := Load()
-			if err != nil {
-				// Fatal error loading settings - application cannot continue
-				enhancedErr := errors.New(err).
-					Category(errors.CategoryConfiguration).
-					Context("operation", "load-settings-init").
-					Build()
-				GetLogger().Error("Error loading settings", logger.Error(enhancedErr))
-				os.Exit(1)
-			}
-		}
-	})
-	return GetSettings()
+	// Fast path: settings already published.
+	if s := settingsInstance.Load(); s != nil {
+		return s
+	}
+	// Slow path: lazy-load from disk. Serialise concurrent first-callers
+	// through loadMu; the atomic check inside the lock collapses the extras.
+	loadMu.Lock()
+	if s := settingsInstance.Load(); s != nil {
+		loadMu.Unlock()
+		return s
+	}
+	if _, err := Load(); err != nil {
+		// Fatal error loading settings - application cannot continue.
+		// Release the lock explicitly because os.Exit does not run defers.
+		enhancedErr := errors.New(err).
+			Category(errors.CategoryConfiguration).
+			Context("operation", "load-settings-init").
+			Build()
+		GetLogger().Error("Error loading settings", logger.Error(enhancedErr))
+		loadMu.Unlock()
+		os.Exit(1)
+	}
+	loadMu.Unlock()
+	return settingsInstance.Load()
 }
 
 // SetTestSettings allows tests to inject their own settings instance.
 // This must be called before any call to Setting() to be effective.
 // This is intended for testing purposes only.
 func SetTestSettings(settings *Settings) {
-	settingsMutex.Lock()
-	defer settingsMutex.Unlock()
-	settingsInstance = settings
-	// Reset the sync.Once to allow reinitialization in tests
-	once = sync.Once{}
+	// Publish atomically; readers on the hot path see the new snapshot
+	// immediately via GetSettings. Setting() will re-Load() from disk on
+	// the next call if settings is nil, so cleanup paths that restore a
+	// previously-nil snapshot do not leave downstream consumers with a
+	// nil dereference.
+	settingsInstance.Store(settings)
 }
 
 // GetTestSettings returns a copy of default settings suitable for testing.
