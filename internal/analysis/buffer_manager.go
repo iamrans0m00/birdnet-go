@@ -404,49 +404,85 @@ func (m *BufferManager) analysisBufferMonitor(quitChan chan struct{}, cfg monito
 		case <-quitChan:
 			return
 		case <-ticker.C:
-			ab, err := m.bufferMgr.AnalysisBuffer(cfg.sourceID, cfg.modelID)
-			if err != nil {
-				if hasReadBuffer {
-					m.logger.Info("analysis buffer removed, stopping monitor",
-						logger.String("source_id", cfg.sourceID),
-						logger.String("model_id", cfg.modelID))
-				} else {
-					m.logger.Warn("analysis buffer not found for monitor, may not be allocated",
-						logger.String("source_id", cfg.sourceID),
-						logger.String("model_id", cfg.modelID))
-				}
+			keepRunning, newHasReadBuffer := m.processMonitorTick(quitChan, cfg, analysisWindowBytes, detectionOffset, hasReadBuffer)
+			hasReadBuffer = newHasReadBuffer
+			if !keepRunning {
 				return
-			}
-			hasReadBuffer = true
-			data, readErr := ab.Read()
-			if readErr != nil {
-				m.logger.Error("buffer read error",
-					logger.String("source_id", cfg.sourceID),
-					logger.String("model_id", cfg.modelID),
-					logger.Error(readErr))
-				time.Sleep(1 * time.Second)
-				continue
-			}
-
-			// Exact equality is required: AnalysisBuffer.Read() returns
-			// overlapSize + readSize bytes or nil. A partial read means
-			// the buffer hasn't accumulated enough data yet.
-			if len(data) == analysisWindowBytes {
-				audioCapturedAt := time.Now()
-
-				// Calculate the offset dynamically to pick up runtime configuration changes
-				beginTimeOffset := time.Duration(conf.Setting().Realtime.Audio.Export.PreCapture)*time.Second + detectionOffset
-				startTime := time.Now().Add(-beginTimeOffset)
-
-				if processErr := ProcessData(context.Background(), m.bn, m.bufferMgr, data, startTime, audioCapturedAt, cfg.sourceID, cfg.modelID); processErr != nil {
-					m.logger.Error("error processing data",
-						logger.String("source_id", cfg.sourceID),
-						logger.String("model_id", cfg.modelID),
-						logger.Error(processErr))
-				}
 			}
 		}
 	}
+}
+
+// processMonitorTick runs one iteration of the analysis buffer monitor: looks
+// up the current AnalysisBuffer for (sourceID, modelID), reads one window,
+// and dispatches it to ProcessData when a full readSize window is present.
+//
+// Returns keepRunning=false when the buffer was not found OR the goroutine was
+// asked to shut down during a backoff. The updated hasReadBuffer flag is
+// propagated back so the caller can toggle its "once seen, log on later loss"
+// log-level preference across ticks.
+//
+// The window's backing slice is always returned to its pool via a
+// "defer release()" immediately after Read, so every exit path including the
+// try-again-later (nil data), error, and partial-read branches releases.
+func (m *BufferManager) processMonitorTick(
+	quitChan <-chan struct{},
+	cfg monitorConfig,
+	analysisWindowBytes int,
+	detectionOffset time.Duration,
+	hasReadBuffer bool,
+) (keepRunning, updatedHasReadBuffer bool) {
+	ab, err := m.bufferMgr.AnalysisBuffer(cfg.sourceID, cfg.modelID)
+	if err != nil {
+		if hasReadBuffer {
+			m.logger.Info("analysis buffer removed, stopping monitor",
+				logger.String("source_id", cfg.sourceID),
+				logger.String("model_id", cfg.modelID))
+		} else {
+			m.logger.Warn("analysis buffer not found for monitor, may not be allocated",
+				logger.String("source_id", cfg.sourceID),
+				logger.String("model_id", cfg.modelID))
+		}
+		return false, hasReadBuffer
+	}
+	hasReadBuffer = true
+
+	data, release, readErr := ab.Read()
+	defer release()
+	if readErr != nil {
+		m.logger.Error("buffer read error",
+			logger.String("source_id", cfg.sourceID),
+			logger.String("model_id", cfg.modelID),
+			logger.Error(readErr))
+		// Backoff one second, but exit immediately if the goroutine is
+		// told to shut down during the sleep.
+		select {
+		case <-time.After(1 * time.Second):
+			return true, hasReadBuffer
+		case <-quitChan:
+			return false, hasReadBuffer
+		}
+	}
+
+	// Exact equality is required: AnalysisBuffer.Read returns overlapSize +
+	// readSize bytes or nil. A partial read means the buffer has not yet
+	// accumulated enough data.
+	if len(data) != analysisWindowBytes {
+		return true, hasReadBuffer
+	}
+
+	audioCapturedAt := time.Now()
+	// Calculate the offset dynamically to pick up runtime configuration changes.
+	beginTimeOffset := time.Duration(conf.Setting().Realtime.Audio.Export.PreCapture)*time.Second + detectionOffset
+	startTime := time.Now().Add(-beginTimeOffset)
+
+	if processErr := ProcessData(context.Background(), m.bn, m.bufferMgr, data, startTime, audioCapturedAt, cfg.sourceID, cfg.modelID); processErr != nil {
+		m.logger.Error("error processing data",
+			logger.String("source_id", cfg.sourceID),
+			logger.String("model_id", cfg.modelID),
+			logger.Error(processErr))
+	}
+	return true, hasReadBuffer
 }
 
 // buildMonitorConfig builds a monitorConfig from a ModelInfo.
