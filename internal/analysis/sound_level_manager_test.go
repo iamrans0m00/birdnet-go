@@ -3,6 +3,7 @@ package analysis
 import (
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -109,45 +110,28 @@ func TestSoundLevelManagerChannelCommunication(t *testing.T) {
 	close(soundLevelChan)
 }
 
-// TestHotReloadIntegrationBasic provides a basic integration test framework
+// TestHotReloadIntegrationBasic provides a basic integration test framework.
+// Uses testing/synctest so the wg.Wait completion is deterministic rather
+// than racing a 2s wall-clock timeout on loaded CI runners (Forgejo #459).
 func TestHotReloadIntegrationBasic(t *testing.T) {
-	// This test demonstrates the hot reload pattern without dependencies
+	synctest.Test(t, func(t *testing.T) {
+		soundLevelChan := make(chan soundlevel.SoundLevelData, 100)
+		defer close(soundLevelChan)
+		manager := NewSoundLevelManager(soundLevelChan, nil, nil, nil)
+		// Defer inside the bubble so cleanup also runs if require.NoError
+		// below aborts; t.Cleanup would run after synctest.Test returns.
+		defer manager.Stop()
 
-	// 1. Create components
-	soundLevelChan := make(chan soundlevel.SoundLevelData, 100)
-	manager := NewSoundLevelManager(soundLevelChan, nil, nil, nil)
+		var wg sync.WaitGroup
+		var restartErr error
+		wg.Go(func() {
+			time.Sleep(50 * time.Millisecond)
+			restartErr = manager.Restart()
+		})
 
-	// 2. Simulate configuration change and restart
-	var wg sync.WaitGroup
-
-	// Simulate control monitor sending restart signal
-	wg.Go(func() {
-
-		// Wait a bit then trigger restart
-		time.Sleep(50 * time.Millisecond)
-
-		// In real implementation, this would be triggered by control monitor
-		err := manager.Restart()
-		assert.NoError(t, err, "Restart should not error")
-	})
-
-	// 3. Verify restart completes
-	done := make(chan struct{})
-	go func() {
 		wg.Wait()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		// Success - restart completed
-	case <-time.After(2 * time.Second):
-		require.Fail(t, "Hot reload simulation timed out")
-	}
-
-	// 4. Cleanup
-	manager.Stop()
-	close(soundLevelChan)
+		require.NoError(t, restartErr, "Restart should not error")
+	})
 }
 
 // TestSoundLevelManagerNilSafety verifies nil pointer safety
