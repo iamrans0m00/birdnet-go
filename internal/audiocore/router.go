@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/tphakala/birdnet-go/internal/audiocore/buffer"
 	"github.com/tphakala/birdnet-go/internal/audiocore/convert"
 	"github.com/tphakala/birdnet-go/internal/audiocore/equalizer"
 	"github.com/tphakala/birdnet-go/internal/audiocore/resample"
@@ -71,6 +72,12 @@ type Route struct {
 	// errors counts Write failures reported by the consumer.
 	errors atomic.Int64
 
+	// truncations counts odd-length PCM16 frames observed on this route.
+	// Kept separate from errors so RouteInfo.Errors retains its "real error"
+	// semantics for operators; a misbehaving upstream does not inflate that
+	// metric.
+	truncations atomic.Int64
+
 	// done is closed to signal the drainer goroutine to exit.
 	done chan struct{}
 
@@ -107,17 +114,26 @@ type AudioRouter struct {
 	// log is the router's logger.
 	log logger.Logger
 
+	// bufMgr is the shared buffer manager used to obtain per-size pools on the
+	// hot path. When nil (legacy constructions / test mockery), the router falls
+	// back to plain make() allocations.
+	bufMgr *buffer.Manager
+
 	// ctx and cancel control the lifetime of all drainer goroutines.
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-// NewAudioRouter creates an AudioRouter ready to accept routes and dispatch frames.
-func NewAudioRouter(log logger.Logger) *AudioRouter {
+// NewAudioRouter creates an AudioRouter ready to accept routes and dispatch
+// frames. bufMgr is the shared buffer.Manager used to obtain per-size pools on
+// the hot path; when nil (legacy constructions or test mockery), the router
+// falls back to plain make() allocations.
+func NewAudioRouter(log logger.Logger, bufMgr *buffer.Manager) *AudioRouter {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &AudioRouter{
 		routes: make(map[string][]*Route),
 		log:    log.With(logger.String("component", "audio_router")),
+		bufMgr: bufMgr,
 		ctx:    ctx,
 		cancel: cancel,
 	}
@@ -441,54 +457,7 @@ func (r *AudioRouter) drainRoute(route *Route) {
 	for {
 		select {
 		case frame := <-route.inbox:
-			// Apply per-route resampling when rates differ.
-			if route.resampler != nil {
-				resampled, err := route.resampler.ResampleInto(frame.Data)
-				if err != nil {
-					errCount := route.errors.Add(1)
-					if errCount%errorLogInterval == 1 {
-						r.log.Warn("resampler error",
-							logger.String("source_id", route.SourceID),
-							logger.String("consumer_id", route.Consumer.ID()),
-							logger.Int64("total_errors", errCount),
-							logger.Error(err))
-					}
-					continue
-				}
-				// Copy resampled bytes: the Resampler reuses its internal buffer,
-				// so we must not hand the slice to the consumer directly.
-				out := make([]byte, len(resampled))
-				copy(out, resampled)
-				frame = AudioFrame{
-					SourceID:   frame.SourceID,
-					SourceName: frame.SourceName,
-					Data:       out,
-					SampleRate: route.Consumer.SampleRate(),
-					BitDepth:   frame.BitDepth,
-					Channels:   frame.Channels,
-					Timestamp:  frame.Timestamp,
-				}
-			}
-			// Apply per-route EQ filtering and/or gain adjustment.
-			// Both require 16-bit PCM; skip for other formats.
-			chain := route.filterChain.Load()
-			if frame.BitDepth == 16 && (chain != nil || route.gainLinear != 1.0) {
-				processed, err := r.applyProcessing(frame, route, chain)
-				if err != nil {
-					continue
-				}
-				frame = processed
-			}
-			if err := route.Consumer.Write(frame); err != nil {
-				errCount := route.errors.Add(1)
-				if errCount%errorLogInterval == 1 {
-					r.log.Warn("consumer write error",
-						logger.String("source_id", route.SourceID),
-						logger.String("consumer_id", route.Consumer.ID()),
-						logger.Int64("total_errors", errCount),
-						logger.Error(err))
-				}
-			}
+			r.handleRouteFrame(frame, route)
 		case <-route.done:
 			return
 		case <-r.ctx.Done():
@@ -497,41 +466,245 @@ func (r *AudioRouter) drainRoute(route *Route) {
 	}
 }
 
+// handleRouteFrame applies optional resampling and processing to frame, then
+// writes it to the route's consumer. It is called from drainRoute's select loop
+// and is extracted to keep drainRoute under the cognitive-complexity limit.
+//
+// Pool discipline (three release sites, seven scenarios):
+//   - Resample buffer: allocated before resampling, returned after Write (or on
+//     error). When processing follows, the resample buffer is returned before
+//     frame.Data is reassigned so the wrong (processed) slice is never put back
+//     to the resample pool; resamplePool is nilled so the trailing guard is a
+//     no-op.
+//   - Processing float64 scratch and output byte buffers: allocated inside
+//     applyProcessing, bundled in procResult. procResult.release() is called
+//     unconditionally in the trailing guards; it is a no-op on a zero-value
+//     result (processing never ran or errored with internal cleanup).
+//   - procResult.OutPool and resamplePool cannot both be non-nil at the trailing
+//     guards by construction, so their Put calls are mutually exclusive.
+func (r *AudioRouter) handleRouteFrame(frame AudioFrame, route *Route) { //nolint:gocritic // hugeParam: AudioFrame is large but copying is intentional
+	var resamplePool *buffer.BytePool // nil when not pooled
+
+	// procResult holds the processing output and pool handles. Zero value is
+	// safe: release() is a no-op when all pool pointers are nil.
+	var procResult processingResult
+
+	// Apply per-route resampling when rates differ.
+	if route.resampler != nil {
+		resampled, err := route.resampler.ResampleInto(frame.Data)
+		if err != nil {
+			errCount := route.errors.Add(1)
+			if errCount%errorLogInterval == 1 {
+				r.log.Warn("resampler error",
+					logger.String("source_id", route.SourceID),
+					logger.String("consumer_id", route.Consumer.ID()),
+					logger.Int64("total_errors", errCount),
+					logger.Error(err))
+			}
+			return
+		}
+		// Copy resampled bytes into an owned buffer (Resampler reuses its
+		// internal slice). When a buffer.Manager is wired, the copy lands
+		// in a pooled slice keyed by length; otherwise fall back to make().
+		if r.bufMgr != nil {
+			resamplePool = r.bufMgr.BytePoolFor(len(resampled))
+		}
+		var out []byte
+		if resamplePool != nil {
+			out = resamplePool.Get()
+		} else {
+			out = make([]byte, len(resampled))
+		}
+		copy(out, resampled)
+		frame = AudioFrame{
+			SourceID:   frame.SourceID,
+			SourceName: frame.SourceName,
+			Data:       out,
+			SampleRate: route.Consumer.SampleRate(),
+			BitDepth:   frame.BitDepth,
+			Channels:   frame.Channels,
+			Timestamp:  frame.Timestamp,
+		}
+	}
+	// Apply per-route EQ filtering and/or gain adjustment.
+	// Both require 16-bit PCM; skip for other formats.
+	chain := route.filterChain.Load()
+	if frame.BitDepth == 16 && (chain != nil || route.gainLinear != 1.0) {
+		result, err := r.applyProcessing(frame, route, chain)
+		if err != nil {
+			// applyProcessing already released its own pool buffers on error.
+			// Release the resample buffer (frame.Data still points to it here).
+			if resamplePool != nil {
+				resamplePool.Put(frame.Data)
+			}
+			return
+		}
+		// Release the resample buffer BEFORE frame.Data is reassigned to the
+		// processing output, otherwise the trailing guard below would Put a
+		// processed (possibly wrong-sized) slice into the resample pool. Nil
+		// out the pointer so the trailing guard is a no-op.
+		if resamplePool != nil {
+			resamplePool.Put(frame.Data)
+			resamplePool = nil
+		}
+		frame = result.Frame
+		procResult = result
+	}
+	// See AudioConsumer.Write for the buffer ownership contract the
+	// consumer must honour so the pool recycling below is safe.
+	if err := route.Consumer.Write(frame); err != nil {
+		errCount := route.errors.Add(1)
+		if errCount%errorLogInterval == 1 {
+			r.log.Warn("consumer write error",
+				logger.String("source_id", route.SourceID),
+				logger.String("consumer_id", route.Consumer.ID()),
+				logger.Int64("total_errors", errCount),
+				logger.Error(err))
+		}
+	}
+	// Release processing buffers (output byte slice and float64 scratch).
+	// Safe to call unconditionally: no-op when procResult is zero value.
+	// All in-tree consumers copy synchronously, so recycling is safe here.
+	procResult.release()
+	// Release resample buffer when processing did NOT run (processing branch
+	// nilled resamplePool before reassigning frame.Data). When processing ran,
+	// resamplePool is nil here and this is a no-op.
+	if resamplePool != nil {
+		resamplePool.Put(frame.Data)
+	}
+}
+
+// processingResult carries an EQ / gain processed frame plus the pooled
+// buffers that must be returned to their pools after the consumer has
+// synchronously observed the frame. A zero-value result (all pools nil)
+// is safe: release() is a no-op.
+type processingResult struct {
+	Frame     AudioFrame
+	FloatPool *buffer.Float64Pool
+	FloatBuf  []float64
+	OutPool   *buffer.BytePool
+}
+
+// release returns the processing pool buffers to their pools. Safe to call
+// on a zero-value result. Callers invoke this after the consumer's Write
+// returns so the recycled slices are not concurrently read.
+func (p *processingResult) release() {
+	if p.FloatPool != nil {
+		p.FloatPool.Put(p.FloatBuf)
+	}
+	if p.OutPool != nil {
+		p.OutPool.Put(p.Frame.Data)
+	}
+}
+
 // applyProcessing applies EQ filtering and/or gain scaling to a frame in a
 // single float64 conversion pass. The chain may be nil (EQ disabled); gain
 // at 1.0 means no scaling. At least one must be active for this to be called.
-func (r *AudioRouter) applyProcessing(frame AudioFrame, route *Route, chain *equalizer.FilterChain) (AudioFrame, error) { //nolint:gocritic // hugeParam: AudioFrame is large but copying is intentional
-	floats := convert.BytesToFloat64PCM16(frame.Data)
+//
+// Return contract: on success, the caller owns the returned processingResult
+// and must call release() after Consumer.Write returns. On error, applyProcessing
+// releases both buffers internally and returns a zero-value result, so
+// release() on the zero value is always safe (it is a no-op).
+//
+// When bufMgr is nil or a pool lookup returns nil, the function falls back to
+// make() with no corresponding Put, preserving legacy behaviour for unit tests
+// that construct routers with a nil Manager.
+func (r *AudioRouter) applyProcessing(frame AudioFrame, route *Route, chain *equalizer.FilterChain) (processingResult, error) { //nolint:gocritic // hugeParam: AudioFrame is large but copying is intentional
+	evenLen := len(frame.Data) &^ 1
+	if evenLen != len(frame.Data) {
+		// Separate counter: this is a diagnostic for upstream producer bugs,
+		// not a true local error. Keeping it out of route.errors preserves the
+		// meaning of RouteInfo.Errors for operators.
+		truncCount := route.truncations.Add(1)
+		if truncCount%errorLogInterval == 1 {
+			r.log.Info("odd-length PCM16 frame truncated",
+				logger.String("source_id", route.SourceID),
+				logger.String("consumer_id", route.Consumer.ID()),
+				logger.Int("frame_bytes", len(frame.Data)),
+				logger.Int64("total_truncations", truncCount))
+		}
+	}
+	sampleCount := evenLen / 2
 
-	// EQ first — filters operate on the original signal shape.
+	var floatPool *buffer.Float64Pool
+	if r.bufMgr != nil {
+		floatPool = r.bufMgr.Float64PoolFor(sampleCount)
+	}
+	var floatBuf []float64
+	if floatPool != nil {
+		floatBuf = floatPool.Get()
+	} else {
+		floatBuf = make([]float64, sampleCount)
+	}
+
+	// The deferred closure below guards both pool buffers via the
+	// releaseFloat / releaseOut flags. It returns them on any early exit;
+	// the success path disarms both flags before returning so the caller
+	// owns the buffers (to be released after Consumer.Write via
+	// processingResult.release()).
+	releaseFloat := true
+	releaseOut := true
+	var outPool *buffer.BytePool
+	var out []byte
+	defer func() {
+		if releaseFloat && floatPool != nil {
+			floatPool.Put(floatBuf)
+		}
+		if releaseOut && outPool != nil {
+			outPool.Put(out)
+		}
+	}()
+
+	convert.BytesToFloat64PCM16Into(floatBuf, frame.Data[:evenLen])
+
+	// EQ first - filters operate on the original signal shape.
 	if chain != nil {
-		chain.ApplyBatch(floats)
+		chain.ApplyBatch(floatBuf)
 	}
 
-	// Gain second — scales the (possibly filtered) signal.
+	// Gain second - scales the (possibly filtered) signal.
 	if route.gainLinear != 1.0 {
-		convert.ScaleFloat64Slice(floats, route.gainLinear)
+		convert.ScaleFloat64Slice(floatBuf, route.gainLinear)
 	}
 
-	out := make([]byte, len(floats)*2)
-	if err := convert.Float64ToBytesPCM16(floats, out); err != nil {
+	outLen := sampleCount * 2
+	if r.bufMgr != nil {
+		outPool = r.bufMgr.BytePoolFor(outLen)
+	}
+	if outPool != nil {
+		out = outPool.Get()
+	} else {
+		out = make([]byte, outLen)
+	}
+
+	if convErr := convert.Float64ToBytesPCM16(floatBuf, out); convErr != nil {
 		errCount := route.errors.Add(1)
 		if errCount%errorLogInterval == 1 {
 			r.log.Warn("audio processing conversion error",
 				logger.String("source_id", route.SourceID),
 				logger.String("consumer_id", route.Consumer.ID()),
 				logger.Int64("total_errors", errCount),
-				logger.Error(err))
+				logger.Error(convErr))
 		}
-		return AudioFrame{}, err
+		// defer releases both buffers; caller sees zero-value result.
+		return processingResult{}, convErr
 	}
-	return AudioFrame{
-		SourceID:   frame.SourceID,
-		SourceName: frame.SourceName,
-		Data:       out,
-		SampleRate: frame.SampleRate,
-		BitDepth:   frame.BitDepth,
-		Channels:   frame.Channels,
-		Timestamp:  frame.Timestamp,
+
+	// Success: disarm the defer so the caller owns the buffers.
+	releaseFloat = false
+	releaseOut = false
+	return processingResult{
+		Frame: AudioFrame{
+			SourceID:   frame.SourceID,
+			SourceName: frame.SourceName,
+			Data:       out,
+			SampleRate: frame.SampleRate,
+			BitDepth:   frame.BitDepth,
+			Channels:   frame.Channels,
+			Timestamp:  frame.Timestamp,
+		},
+		FloatPool: floatPool,
+		FloatBuf:  floatBuf,
+		OutPool:   outPool,
 	}, nil
 }

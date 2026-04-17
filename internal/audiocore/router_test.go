@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tphakala/birdnet-go/internal/audiocore/buffer"
 	"github.com/tphakala/birdnet-go/internal/audiocore/equalizer"
 )
 
@@ -84,7 +85,7 @@ func testFrame(sourceID string) AudioFrame {
 // removed, with HasConsumers reflecting the correct state at each step.
 func TestRouter_AddAndRemoveRoute(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newMockConsumer("consumer-1")
@@ -102,7 +103,7 @@ func TestRouter_AddAndRemoveRoute(t *testing.T) {
 // a single registered consumer.
 func TestRouter_DispatchSingleConsumer(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newMockConsumer("consumer-1")
@@ -125,7 +126,7 @@ func TestRouter_DispatchSingleConsumer(t *testing.T) {
 // consumers registered for the same source.
 func TestRouter_DispatchFanOut(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	c1 := newMockConsumer("consumer-1")
@@ -151,7 +152,7 @@ func TestRouter_DispatchFanOut(t *testing.T) {
 // no registered routes does not panic.
 func TestRouter_DispatchNoConsumers(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	// Should not panic.
@@ -164,7 +165,7 @@ func TestRouter_DispatchNoConsumers(t *testing.T) {
 // the frame is dropped and the drop counter increments.
 func TestRouter_DropOnFullInbox(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newBlockingConsumer("slow-consumer")
@@ -186,7 +187,7 @@ func TestRouter_DropOnFullInbox(t *testing.T) {
 // route for a given source.
 func TestRouter_RemoveAllRoutes(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	c1 := newMockConsumer("consumer-1")
@@ -206,7 +207,7 @@ func TestRouter_RemoveAllRoutes(t *testing.T) {
 // twice for the same source returns ErrRouteExists.
 func TestRouter_DuplicateRouteError(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	c1 := newMockConsumer("consumer-1")
@@ -225,7 +226,7 @@ func TestRouter_DuplicateRouteError(t *testing.T) {
 // resampled data (approximately 2/3 the length for a 48kHz→32kHz conversion).
 func TestRouter_DispatchWithResampling(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	// Consumer expects 32kHz; source produces 48kHz.
@@ -282,7 +283,7 @@ func TestRouter_DispatchWithResampling(t *testing.T) {
 // multiple goroutines does not trigger data races (run with -race).
 func TestRouter_ConcurrentDispatch(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	c1 := newMockConsumer("consumer-1")
@@ -320,7 +321,7 @@ done:
 func TestDrainRoutePanicRecovery(t *testing.T) {
 	t.Parallel()
 
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	panicConsumer := &panicOnWriteConsumer{
@@ -399,7 +400,7 @@ func TestRouter_DrainRouteAppliesGain(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			router := NewAudioRouter(GetLogger())
+			router := NewAudioRouter(GetLogger(), nil)
 			defer router.Close()
 
 			consumer := newMockConsumer("c1")
@@ -445,7 +446,7 @@ func TestRouter_DrainRouteAppliesGain(t *testing.T) {
 func TestRouter_GainClipping(t *testing.T) {
 	t.Parallel()
 
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	defer router.Close()
 
 	consumer := newMockConsumer("c1")
@@ -507,7 +508,7 @@ func TestRouter_AddRouteWithGain(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			router := NewAudioRouter(GetLogger())
+			router := NewAudioRouter(GetLogger(), nil)
 			t.Cleanup(func() { router.Close() })
 			consumer := newMockConsumer("c1")
 			err := router.AddRoute("src-1", consumer, 48000, tt.gainDB, nil)
@@ -523,7 +524,7 @@ func TestRouter_AddRouteWithGain(t *testing.T) {
 
 func TestRouter_UpdateFilterChain(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newMockConsumer("c1")
@@ -567,7 +568,7 @@ func TestRouter_UpdateFilterChain(t *testing.T) {
 // EQ chain when gain is unity (1.0) and a filter chain is set.
 func TestRouter_ApplyProcessing_EQOnly(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newMockConsumer("c1")
@@ -619,7 +620,7 @@ func TestRouter_ApplyProcessing_EQOnly(t *testing.T) {
 // applied in a single conversion pass.
 func TestRouter_ApplyProcessing_EQAndGain(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newMockConsumer("c1")
@@ -663,6 +664,119 @@ func TestRouter_ApplyProcessing_EQAndGain(t *testing.T) {
 	outputRMS := rmsOfPCM16(received.Data)
 	assert.InDelta(t, inputRMS*2.0, outputRMS, inputRMS*0.5,
 		"output should be ~2x input (6 dB gain) after passing through LowPass")
+}
+
+// BenchmarkApplyProcessing_PoolWarm measures steady-state per-frame allocations
+// on the applyProcessing hot path with a fully wired buffer.Manager. The pools
+// are warmed before the timed loop so the reported allocs/op reflects recycling
+// behaviour, not first-call pool misses.
+func BenchmarkApplyProcessing_PoolWarm(b *testing.B) {
+	mgr := buffer.NewManager(GetLogger())
+	r := NewAudioRouter(GetLogger(), mgr)
+	defer r.Close()
+
+	// Construct a minimal Route that exercises the gain branch.
+	// gainLinear != 1.0 ensures applyProcessing is called; nil filterChain
+	// means EQ is skipped so only gain scaling runs.
+	route := &Route{
+		gainLinear: 2.0, // +6 dB: exercises the gain path
+		inbox:      make(chan AudioFrame, 1),
+		done:       make(chan struct{}),
+		stopped:    make(chan struct{}),
+	}
+	// filterChain zero value is a nil atomic.Pointer, which Load() returns nil for.
+
+	// 2880 bytes = 1440 samples = 30 ms of 48 kHz mono 16-bit PCM.
+	frame := AudioFrame{
+		SourceID:   "bench",
+		SourceName: "bench",
+		Data:       make([]byte, 2880),
+		SampleRate: 48000,
+		BitDepth:   16,
+		Channels:   1,
+	}
+
+	// Warm the pools so steady-state pool reuse is established before timing.
+	for range 4 {
+		res, err := r.applyProcessing(frame, route, nil)
+		if err != nil {
+			b.Fatalf("warm-up applyProcessing failed: %v", err)
+		}
+		res.release()
+	}
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		res, err := r.applyProcessing(frame, route, nil)
+		if err != nil {
+			b.Fatal(err)
+		}
+		res.release()
+	}
+}
+
+// TestApplyProcessing_AllocationRegression guards against allocation regressions
+// on the applyProcessing hot path. It measures steady-state allocs/op after pool
+// warm-up and asserts they stay within the cap documented in maxAllowedAllocs.
+//
+// Do NOT add t.Parallel() here: sync.Pool is stateful and parallel execution
+// could pollute pool state during the alloc-sensitive measurement window.
+func TestApplyProcessing_AllocationRegression(t *testing.T) {
+	mgr := buffer.NewManager(GetLogger())
+	r := NewAudioRouter(GetLogger(), mgr)
+	defer r.Close()
+
+	route := &Route{
+		gainLinear: 2.0,
+		inbox:      make(chan AudioFrame, 1),
+		done:       make(chan struct{}),
+		stopped:    make(chan struct{}),
+	}
+
+	frame := AudioFrame{
+		SourceID:   "bench",
+		SourceName: "bench",
+		Data:       make([]byte, 2880),
+		SampleRate: 48000,
+		BitDepth:   16,
+		Channels:   1,
+	}
+
+	// Warm the pools before measuring.
+	for range 4 {
+		res, err := r.applyProcessing(frame, route, nil)
+		require.NoError(t, err)
+		res.release()
+	}
+
+	// Measure steady-state allocation count over 100 iterations.
+	allocs := testing.AllocsPerRun(100, func() {
+		res, err := r.applyProcessing(frame, route, nil)
+		if err != nil {
+			panic(err)
+		}
+		res.release()
+	})
+
+	// Regression gate. The baseline is not zero because sync.Pool.Put boxes
+	// the slice header into an interface{} value (see SA6002 nolint comment in
+	// internal/audiocore/buffer/pool.go). Each Put call for Float64Pool and
+	// BytePool boxes one slice header, costing one small allocation. Two Put
+	// calls per applyProcessing call produce 2 allocs/op at steady state under
+	// the benchmark (warm, isolated). Under -race with parallel tests, the GC
+	// may collect pooled items causing up to 2 additional pool-miss allocs per
+	// call; the cap is set to 4 to tolerate that noise while still catching
+	// any real regressions (e.g. extra make() calls) that would push allocs
+	// well above this threshold.
+	//
+	// Measured benchmark baseline: 2 allocs/op, 48 B/op (3 runs, -count=3).
+	// Increase this constant only after investigating WHY allocations grew.
+	const maxAllowedAllocs = 4
+
+	assert.LessOrEqual(t, int(allocs), maxAllowedAllocs,
+		"applyProcessing allocations per call exceed the regression cap of %d (got %.0f)",
+		maxAllowedAllocs, allocs)
 }
 
 // rmsOfPCM16 computes the RMS of 16-bit little-endian PCM samples.
