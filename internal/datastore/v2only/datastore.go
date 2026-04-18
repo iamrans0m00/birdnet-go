@@ -3075,7 +3075,14 @@ func (ds *Datastore) DeleteSpeciesNote(noteID string) error {
 	if err != nil {
 		return err
 	}
-	return ds.manager.DB().Delete(&datastore.SpeciesNote{}, id).Error
+	result := ds.manager.DB().Delete(&datastore.SpeciesNote{}, id)
+	if result.Error != nil {
+		return fmt.Errorf("delete species note: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return datastore.ErrSpeciesNoteNotFound
+	}
+	return nil
 }
 
 // UpdateSpeciesNote updates an existing species note's entry.
@@ -3087,7 +3094,21 @@ func (ds *Datastore) UpdateSpeciesNote(noteID, entry string) error {
 	if err != nil {
 		return err
 	}
-	return ds.manager.DB().Model(&datastore.SpeciesNote{}).Where("id = ?", id).Update("entry", entry).Error
+	ctx := context.Background()
+	result := ds.manager.DB().WithContext(ctx).Model(&datastore.SpeciesNote{}).Where("id = ?", id).Update("entry", entry)
+	if result.Error != nil {
+		return fmt.Errorf("update species note: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		var count int64
+		if err := ds.manager.DB().WithContext(ctx).Model(&datastore.SpeciesNote{}).Where("id = ?", id).Count(&count).Error; err != nil {
+			return fmt.Errorf("check species note existence: %w", err)
+		}
+		if count == 0 {
+			return datastore.ErrSpeciesNoteNotFound
+		}
+	}
+	return nil
 }
 
 // GetSpeciesNoteByID retrieves a single species note by its primary key.

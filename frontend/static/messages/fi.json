@@ -1558,11 +1558,15 @@
           "summer": "Kesä",
           "fall": "Syksy",
           "winter": "Talvi",
-          "wet1": "Sadekausi",
-          "dry1": "Kuivakausi",
-          "wet2": "Sadekausi",
-          "dry2": "Kuivakausi"
-        }
+          "wet1": "1. Sadekausi",
+          "dry1": "1. Kuivakausi",
+          "wet2": "2. Sadekausi",
+          "dry2": "2. Kuivakausi"
+        },
+        "vs": "vs",
+        "noDescription": "Kuvaus ei saatavilla",
+        "noSongs": "Ääntelytietoja ei saatavilla",
+        "noSimilar": "Ei samankaltaisia lajeja"
       },
       "notes": {
         "title": "Lajimuistiinpanot",
@@ -1580,7 +1584,8 @@
         "loading": "Ladataan samankaltaisia lajeja...",
         "empty": "Samankaltaisia lajeja ei löytynyt tästä suvusta.",
         "sameGenus": "Sama suku",
-        "sameFamily": "Sama heimo"
+        "sameFamily": "Sama heimo",
+        "similar": "Samankaltainen"
       }
     },
     "advanced": {

@@ -986,7 +986,7 @@
         </div>
       {:else}
         {#if speciesNotes.length > 0}
-          <div class="space-y-2 mt-2" role="list" aria-label="Species notes">
+          <div class="space-y-2 mt-2" role="list" aria-label={t('analytics.species.notes.title')}>
             {#each speciesNotes as note (note.id)}
               <article class="content-panel species-note-card" role="listitem">
                 {#if editingNoteId === note.id}
@@ -1003,14 +1003,14 @@
                     <div class="flex gap-2 justify-end">
                       <button
                         class="p-1 rounded text-green-500 hover:bg-green-500 hover:text-white transition-all"
-                        aria-label="Save"
+                        aria-label={t('common.save')}
                         onclick={() => saveEditNote(note.id)}
                       >
                         <Check class="h-3.5 w-3.5" />
                       </button>
                       <button
                         class="p-1 rounded text-gray-500 hover:bg-gray-500 hover:text-white transition-all"
-                        aria-label="Cancel"
+                        aria-label={t('common.cancel')}
                         onclick={cancelEditNote}
                       >
                         <X class="h-3.5 w-3.5" />
@@ -1028,7 +1028,7 @@
                     <div class="flex gap-1">
                       <button
                         class="p-1 rounded text-blue-500 hover:bg-blue-500 hover:text-white transition-all"
-                        aria-label="Edit"
+                        aria-label={t('common.edit')}
                         onclick={() => startEditNote(note)}
                       >
                         <Pencil class="h-3.5 w-3.5" />

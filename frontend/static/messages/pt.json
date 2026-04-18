@@ -1558,11 +1558,15 @@
           "summer": "Verão",
           "fall": "Outono",
           "winter": "Inverno",
-          "wet1": "Estação chuvosa",
-          "dry1": "Estação seca",
-          "wet2": "Estação chuvosa",
-          "dry2": "Estação seca"
-        }
+          "wet1": "Primeira Estação Chuvosa",
+          "dry1": "Primeira Estação Seca",
+          "wet2": "Segunda Estação Chuvosa",
+          "dry2": "Segunda Estação Seca"
+        },
+        "vs": "vs",
+        "noDescription": "Sem descrição disponível",
+        "noSongs": "Sem informações de cantos/chamadas",
+        "noSimilar": "Nenhuma espécie semelhante listada"
       },
       "notes": {
         "title": "Notas da Espécie",
@@ -1580,7 +1584,8 @@
         "loading": "Carregando espécies semelhantes...",
         "empty": "Nenhuma espécie semelhante encontrada neste gênero.",
         "sameGenus": "Mesmo gênero",
-        "sameFamily": "Mesma família"
+        "sameFamily": "Mesma família",
+        "similar": "Semelhante"
       }
     },
     "advanced": {

@@ -1558,11 +1558,15 @@
           "summer": "Verano",
           "fall": "Otoño",
           "winter": "Invierno",
-          "wet1": "Temporada húmeda",
-          "dry1": "Temporada seca",
-          "wet2": "Temporada húmeda",
-          "dry2": "Temporada seca"
-        }
+          "wet1": "Primera Temporada Húmeda",
+          "dry1": "Primera Temporada Seca",
+          "wet2": "Segunda Temporada Húmeda",
+          "dry2": "Segunda Temporada Seca"
+        },
+        "vs": "vs",
+        "noDescription": "Sin descripción disponible",
+        "noSongs": "Sin información de cantos/llamadas",
+        "noSimilar": "No se listaron especies similares"
       },
       "notes": {
         "title": "Notas de Especie",
@@ -1580,7 +1584,8 @@
         "loading": "Cargando especies similares...",
         "empty": "No se encontraron especies similares en este género.",
         "sameGenus": "Mismo género",
-        "sameFamily": "Misma familia"
+        "sameFamily": "Misma familia",
+        "similar": "Similar"
       }
     },
     "advanced": {

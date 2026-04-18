@@ -1558,11 +1558,15 @@
           "summer": "Zomer",
           "fall": "Herfst",
           "winter": "Winter",
-          "wet1": "Regenseizoen",
-          "dry1": "Droogseizoen",
-          "wet2": "Regenseizoen",
-          "dry2": "Droogseizoen"
-        }
+          "wet1": "Eerste Regenseizoen",
+          "dry1": "Eerste Droogseizoen",
+          "wet2": "Tweede Regenseizoen",
+          "dry2": "Tweede Droogseizoen"
+        },
+        "vs": "vs",
+        "noDescription": "Geen beschrijving beschikbaar",
+        "noSongs": "Geen zang-/roepinformatie beschikbaar",
+        "noSimilar": "Geen vergelijkbare soorten vermeld"
       },
       "notes": {
         "title": "Soortnotities",
@@ -1580,7 +1584,8 @@
         "loading": "Vergelijkbare soorten laden...",
         "empty": "Geen vergelijkbare soorten gevonden in dit geslacht.",
         "sameGenus": "Zelfde geslacht",
-        "sameFamily": "Zelfde familie"
+        "sameFamily": "Zelfde familie",
+        "similar": "Vergelijkbaar"
       }
     },
     "advanced": {

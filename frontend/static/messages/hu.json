@@ -1577,11 +1577,15 @@
           "summer": "Nyár",
           "fall": "Ősz",
           "winter": "Tél",
-          "wet1": "Esős évszak",
-          "dry1": "Száraz évszak",
-          "wet2": "Esős évszak",
-          "dry2": "Száraz évszak"
-        }
+          "wet1": "1. Esős évszak",
+          "dry1": "1. Száraz évszak",
+          "wet2": "2. Esős évszak",
+          "dry2": "2. Száraz évszak"
+        },
+        "vs": "vs",
+        "noDescription": "Nincs elérhető leírás",
+        "noSongs": "Nincs elérhető ének/hívóhang-információ",
+        "noSimilar": "Nincs felsorolt hasonló faj"
       },
       "notes": {
         "title": "Fajjegyzetek",
@@ -1599,7 +1603,8 @@
         "loading": "Hasonló fajok betöltése...",
         "empty": "Nem találhatók hasonló fajok ebben a nemben.",
         "sameGenus": "Azonos nem",
-        "sameFamily": "Azonos család"
+        "sameFamily": "Azonos család",
+        "similar": "Hasonló"
       }
     },
     "advanced": {

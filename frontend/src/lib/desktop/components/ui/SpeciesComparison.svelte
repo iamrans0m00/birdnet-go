@@ -125,8 +125,8 @@
         if (err instanceof Error && err.name === 'AbortError') return;
         logger.error('Failed to fetch similar species guide', err);
       } finally {
-        isLoadingSimilarGuide = false;
         if (similarGuideController === controller) {
+          isLoadingSimilarGuide = false;
           similarGuideController = null;
         }
       }
@@ -139,7 +139,10 @@
       fetchSimilarSpecies(controller.signal),
       fetchFocalSpeciesGuide(controller.signal),
     ]);
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      similarGuideController?.abort();
+    };
   });
 
   // Helper to extract specific section from focal guide by heading name.
@@ -202,7 +205,7 @@
 
       <!-- Divider -->
       <div class="vs-divider">
-        <span>vs</span>
+        <span>{t('analytics.species.guide.vs')}</span>
       </div>
 
       <!-- Similar species cards -->
@@ -215,7 +218,11 @@
           <span class="species-common">{entry.common_name}</span>
           <span class="species-scientific">{entry.scientific_name}</span>
           {#if entry.relationship}
-            <span class="species-relationship">{entry.relationship.replace('_', ' ')}</span>
+            <span class="species-relationship"
+              >{t(
+                `analytics.species.similar.${entry.relationship === 'same_genus' ? 'sameGenus' : entry.relationship === 'same_family' ? 'sameFamily' : 'similar'}`
+              )}</span
+            >
           {/if}
           {#if entry.guide_summary}
             <span class="species-summary">{entry.guide_summary}</span>
@@ -231,7 +238,9 @@
 
       <div class="comparison-panel">
         <h4 class="panel-title">
-          {commonName} vs {similarEntry.common_name}
+          {commonName}
+          {t('analytics.species.guide.vs')}
+          {similarEntry.common_name}
         </h4>
 
         {#if isLoadingSimilarGuide}
@@ -243,7 +252,7 @@
           </div>
         {:else if similarGuideSections.length > 0}
           <div class="similar-guide-sections">
-            {#each similarGuideSections as section}
+            {#each similarGuideSections as section (section.heading)}
               <div class="guide-section">
                 <h5 class="guide-section-heading">{section.heading}</h5>
                 <p class="guide-section-body">{section.body}</p>
@@ -261,7 +270,7 @@
               <ChevronRight class="h-4 w-4" />
             {/if}
             <Bird class="h-4 w-4 text-blue-500" />
-            <span>{t('analytics.species.guide.description') || 'Description'}</span>
+            <span>{t('analytics.species.guide.description')}</span>
           </button>
           {#if descriptionOpen}
             <div class="section-content">
@@ -272,9 +281,10 @@
                     {#if focalSections.length > 0}
                       {getFirstSectionBody(focalSections) ||
                         focalGuide?.description?.substring(0, 300) ||
-                        'No description available'}
+                        t('analytics.species.guide.noDescription')}
                     {:else}
-                      {focalGuide?.description?.substring(0, 300) || 'No description available'}
+                      {focalGuide?.description?.substring(0, 300) ||
+                        t('analytics.species.guide.noDescription')}
                     {/if}
                   </p>
                 </div>
@@ -283,7 +293,7 @@
                   <p class="side-content">
                     {similarSections?.description ||
                       similarEntry.guide_summary ||
-                      'No description available'}
+                      t('analytics.species.guide.noDescription')}
                   </p>
                 </div>
               </div>
@@ -300,7 +310,7 @@
               <ChevronRight class="h-4 w-4" />
             {/if}
             <Music class="h-4 w-4 text-green-500" />
-            <span>{t('analytics.species.guide.songs') || 'Songs and calls'}</span>
+            <span>{t('analytics.species.guide.songs')}</span>
           </button>
           {#if songsOpen}
             <div class="section-content">
@@ -320,13 +330,13 @@
                       getSectionContent(focalSections, 'Głos') ||
                       getSectionContent(focalSections, 'Ääntelyt') ||
                       getSectionContent(focalSections, 'Läte') ||
-                      'No songs/calls info available'}
+                      t('analytics.species.guide.noSongs')}
                   </p>
                 </div>
                 <div class="comparison-side">
                   <span class="side-label">{similarEntry.common_name}</span>
                   <p class="side-content">
-                    {similarSections?.songs_and_calls || 'No songs/calls info available'}
+                    {similarSections?.songs_and_calls || t('analytics.species.guide.noSongs')}
                   </p>
                 </div>
               </div>
@@ -343,7 +353,7 @@
               <ChevronRight class="h-4 w-4" />
             {/if}
             <ListOrdered class="h-4 w-4 text-orange-500" />
-            <span>{t('analytics.species.guide.similar') || 'Similar species'}</span>
+            <span>{t('analytics.species.guide.similar')}</span>
           </button>
           {#if similarOpen}
             <div class="section-content">
@@ -357,9 +367,9 @@
                         getSectionContent(focalSections, 'Espèces similaires') ||
                         getSectionContent(focalSections, 'Especies similares') ||
                         getSectionContent(focalSections, 'Verwechslungsmöglichkeiten') ||
-                        'No similar species listed'}
+                        t('analytics.species.guide.noSimilar')}
                     {:else}
-                      No similar species listed
+                      {t('analytics.species.guide.noSimilar')}
                     {/if}
                   </p>
                 </div>
@@ -369,7 +379,7 @@
                     {#if similarSections?.similar_species && similarSections.similar_species.length > 0}
                       {similarSections.similar_species.join(', ')}
                     {:else}
-                      No similar species listed
+                      {t('analytics.species.guide.noSimilar')}
                     {/if}
                   </p>
                 </div>
@@ -460,19 +470,19 @@
 
   .species-scientific {
     font-size: 0.65rem;
-    opacity: 50;
+    opacity: 0.5;
     font-style: italic;
   }
 
   .species-relationship {
     font-size: 0.6rem;
-    opacity: 40;
+    opacity: 0.4;
     text-transform: capitalize;
   }
 
   .species-summary {
     font-size: 0.6rem;
-    opacity: 50;
+    opacity: 0.5;
     line-height: 1.3;
     margin-top: 0.125rem;
     white-space: normal;
@@ -484,7 +494,7 @@
     justify-content: center;
     padding: 0.25rem 0.5rem;
     font-size: 0.65rem;
-    opacity: 40;
+    opacity: 0.4;
     flex-shrink: 0;
   }
 
@@ -498,7 +508,7 @@
     font-weight: 600;
     margin-bottom: 0.75rem;
     text-align: center;
-    opacity: 70;
+    opacity: 0.7;
   }
 
   .section {
@@ -552,7 +562,7 @@
   .side-label {
     font-size: 0.65rem;
     font-weight: 600;
-    opacity: 60;
+    opacity: 0.6;
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
@@ -560,6 +570,6 @@
   .side-content {
     font-size: 0.75rem;
     line-height: 1.4;
-    opacity: 80;
+    opacity: 0.8;
   }
 </style>

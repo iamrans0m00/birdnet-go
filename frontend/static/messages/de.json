@@ -1558,11 +1558,15 @@
           "summer": "Sommer",
           "fall": "Herbst",
           "winter": "Winter",
-          "wet1": "Regenzeit",
-          "dry1": "Trockenzeit",
-          "wet2": "Regenzeit",
-          "dry2": "Trockenzeit"
-        }
+          "wet1": "Erste Regenzeit",
+          "dry1": "Erste Trockenzeit",
+          "wet2": "Zweite Regenzeit",
+          "dry2": "Zweite Trockenzeit"
+        },
+        "vs": "vs",
+        "noDescription": "Keine Beschreibung verfügbar",
+        "noSongs": "Keine Gesangs- und Rufinfos verfügbar",
+        "noSimilar": "Keine ähnlichen Arten aufgeführt"
       },
       "notes": {
         "title": "Artnotizen",
@@ -1580,7 +1584,8 @@
         "loading": "Ähnliche Arten werden geladen...",
         "empty": "Keine ähnlichen Arten in dieser Gattung gefunden.",
         "sameGenus": "Gleiche Gattung",
-        "sameFamily": "Gleiche Familie"
+        "sameFamily": "Gleiche Familie",
+        "similar": "Ähnlich"
       }
     },
     "advanced": {

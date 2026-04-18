@@ -71,10 +71,6 @@ realtime:
       showsimilarspecies: true
 ```
 
-## Monitoring During Rollout
-
-### Key Metrics
-
 ### UI Feature Toggles
 
 Three independent toggles control which guide sections render:
@@ -117,7 +113,7 @@ guidecache_positive_entry_ratio
 histogram_quantile(0.95, rate(guidecache_wikipedia_duration_seconds_bucket[5m]))
 
 # Total API requests by endpoint and result
-guide_cache_wikipedia_requests_total
+guidecache_wikipedia_requests_total
 ```
 
 ## Troubleshooting

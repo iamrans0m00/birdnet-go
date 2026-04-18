@@ -1558,11 +1558,15 @@
           "summer": "Été",
           "fall": "Automne",
           "winter": "Hiver",
-          "wet1": "Saison humide",
-          "dry1": "Saison sèche",
-          "wet2": "Saison humide",
-          "dry2": "Saison sèche"
-        }
+          "wet1": "Première Saison Humide",
+          "dry1": "Première Saison Sèche",
+          "wet2": "Deuxième Saison Humide",
+          "dry2": "Deuxième Saison Sèche"
+        },
+        "vs": "vs",
+        "noDescription": "Aucune description disponible",
+        "noSongs": "Aucune information sur les chants/cris",
+        "noSimilar": "Aucune espèce similaire répertoriée"
       },
       "notes": {
         "title": "Notes d'espèce",
@@ -1580,7 +1584,8 @@
         "loading": "Chargement des espèces similaires...",
         "empty": "Aucune espèce similaire trouvée dans ce genre.",
         "sameGenus": "Même genre",
-        "sameFamily": "Même famille"
+        "sameFamily": "Même famille",
+        "similar": "Similaire"
       }
     },
     "advanced": {

@@ -903,7 +903,8 @@ func (cm *ControlMonitor) handleReconfigureSpeciesGuide() {
 
 	// Run initialization in a goroutine — warm-up launches async inside the
 	// cache but initGuideCacheIfNeeded itself must not block the control monitor.
-	go func() {
+	// Registered with cm.wg so the pipeline waits for it on shutdown.
+	cm.wg.Go(func() {
 		defer func() {
 			if r := recover(); r != nil {
 				GetLogger().Error("Recovered from panic in species guide reconfiguration",
@@ -923,6 +924,16 @@ func (cm *ControlMonitor) handleReconfigureSpeciesGuide() {
 			return
 		}
 
+		// Do not install the cache if the monitor is shutting down.
+		select {
+		case <-cm.quitChan:
+			if newGuideCache != nil {
+				newGuideCache.Close()
+			}
+			return
+		default:
+		}
+
 		// Replace the old cache with the new one. SetGuideCache handles closing the old cache.
 		cm.apiController.SetGuideCache(newGuideCache)
 
@@ -933,5 +944,5 @@ func (cm *ControlMonitor) handleReconfigureSpeciesGuide() {
 			GetLogger().Info("Species guide feature disabled")
 			cm.notifySuccess("Species guide feature disabled")
 		}
-	}()
+	})
 }
