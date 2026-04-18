@@ -34,17 +34,17 @@ const SENSITIVE_KEYS =
  * Redact sensitive keys from an object to prevent PII leakage
  */
 function redactSensitive(data: Record<string, unknown>): Record<string, unknown> {
-  const redacted: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (SENSITIVE_KEYS.test(key)) {
-      redacted[key] = '[redacted]'; // eslint-disable-line security/detect-object-injection
-    } else if (typeof value === 'string' && value.length > 500) {
-      redacted[key] = value.slice(0, 500) + '...[truncated]'; // eslint-disable-line security/detect-object-injection
-    } else {
-      redacted[key] = value; // eslint-disable-line security/detect-object-injection
-    }
-  }
-  return redacted;
+  return Object.fromEntries(
+    Object.entries(data).map(([key, value]) => {
+      if (SENSITIVE_KEYS.test(key)) {
+        return [key, '[redacted]'];
+      }
+      if (typeof value === 'string' && value.length > 500) {
+        return [key, value.slice(0, 500) + '...[truncated]'];
+      }
+      return [key, value];
+    })
+  );
 }
 
 /**
