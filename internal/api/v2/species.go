@@ -1056,7 +1056,7 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
 			Category(errors.CategoryConfiguration).
 			Component("api-species").
-			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
+			Build(), "Species guide feature is disabled", http.StatusNotFound)
 	}
 
 	// Check if similar species UI component is enabled
