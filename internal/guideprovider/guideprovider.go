@@ -551,12 +551,15 @@ func truncateDescription(desc string) string {
 		return desc
 	}
 	truncated := desc[:maxRichDescriptionLength]
-	// Remove any partial or invalid UTF-8 rune at the end.
-	// This handles both orphaned leading bytes (1110xxxx without continuation)
-	// and trailing continuation bytes (10xxxxxx without the lead).
-	for truncated != "" && !utf8.ValidString(truncated) {
-		_, size := utf8.DecodeLastRuneInString(truncated)
-		truncated = truncated[:len(truncated)-size]
+	// Remove any partial UTF-8 rune split at the truncation boundary.
+	// DecodeLastRuneInString returns RuneError+size==1 only for an incomplete
+	// leading byte, which is the sole case a hard cut can produce.
+	for {
+		r, size := utf8.DecodeLastRuneInString(truncated)
+		if r != utf8.RuneError || size != 1 {
+			break
+		}
+		truncated = truncated[:len(truncated)-1]
 	}
 	return truncated
 }

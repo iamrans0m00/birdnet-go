@@ -840,6 +840,13 @@ func (cm *ControlMonitor) handleReconfigureSpeciesGuide() {
 	// Run initialization in a goroutine — warm-up launches async inside the
 	// cache but initGuideCacheIfNeeded itself must not block the control monitor.
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				GetLogger().Error("Recovered from panic in species guide reconfiguration",
+					logger.Any("panic", r))
+			}
+		}()
+
 		newGuideCache := initGuideCacheIfNeeded(settings, cm.proc.Ds, cm.proc.Ds, metrics.GuideProvider)
 
 		// If a newer reconfiguration has started while we were initializing,
