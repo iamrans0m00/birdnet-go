@@ -3089,8 +3089,7 @@ func (ds *Datastore) UpdateSpeciesNote(noteID, entry string) error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
-	result := ds.manager.DB().WithContext(ctx).
+	result := ds.manager.DB().
 		Model(&datastore.SpeciesNote{}).
 		Where("id = ?", id).
 		Update("entry", entry)
