@@ -266,7 +266,7 @@
           fetchImageAttribution(),
           fetchGuide().then(() => {
             if (guideData && guideData.features && guideData.features.notes !== false) {
-              void fetchSpeciesNotes();
+              return fetchSpeciesNotes();
             }
           }),
         ]);

@@ -164,8 +164,8 @@ Performance Optimizations:
     common_name: string;
     scientific_name: string;
     count: number;
-    avg_confidence: number;
-    max_confidence: number;
+    avg_confidence: number | null;
+    max_confidence: number | null;
     first_heard: string;
     last_heard: string;
     thumbnail_url?: string;
