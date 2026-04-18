@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/tphakala/birdnet-go/internal/errors"
 	"github.com/tphakala/birdnet-go/internal/logger"
@@ -676,10 +675,5 @@ func truncate(s string, maxLen int) string {
 	if idx < maxLen/2 {
 		idx = maxLen // No good break point, just cut.
 	}
-	// Ensure we don't cut mid-rune: validate the truncated string.
-	truncated := s[:idx]
-	for !utf8.ValidString(truncated) && truncated != "" {
-		truncated = truncated[:len(truncated)-1]
-	}
-	return truncated + "..."
+	return trimToUTF8Boundary(s[:idx]) + "..."
 }
