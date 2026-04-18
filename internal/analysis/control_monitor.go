@@ -6,6 +6,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tphakala/birdnet-go/internal/analysis/processor"
@@ -56,6 +57,12 @@ type ControlMonitor struct {
 
 	// Quiet hours scheduler for stream/soundcard lifecycle management
 	quietHoursScheduler *schedule.QuietHoursScheduler
+
+	// guideCacheInitVersion is incremented each time a new species guide
+	// reconfiguration is launched. The goroutine captures its version at
+	// start and discards its result if a newer reconfiguration has since
+	// been initiated, preventing stale configurations from overwriting newer ones.
+	guideCacheInitVersion atomic.Uint64
 }
 
 // NewControlMonitor creates a new ControlMonitor instance.
@@ -826,14 +833,26 @@ func (cm *ControlMonitor) handleReconfigureSpeciesGuide() {
 		return
 	}
 
-	// Run initialization in a goroutine — warm-up can take 100+ seconds at 1 req/s
-	// and must not block the control monitor from processing other signals.
+	// Increment the generation counter before spawning so that any goroutine
+	// from a prior reconfig sees a stale version and discards its result.
+	version := cm.guideCacheInitVersion.Add(1)
+
+	// Run initialization in a goroutine — warm-up launches async inside the
+	// cache but initGuideCacheIfNeeded itself must not block the control monitor.
 	go func() {
-		// Initialize a new guide cache with the current settings
 		newGuideCache := initGuideCacheIfNeeded(settings, cm.proc.Ds, cm.proc.Ds, metrics.GuideProvider)
 
-		// If the cache was successfully created (or is intentionally nil if feature is disabled),
-		// replace the old cache with the new one. SetGuideCache will handle closing the old cache.
+		// If a newer reconfiguration has started while we were initializing,
+		// discard this result so the latest config always wins.
+		if cm.guideCacheInitVersion.Load() != version {
+			GetLogger().Info("Discarding stale species guide reconfiguration (superseded by newer request)")
+			if newGuideCache != nil {
+				newGuideCache.Close()
+			}
+			return
+		}
+
+		// Replace the old cache with the new one. SetGuideCache handles closing the old cache.
 		cm.apiController.SetGuideCache(newGuideCache)
 
 		if settings.Realtime.Dashboard.SpeciesGuide.Enabled {
