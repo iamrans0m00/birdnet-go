@@ -156,7 +156,13 @@ Props:
       {#each displayDetections as detection (`${detection.source}_${detection.scientificName}`)}
         {@const key = detection.source + detection.scientificName}
         {@const elapsedText = getElapsedForKey(key)}
-        {@const cardClass = `flex items-center gap-2 rounded-lg px-3 py-2 transition-colors duration-300 ${detection.status === 'approved' ? 'border border-[var(--color-success)]/30 bg-[var(--color-success)]/15' : detection.status === 'rejected' ? 'border border-[var(--color-error)]/30 bg-[var(--color-error)]/15 opacity-60' : 'border border-transparent bg-[var(--color-base-200)]'}`}
+        {@const statusClasses =
+          detection.status === 'approved'
+            ? 'border border-[var(--color-success)]/30 bg-[var(--color-success)]/15'
+            : detection.status === 'rejected'
+              ? 'border border-[var(--color-error)]/30 bg-[var(--color-error)]/15 opacity-60'
+              : 'border border-transparent bg-[var(--color-base-200)]'}
+        {@const cardClass = `flex items-center gap-2 rounded-lg px-3 py-2 transition-colors duration-300 ${statusClasses}`}
 
         {#snippet cardContent()}
           <!-- Thumbnail -->

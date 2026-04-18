@@ -3089,15 +3089,22 @@ func (ds *Datastore) UpdateSpeciesNote(noteID, entry string) error {
 	if err != nil {
 		return err
 	}
-	result := ds.manager.DB().
+	ctx := context.Background()
+	var count int64
+	if err := ds.manager.DB().WithContext(ctx).
 		Model(&datastore.SpeciesNote{}).
 		Where("id = ?", id).
-		Update("entry", entry)
-	if result.Error != nil {
-		return fmt.Errorf("update species note: %w", result.Error)
+		Count(&count).Error; err != nil {
+		return fmt.Errorf("update species note: %w", err)
 	}
-	if result.RowsAffected == 0 {
+	if count == 0 {
 		return datastore.ErrSpeciesNoteNotFound
+	}
+	if err := ds.manager.DB().WithContext(ctx).
+		Model(&datastore.SpeciesNote{}).
+		Where("id = ?", id).
+		Update("entry", entry).Error; err != nil {
+		return fmt.Errorf("update species note: %w", err)
 	}
 	return nil
 }
