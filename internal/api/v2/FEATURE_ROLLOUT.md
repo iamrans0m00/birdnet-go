@@ -11,6 +11,10 @@ The Species Guide feature provides contextual information about detected bird sp
 - **Two-tier Caching**: Memory cache + database persistence
 - **Stale-while-revalidate**: Returns cached data immediately while refreshing in background
 
+## Configuration Key Convention
+
+All Species Guide YAML configuration keys use **all-lowercase** names (no camelCase), consistent with the BirdNET-Go project-wide YAML convention. Examples: `speciesguide`, `fallbackpolicy`, `warmtopn`, `prefetchenabled`. These are new keys introduced with this feature — no existing users have prior camelCase variants in their `config.yaml`.
+
 ## Configuration by Environment
 
 ### Development
