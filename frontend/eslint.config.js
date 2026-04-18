@@ -122,8 +122,6 @@ export default [
       'svelte/prefer-style-directive': 'error',
       // Security rules
       ...security.configs.recommended.rules,
-      // Disable object-injection false positives in bounds-checked array access
-      'security/detect-object-injection': 'off',
       // Allow console for now
       'no-console': 'warn',
       'no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
@@ -156,7 +154,6 @@ export default [
       ...tsPlugin.configs.recommended.rules,
       ...tsPlugin.configs.strict.rules,
       ...security.configs.recommended.rules,
-      'security/detect-object-injection': 'off',
       ...sharedTypeScriptRules,
     },
   },
@@ -182,7 +179,6 @@ export default [
       ...tsPlugin.configs.recommended.rules,
       ...tsPlugin.configs.strict.rules,
       ...security.configs.recommended.rules,
-      'security/detect-object-injection': 'off',
       ...sharedTypeScriptRules,
     },
   },
