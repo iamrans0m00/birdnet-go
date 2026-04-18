@@ -3070,7 +3070,14 @@ func (ds *Datastore) DeleteSpeciesNote(noteID string) error {
 	if err != nil {
 		return err
 	}
-	return ds.manager.DB().Delete(&datastore.SpeciesNote{}, id).Error
+	result := ds.manager.DB().Delete(&datastore.SpeciesNote{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return datastore.ErrSpeciesNoteNotFound
+	}
+	return nil
 }
 
 // UpdateSpeciesNote updates an existing species note's entry.
@@ -3082,7 +3089,14 @@ func (ds *Datastore) UpdateSpeciesNote(noteID, entry string) error {
 	if err != nil {
 		return err
 	}
-	return ds.manager.DB().Model(&datastore.SpeciesNote{}).Where("id = ?", id).Update("entry", entry).Error
+	result := ds.manager.DB().Model(&datastore.SpeciesNote{}).Where("id = ?", id).Update("entry", entry)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return datastore.ErrSpeciesNoteNotFound
+	}
+	return nil
 }
 
 // GetSpeciesNoteByID retrieves a single species note by its primary key.
