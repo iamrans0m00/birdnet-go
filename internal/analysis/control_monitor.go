@@ -826,18 +826,22 @@ func (cm *ControlMonitor) handleReconfigureSpeciesGuide() {
 		return
 	}
 
-	// Initialize a new guide cache with the current settings
-	newGuideCache := initGuideCacheIfNeeded(settings, cm.proc.Ds, cm.proc.Ds, metrics.GuideProvider)
+	// Run initialization in a goroutine — warm-up can take 100+ seconds at 1 req/s
+	// and must not block the control monitor from processing other signals.
+	go func() {
+		// Initialize a new guide cache with the current settings
+		newGuideCache := initGuideCacheIfNeeded(settings, cm.proc.Ds, cm.proc.Ds, metrics.GuideProvider)
 
-	// If the cache was successfully created (or is intentionally nil if feature is disabled),
-	// replace the old cache with the new one. SetGuideCache will handle closing the old cache.
-	cm.apiController.SetGuideCache(newGuideCache)
+		// If the cache was successfully created (or is intentionally nil if feature is disabled),
+		// replace the old cache with the new one. SetGuideCache will handle closing the old cache.
+		cm.apiController.SetGuideCache(newGuideCache)
 
-	if settings.Realtime.Dashboard.SpeciesGuide.Enabled {
-		GetLogger().Info("Species guide cache reconfigured successfully")
-		cm.notifySuccess("Species guide cache reconfigured successfully")
-	} else {
-		GetLogger().Info("Species guide feature disabled")
-		cm.notifySuccess("Species guide feature disabled")
-	}
+		if settings.Realtime.Dashboard.SpeciesGuide.Enabled {
+			GetLogger().Info("Species guide cache reconfigured successfully")
+			cm.notifySuccess("Species guide cache reconfigured successfully")
+		} else {
+			GetLogger().Info("Species guide feature disabled")
+			cm.notifySuccess("Species guide feature disabled")
+		}
+	}()
 }
