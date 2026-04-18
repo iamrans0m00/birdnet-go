@@ -1727,25 +1727,28 @@ func (ds *DataStore) UpdateSpeciesNote(noteID, entry string) error {
 	}
 
 	return RetryOnLock(context.Background(), "update_species_note", func() error {
-		var count int64
-		if err := ds.DB.Model(&SpeciesNote{}).Where("id = ?", id).Count(&count).Error; err != nil {
-			return errors.New(err).
+		result := ds.DB.Model(&SpeciesNote{}).Where("id = ?", id).Update("entry", entry)
+		if result.Error != nil {
+			return errors.New(result.Error).
 				Component("datastore").
 				Category(errors.CategoryDatabase).
 				Context("operation", "update_species_note").
 				Context("note_id", noteID).
 				Build()
 		}
-		if count == 0 {
-			return ErrSpeciesNoteNotFound
-		}
-		if err := ds.DB.Model(&SpeciesNote{}).Where("id = ?", id).Update("entry", entry).Error; err != nil {
-			return errors.New(err).
-				Component("datastore").
-				Category(errors.CategoryDatabase).
-				Context("operation", "update_species_note").
-				Context("note_id", noteID).
-				Build()
+		if result.RowsAffected == 0 {
+			var count int64
+			if err := ds.DB.Model(&SpeciesNote{}).Where("id = ?", id).Count(&count).Error; err != nil {
+				return errors.New(err).
+					Component("datastore").
+					Category(errors.CategoryDatabase).
+					Context("operation", "update_species_note").
+					Context("note_id", noteID).
+					Build()
+			}
+			if count == 0 {
+				return ErrSpeciesNoteNotFound
+			}
 		}
 		return nil
 	}, ds.getMetrics())
