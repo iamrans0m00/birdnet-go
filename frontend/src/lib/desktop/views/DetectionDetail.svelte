@@ -219,6 +219,9 @@
 
     isLoadingDetection = true;
     detectionError = null;
+    imageAttribution = null;
+    speciesInfo = null;
+    taxonomyInfo = null;
     guideData = null;
     speciesNotes = [];
 
@@ -282,6 +285,7 @@
   async function fetchImageAttribution() {
     if (!detection?.scientificName) return;
 
+    attributionController?.abort();
     const controller = new AbortController();
     attributionController = controller;
 
@@ -310,6 +314,7 @@
   async function fetchSpeciesInfo() {
     if (!detection?.scientificName) return;
 
+    speciesController?.abort();
     const controller = new AbortController();
     speciesController = controller;
 
@@ -342,6 +347,7 @@
   async function fetchTaxonomy() {
     if (!detection?.scientificName) return;
 
+    taxonomyController?.abort();
     const controller = new AbortController();
     taxonomyController = controller;
 
@@ -376,6 +382,7 @@
   async function fetchGuide() {
     if (!detection?.scientificName) return;
 
+    guideController?.abort();
     const controller = new AbortController();
     guideController = controller;
 
@@ -410,6 +417,7 @@
   async function fetchSpeciesNotes() {
     if (!detection?.scientificName) return;
 
+    notesController?.abort();
     const controller = new AbortController();
     notesController = controller;
 
