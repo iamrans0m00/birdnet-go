@@ -554,7 +554,7 @@ func truncateDescription(desc string) string {
 	// Remove any partial or invalid UTF-8 rune at the end.
 	// This handles both orphaned leading bytes (1110xxxx without continuation)
 	// and trailing continuation bytes (10xxxxxx without the lead).
-	for len(truncated) > 0 && !utf8.ValidString(truncated) {
+	for truncated != "" && !utf8.ValidString(truncated) {
 		_, size := utf8.DecodeLastRuneInString(truncated)
 		truncated = truncated[:len(truncated)-size]
 	}
