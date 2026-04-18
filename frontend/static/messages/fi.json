@@ -658,6 +658,8 @@
       },
       "actions": {
         "menuLabel": "Toiminnot: {species}",
+        "markCorrect": "Oikein",
+        "markFalsePositive": "Virhe",
         "review": "Tarkista havainto",
         "showSpecies": "Näytä laji",
         "ignoreSpecies": "Ohita laji",
@@ -763,6 +765,7 @@
     "headers": {
       "dateTime": "Päivä ja aika",
       "weather": "Sää",
+      "source": "Lähde",
       "species": "Laji",
       "confidence": "Luottamus",
       "thumbnail": "Pienoiskuva",
@@ -3260,9 +3263,10 @@
       },
       "synonyms": {
         "tabLabel": "Synonyymit",
-        "description": "Yhdistä BirdNET-lajinimet haluamiisi nimiin. Kun havainto vastaa synonyymia, käytetään päivitettyä nimeä.",
+        "description": "Yhdistä BirdNETin tieteelliset lajinimet niiden päivitettyihin vastineisiin uudemmassa taksonomiassa. Käytetään vain varasijana haettaessa lintukuvia Wikipediasta ja AviCommonsista; ei nimeä lajeja uudelleen havainnoissa tai koontinäytöllä.",
+        "helpText": "Muuttaaksesi lajin käyttöliittymässä näkyvää nimeä, muokkaa BirdNETin tunnistetiedostoa (asetus \"Nimikkeiden polku\" pääasetuksissa).",
         "birdnetName": "BirdNET-nimi",
-        "updatedName": "Päivitetty nimi",
+        "updatedName": "Päivitetty tieteellinen nimi",
         "addButton": "Lisää synonyymi",
         "emptyState": "Ei määritettyjä taksonomiasynonyymejä",
         "errors": {

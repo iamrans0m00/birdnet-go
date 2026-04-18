@@ -1,0 +1,47 @@
+name: Feature Request
+description: Suggest an idea or enhancement for BirdNET-Go
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sharing an idea for BirdNET-Go.
+
+        Please search existing open and closed issues before filing — if the idea already exists, add a reaction or comment on the existing issue instead of opening a new one.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case or pain point. What are you trying to do that you can't do today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe what you'd like to happen. Rough is fine — I don't expect a full design.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you've tried, or other approaches you thought about.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, sketches, links to similar features elsewhere, hardware/deployment context — whatever helps.
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Pre-submission checks
+      options:
+        - label: I have searched existing open and closed issues and this feature has not already been requested.
+          required: true

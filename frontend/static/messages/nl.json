@@ -658,6 +658,8 @@
       },
       "actions": {
         "menuLabel": "Acties voor {species}",
+        "markCorrect": "Juist",
+        "markFalsePositive": "Onjuist",
         "review": "Herkenning beoordelen",
         "showSpecies": "Soort tonen",
         "ignoreSpecies": "Soort negeren",
@@ -763,6 +765,7 @@
     "headers": {
       "dateTime": "Datum/Tijd",
       "weather": "Weer",
+      "source": "Bron",
       "species": "Soort",
       "confidence": "Betrouwbaarheid",
       "thumbnail": "afbeelding",
@@ -1690,7 +1693,7 @@
     "main": {
       "sections": {
         "main": {
-          "title": "Hoofd Instellingen",
+          "title": "Hoofdinstellingen",
           "description": "Configureer hoofd applicatie instellingen"
         },
         "birdnet": {
@@ -1710,7 +1713,7 @@
             "helpText": "Pad naar extern BirdNET model bestand. Voer absoluut of relatief pad in naar birdnet-go binary. Laat leeg om het standaard ingebedde model te gebruiken."
           },
           "labelPath": {
-            "label": "Label Pad (Vereist herstart om toe te passen)",
+            "label": "Labelpad (Vereist herstart om toe te passen)",
             "placeholder": "Pad naar labels bestand",
             "helpText": "Pad naar extern model labels bestand, .zip of .txt bestand. Voer absoluut of relatief pad in naar birdnet-go binary. Laat leeg om de standaard ingebedde labels te gebruiken."
           }
@@ -3489,9 +3492,10 @@
       },
       "synonyms": {
         "tabLabel": "Synoniemen",
-        "description": "Koppel BirdNET-soortennamen aan uw voorkeursnamen. Wanneer een detectie overeenkomt met een synoniem, wordt de bijgewerkte naam gebruikt.",
+        "description": "Koppel wetenschappelijke BirdNET-namen aan hun bijgewerkte equivalenten in een nieuwere taxonomie. Wordt alleen als fallback gebruikt bij het ophalen van vogelfoto's van Wikipedia en AviCommons; hernoemt geen soorten in detecties of op het dashboard.",
+        "helpText": "Om te wijzigen hoe een soort in de interface wordt weergegeven, bewerk uw BirdNET-labelbestand (instelling \"Labelpad\" onder Hoofdinstellingen).",
         "birdnetName": "BirdNET-naam",
-        "updatedName": "Bijgewerkte naam",
+        "updatedName": "Bijgewerkte wetenschappelijke naam",
         "addButton": "Synoniem toevoegen",
         "emptyState": "Geen taxonomie-synoniemen geconfigureerd",
         "errors": {

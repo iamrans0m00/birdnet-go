@@ -5,10 +5,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tphakala/birdnet-go/internal/audiocore/buffer"
 	"github.com/tphakala/birdnet-go/internal/audiocore/equalizer"
 )
 
@@ -47,8 +49,11 @@ func (m *mockConsumer) Write(frame AudioFrame) error { //nolint:gocritic // huge
 }
 
 // blockingConsumer never reads from its frames channel, simulating a slow consumer.
+// Tests that need to clean up promptly can call unblock() which closes the
+// unblockCh, causing Write to return and the drainer to exit cleanly.
 type blockingConsumer struct {
 	mockConsumer
+	unblockCh chan struct{}
 }
 
 func newBlockingConsumer(id string) *blockingConsumer {
@@ -58,14 +63,22 @@ func newBlockingConsumer(id string) *blockingConsumer {
 			sampleRate: 48000,
 			bitDepth:   16,
 			channels:   1,
-			frames:     make(chan AudioFrame), // unbuffered — Write blocks forever
+			frames:     make(chan AudioFrame), // unbuffered; Write blocks until unblock
 		},
+		unblockCh: make(chan struct{}),
 	}
 }
 
 func (b *blockingConsumer) Write(frame AudioFrame) error { //nolint:gocritic // hugeParam: signature required by AudioConsumer interface
-	// Block indefinitely to simulate a permanently stalled consumer.
-	select {}
+	// Block until unblock() is called; simulates a permanently stalled
+	// consumer for the duration of the test.
+	<-b.unblockCh
+	return nil
+}
+
+// unblock releases any in-flight Write calls. Safe to call at most once.
+func (b *blockingConsumer) unblock() {
+	close(b.unblockCh)
 }
 
 func testFrame(sourceID string) AudioFrame {
@@ -84,7 +97,7 @@ func testFrame(sourceID string) AudioFrame {
 // removed, with HasConsumers reflecting the correct state at each step.
 func TestRouter_AddAndRemoveRoute(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newMockConsumer("consumer-1")
@@ -102,7 +115,7 @@ func TestRouter_AddAndRemoveRoute(t *testing.T) {
 // a single registered consumer.
 func TestRouter_DispatchSingleConsumer(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newMockConsumer("consumer-1")
@@ -125,7 +138,7 @@ func TestRouter_DispatchSingleConsumer(t *testing.T) {
 // consumers registered for the same source.
 func TestRouter_DispatchFanOut(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	c1 := newMockConsumer("consumer-1")
@@ -151,7 +164,7 @@ func TestRouter_DispatchFanOut(t *testing.T) {
 // no registered routes does not panic.
 func TestRouter_DispatchNoConsumers(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	// Should not panic.
@@ -164,11 +177,12 @@ func TestRouter_DispatchNoConsumers(t *testing.T) {
 // the frame is dropped and the drop counter increments.
 func TestRouter_DropOnFullInbox(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newBlockingConsumer("slow-consumer")
 	require.NoError(t, router.AddRoute("src-1", consumer, 48000, 0.0, nil))
+	t.Cleanup(consumer.unblock)
 
 	// Fill the inbox buffer (capacity 64) plus extra to guarantee drops.
 	const totalFrames = 128
@@ -186,7 +200,7 @@ func TestRouter_DropOnFullInbox(t *testing.T) {
 // route for a given source.
 func TestRouter_RemoveAllRoutes(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	c1 := newMockConsumer("consumer-1")
@@ -206,7 +220,7 @@ func TestRouter_RemoveAllRoutes(t *testing.T) {
 // twice for the same source returns ErrRouteExists.
 func TestRouter_DuplicateRouteError(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	c1 := newMockConsumer("consumer-1")
@@ -225,7 +239,7 @@ func TestRouter_DuplicateRouteError(t *testing.T) {
 // resampled data (approximately 2/3 the length for a 48kHz→32kHz conversion).
 func TestRouter_DispatchWithResampling(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	// Consumer expects 32kHz; source produces 48kHz.
@@ -280,47 +294,69 @@ func TestRouter_DispatchWithResampling(t *testing.T) {
 
 // TestRouter_ConcurrentDispatch verifies that concurrent dispatch from
 // multiple goroutines does not trigger data races (run with -race).
+// Uses testing/synctest so the drain assertion does not race the per-route
+// drainer goroutine on loaded CI runners (see Forgejo #453).
 func TestRouter_ConcurrentDispatch(t *testing.T) {
-	t.Parallel()
-	router := NewAudioRouter(GetLogger())
-	t.Cleanup(func() { router.Close() })
+	synctest.Test(t, func(t *testing.T) {
+		router := NewAudioRouter(GetLogger(), nil)
+		// Close inside the bubble so the drainer goroutines exit before
+		// synctest.Test waits for bubble goroutines to finish; t.Cleanup
+		// runs after synctest.Test returns and would deadlock.
+		defer router.Close()
 
-	c1 := newMockConsumer("consumer-1")
-	c2 := newMockConsumer("consumer-2")
-	require.NoError(t, router.AddRoute("src-1", c1, 48000, 0.0, nil))
-	require.NoError(t, router.AddRoute("src-1", c2, 48000, 0.0, nil))
+		c1 := newMockConsumer("consumer-1")
+		c2 := newMockConsumer("consumer-2")
+		require.NoError(t, router.AddRoute("src-1", c1, 48000, 0.0, nil))
+		require.NoError(t, router.AddRoute("src-1", c2, 48000, 0.0, nil))
 
-	const goroutines = 8
-	const framesPerGoroutine = 100
+		const goroutines = 8
+		const framesPerGoroutine = 100
 
-	var wg sync.WaitGroup
-	for range goroutines {
-		wg.Go(func() {
-			for range framesPerGoroutine {
-				router.Dispatch(testFrame("src-1"))
-			}
-		})
-	}
-	wg.Wait()
-
-	// Drain what we can — the point is no race detected.
-	drained := 0
-	for {
-		select {
-		case <-c1.frames:
-			drained++
-		default:
-			goto done
+		var wg sync.WaitGroup
+		for range goroutines {
+			wg.Go(func() {
+				for range framesPerGoroutine {
+					router.Dispatch(testFrame("src-1"))
+				}
+			})
 		}
-	}
-done:
-	assert.Positive(t, drained, "at least some frames should have been delivered")
+		wg.Wait()
+
+		// Drain both consumer channels until the drainer goroutines are
+		// blocked on empty inboxes. synctest.Wait lets the drainer make
+		// progress; each outer iteration that pulls zero frames proves
+		// the drainers are parked on the select rather than on a full
+		// consumer channel, so forwarding is complete.
+		d1, d2 := 0, 0
+		for {
+			synctest.Wait()
+			got := 0
+		drain:
+			for {
+				select {
+				case <-c1.frames:
+					d1++
+					got++
+				case <-c2.frames:
+					d2++
+					got++
+				default:
+					break drain
+				}
+			}
+			if got == 0 {
+				break
+			}
+		}
+		assert.Positive(t, d1, "c1 should receive at least one frame")
+		assert.Positive(t, d2, "c2 should receive at least one frame")
+	})
 }
 
 func TestDrainRoutePanicRecovery(t *testing.T) {
 	t.Parallel()
 
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	panicConsumer := &panicOnWriteConsumer{
@@ -399,7 +435,7 @@ func TestRouter_DrainRouteAppliesGain(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			router := NewAudioRouter(GetLogger())
+			router := NewAudioRouter(GetLogger(), nil)
 			defer router.Close()
 
 			consumer := newMockConsumer("c1")
@@ -445,7 +481,7 @@ func TestRouter_DrainRouteAppliesGain(t *testing.T) {
 func TestRouter_GainClipping(t *testing.T) {
 	t.Parallel()
 
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	defer router.Close()
 
 	consumer := newMockConsumer("c1")
@@ -507,7 +543,7 @@ func TestRouter_AddRouteWithGain(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			router := NewAudioRouter(GetLogger())
+			router := NewAudioRouter(GetLogger(), nil)
 			t.Cleanup(func() { router.Close() })
 			consumer := newMockConsumer("c1")
 			err := router.AddRoute("src-1", consumer, 48000, tt.gainDB, nil)
@@ -523,7 +559,7 @@ func TestRouter_AddRouteWithGain(t *testing.T) {
 
 func TestRouter_UpdateFilterChain(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newMockConsumer("c1")
@@ -567,7 +603,7 @@ func TestRouter_UpdateFilterChain(t *testing.T) {
 // EQ chain when gain is unity (1.0) and a filter chain is set.
 func TestRouter_ApplyProcessing_EQOnly(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newMockConsumer("c1")
@@ -619,7 +655,7 @@ func TestRouter_ApplyProcessing_EQOnly(t *testing.T) {
 // applied in a single conversion pass.
 func TestRouter_ApplyProcessing_EQAndGain(t *testing.T) {
 	t.Parallel()
-	router := NewAudioRouter(GetLogger())
+	router := NewAudioRouter(GetLogger(), nil)
 	t.Cleanup(func() { router.Close() })
 
 	consumer := newMockConsumer("c1")
@@ -665,6 +701,119 @@ func TestRouter_ApplyProcessing_EQAndGain(t *testing.T) {
 		"output should be ~2x input (6 dB gain) after passing through LowPass")
 }
 
+// BenchmarkApplyProcessing_PoolWarm measures steady-state per-frame allocations
+// on the applyProcessing hot path with a fully wired buffer.Manager. The pools
+// are warmed before the timed loop so the reported allocs/op reflects recycling
+// behaviour, not first-call pool misses.
+func BenchmarkApplyProcessing_PoolWarm(b *testing.B) {
+	mgr := buffer.NewManager(GetLogger())
+	r := NewAudioRouter(GetLogger(), mgr)
+	defer r.Close()
+
+	// Construct a minimal Route that exercises the gain branch.
+	// gainLinear != 1.0 ensures applyProcessing is called; nil filterChain
+	// means EQ is skipped so only gain scaling runs.
+	route := &Route{
+		gainLinear: 2.0, // +6 dB: exercises the gain path
+		inbox:      make(chan AudioFrame, 1),
+		done:       make(chan struct{}),
+		stopped:    make(chan struct{}),
+	}
+	// filterChain zero value is a nil atomic.Pointer, which Load() returns nil for.
+
+	// 2880 bytes = 1440 samples = 30 ms of 48 kHz mono 16-bit PCM.
+	frame := AudioFrame{
+		SourceID:   "bench",
+		SourceName: "bench",
+		Data:       make([]byte, 2880),
+		SampleRate: 48000,
+		BitDepth:   16,
+		Channels:   1,
+	}
+
+	// Warm the pools so steady-state pool reuse is established before timing.
+	for range 4 {
+		res, err := r.applyProcessing(frame, route, nil)
+		if err != nil {
+			b.Fatalf("warm-up applyProcessing failed: %v", err)
+		}
+		res.release()
+	}
+
+	b.ReportAllocs()
+
+	for b.Loop() {
+		res, err := r.applyProcessing(frame, route, nil)
+		if err != nil {
+			b.Fatal(err)
+		}
+		res.release()
+	}
+}
+
+// TestApplyProcessing_AllocationRegression guards against allocation regressions
+// on the applyProcessing hot path. It measures steady-state allocs/op after pool
+// warm-up and asserts they stay within the cap documented in maxAllowedAllocs.
+//
+// Do NOT add t.Parallel() here: sync.Pool is stateful and parallel execution
+// could pollute pool state during the alloc-sensitive measurement window.
+func TestApplyProcessing_AllocationRegression(t *testing.T) {
+	mgr := buffer.NewManager(GetLogger())
+	r := NewAudioRouter(GetLogger(), mgr)
+	defer r.Close()
+
+	route := &Route{
+		gainLinear: 2.0,
+		inbox:      make(chan AudioFrame, 1),
+		done:       make(chan struct{}),
+		stopped:    make(chan struct{}),
+	}
+
+	frame := AudioFrame{
+		SourceID:   "bench",
+		SourceName: "bench",
+		Data:       make([]byte, 2880),
+		SampleRate: 48000,
+		BitDepth:   16,
+		Channels:   1,
+	}
+
+	// Warm the pools before measuring.
+	for range 4 {
+		res, err := r.applyProcessing(frame, route, nil)
+		require.NoError(t, err)
+		res.release()
+	}
+
+	// Measure steady-state allocation count over 100 iterations.
+	allocs := testing.AllocsPerRun(100, func() {
+		res, err := r.applyProcessing(frame, route, nil)
+		if err != nil {
+			panic(err)
+		}
+		res.release()
+	})
+
+	// Regression gate. The baseline is not zero because sync.Pool.Put boxes
+	// the slice header into an interface{} value (see SA6002 nolint comment in
+	// internal/audiocore/buffer/pool.go). Each Put call for Float64Pool and
+	// BytePool boxes one slice header, costing one small allocation. Two Put
+	// calls per applyProcessing call produce 2 allocs/op at steady state under
+	// the benchmark (warm, isolated). Under -race with parallel tests, the GC
+	// may collect pooled items causing up to 2 additional pool-miss allocs per
+	// call; the cap is set to 4 to tolerate that noise while still catching
+	// any real regressions (e.g. extra make() calls) that would push allocs
+	// well above this threshold.
+	//
+	// Measured benchmark baseline: 2 allocs/op, 48 B/op (3 runs, -count=3).
+	// Increase this constant only after investigating WHY allocations grew.
+	const maxAllowedAllocs = 4
+
+	assert.LessOrEqual(t, int(allocs), maxAllowedAllocs,
+		"applyProcessing allocations per call exceed the regression cap of %d (got %.0f)",
+		maxAllowedAllocs, allocs)
+}
+
 // rmsOfPCM16 computes the RMS of 16-bit little-endian PCM samples.
 func rmsOfPCM16(data []byte) float64 {
 	n := len(data) / 2
@@ -677,4 +826,166 @@ func rmsOfPCM16(data []byte) float64 {
 		sumSq += sample * sample
 	}
 	return math.Sqrt(sumSq / float64(n))
+}
+
+// TestRouter_Dispatch_RefZeroRoutes verifies that when a frame has no
+// registered routes, the producer's own release is sufficient to fire the
+// closure (no retain/release imbalance on the no-route path).
+func TestRouter_Dispatch_RefZeroRoutes(t *testing.T) {
+	t.Parallel()
+	router := NewAudioRouter(GetLogger(), nil)
+	t.Cleanup(router.Close)
+
+	var released atomic.Int32
+	ref := NewFrameRef(func() { released.Add(1) })
+	frame := AudioFrame{
+		SourceID:   "no-routes",
+		Data:       []byte{1},
+		SampleRate: 48000,
+		BitDepth:   16,
+		Channels:   1,
+		Ref:        ref,
+	}
+
+	router.Dispatch(frame)
+	ref.Release()
+
+	assert.EqualValues(t, 1, released.Load(), "no routes: producer's release alone must drop to zero")
+}
+
+// TestRouter_Dispatch_RefFullInboxDrops verifies that when Dispatch cannot
+// enqueue a frame (inbox full), the drop path releases the retain so the pool
+// slice is not leaked. The producer's own release then completes the cycle.
+func TestRouter_Dispatch_RefFullInboxDrops(t *testing.T) {
+	t.Parallel()
+	router := NewAudioRouter(GetLogger(), nil)
+	t.Cleanup(router.Close)
+
+	// Blocking consumer so the inbox fills once its capacity is exceeded.
+	blocker := newBlockingConsumer("blocker-ref-drop")
+	require.NoError(t, router.AddRoute("src-full", blocker, 48000, 0.0, nil))
+	t.Cleanup(blocker.unblock)
+
+	var released atomic.Int32
+
+	// Dispatch enough frames to guarantee drops: the drainer consumes at most
+	// one frame before blocking in Write, so 2*cap + 1 leaves no room for
+	// timing-related flakiness.
+	totalFrames := 2*routeInboxCapacity + 1
+	for range totalFrames {
+		ref := NewFrameRef(func() { released.Add(1) })
+		router.Dispatch(AudioFrame{
+			SourceID:   "src-full",
+			Data:       []byte{0},
+			SampleRate: 48000,
+			BitDepth:   16,
+			Channels:   1,
+			Ref:        ref,
+		})
+		ref.Release()
+	}
+
+	// Every dropped frame should have released via the drop path. Without the
+	// drop-path Release, the refcount would stay at one and the closure would
+	// never fire. Expect at least one drop given the controlled overflow.
+	assert.Positive(t, released.Load(), "dropped frames must still release")
+}
+
+// TestRouter_Dispatch_RefHappyPath verifies that when a frame carries a
+// FrameRef and the router fans it out to multiple routes, the release closure
+// fires exactly once after every drainer has processed the frame and the
+// producer has released its own reference.
+func TestRouter_Dispatch_RefHappyPath(t *testing.T) {
+	t.Parallel()
+	router := NewAudioRouter(GetLogger(), nil)
+	t.Cleanup(router.Close)
+
+	c1 := newMockConsumer("c1-ref-happy")
+	c2 := newMockConsumer("c2-ref-happy")
+	require.NoError(t, router.AddRoute("src-ref", c1, 48000, 0.0, nil))
+	require.NoError(t, router.AddRoute("src-ref", c2, 48000, 0.0, nil))
+
+	var released atomic.Int32
+	ref := NewFrameRef(func() { released.Add(1) })
+	frame := AudioFrame{
+		SourceID:   "src-ref",
+		Data:       []byte{1, 2},
+		SampleRate: 48000,
+		BitDepth:   16,
+		Channels:   1,
+		Ref:        ref,
+	}
+
+	router.Dispatch(frame)
+	ref.Release() // producer's own reference
+
+	// Wait for both drainers to process and release.
+	require.Eventually(t, func() bool { return released.Load() == 1 }, time.Second, 10*time.Millisecond)
+}
+
+// TestRouter_Dispatch_RefReleasesOnConsumerPanic verifies that the drainer's
+// defer runs even when Consumer.Write panics, so the pool slice is always
+// returned to its pool.
+func TestRouter_Dispatch_RefReleasesOnConsumerPanic(t *testing.T) {
+	t.Parallel()
+	router := NewAudioRouter(GetLogger(), nil)
+	t.Cleanup(router.Close)
+
+	// Consumer whose Write panics.
+	panicer := &panicOnWriteConsumer{id: "panicer-ref", sampleRate: 48000}
+	require.NoError(t, router.AddRoute("src-panic", panicer, 48000, 0.0, nil))
+
+	var released atomic.Int32
+	ref := NewFrameRef(func() { released.Add(1) })
+	router.Dispatch(AudioFrame{
+		SourceID:   "src-panic",
+		Data:       []byte{1},
+		SampleRate: 48000,
+		BitDepth:   16,
+		Channels:   1,
+		Ref:        ref,
+	})
+	ref.Release()
+
+	require.Eventually(t, func() bool { return released.Load() == 1 }, time.Second, 10*time.Millisecond,
+		"FrameRef must release even when consumer.Write panics")
+}
+
+// TestRouter_Dispatch_RefReleasesOnShutdown verifies that closing the router
+// while frames sit in an inbox does not cause a double-release panic. It is
+// acceptable for frames stuck in the inbox during shutdown to leak from the
+// pool's perspective (GC reclaims the underlying slice); what must not happen
+// is a panic or a negative refcount that would corrupt pool accounting.
+func TestRouter_Dispatch_RefReleasesOnShutdown(t *testing.T) {
+	t.Parallel()
+	router := NewAudioRouter(GetLogger(), nil)
+
+	blocker := newBlockingConsumer("blocker-ref-shutdown")
+	require.NoError(t, router.AddRoute("src-shut", blocker, 48000, 0.0, nil))
+
+	var released atomic.Int32
+	ref := NewFrameRef(func() { released.Add(1) })
+	router.Dispatch(AudioFrame{
+		SourceID:   "src-shut",
+		Data:       []byte{1},
+		SampleRate: 48000,
+		BitDepth:   16,
+		Channels:   1,
+		Ref:        ref,
+	})
+	ref.Release()
+
+	// Closing the router while the frame sits in the inbox: the drainer exits
+	// without processing, so Release is NOT called for that enqueue. The pool
+	// slice leaks from the pool's perspective but GC will reclaim it. Verify
+	// that the producer's own Release (already called above) plus the drop
+	// path (if any) do not cause a double-release panic.
+	blocker.unblock() // allow the drainer (if running handleRouteFrame) to exit cleanly
+	router.Close()
+
+	// released is at most 1: either the drainer processed the frame before
+	// Close (count hits zero, fires) or the drainer exited without processing
+	// (count stays at 1 and never fires). Either outcome is acceptable; a
+	// double-release would push the counter negative and must not fire twice.
+	assert.LessOrEqual(t, released.Load(), int32(1), "must not double-release during shutdown")
 }
