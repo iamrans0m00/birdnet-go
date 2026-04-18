@@ -164,7 +164,7 @@ guide_cache_wikipedia_requests_total
 
 1. Check circuit breaker status:
    ```bash
-   grep -i "circuit breakeropen" logs/api.log
+   grep -i "circuit breaker" logs/api.log
    ```
 
 2. Rate limiting: BirdNET-Go throttles to 1 request/sec per instance (by design, not required by Wikipedia). Wikipedia itself allows ~200 req/sec per IP. If you see rate limit errors, check:
