@@ -3070,8 +3070,7 @@ func (ds *Datastore) DeleteSpeciesNote(noteID string) error {
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
-	result := ds.manager.DB().WithContext(ctx).Delete(&datastore.SpeciesNote{}, id)
+	result := ds.manager.DB().Delete(&datastore.SpeciesNote{}, id)
 	if result.Error != nil {
 		return fmt.Errorf("delete species note: %w", result.Error)
 	}
