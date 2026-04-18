@@ -126,3 +126,12 @@ This skill ensures:
 - Appropriate pushback on incorrect feedback
 - No performative agreement - just fix and move on
 - Clarification of unclear items before partial implementation
+
+## Health Stack
+
+- typecheck: tsc --noEmit (frontend/)
+- golint: golangci-lint run -v
+- lint: npm run check:all (frontend/)
+- test: go test -race -v ./...
+- frontendtest: npm test (frontend/)
+- shell: shellcheck

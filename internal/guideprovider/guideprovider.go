@@ -6,6 +6,7 @@ import (
 	"maps"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/errors"
@@ -542,19 +543,28 @@ func mergeGuides(primary, secondary *SpeciesGuide) SpeciesGuide {
 	return result
 }
 
+// trimToUTF8Boundary removes any incomplete UTF-8 rune from the end of s.
+// A hard byte-boundary cut can leave an orphaned leading byte at the tail;
+// DecodeLastRuneInString signals this as RuneError with size==1.
+func trimToUTF8Boundary(s string) string {
+	for {
+		r, size := utf8.DecodeLastRuneInString(s)
+		if r != utf8.RuneError || size != 1 {
+			break
+		}
+		s = s[:len(s)-1]
+	}
+	return s
+}
+
 // truncateDescription ensures description fits within database limits.
 // Uses maxRichDescriptionLength to accommodate identification and feature content.
+// Safely removes any partial UTF-8 rune at the end to prevent data corruption.
 func truncateDescription(desc string) string {
 	if len(desc) <= maxRichDescriptionLength {
 		return desc
 	}
-	// Truncate to limit and ensure we don't break UTF-8 sequences
-	truncated := desc[:maxRichDescriptionLength]
-	// Find the last complete UTF-8 character boundary
-	for truncated != "" && (truncated[len(truncated)-1]&0xC0) == 0x80 {
-		truncated = truncated[:len(truncated)-1]
-	}
-	return truncated
+	return trimToUTF8Boundary(desc[:maxRichDescriptionLength])
 }
 
 // isCacheEntryStale checks if a cache entry has exceeded its TTL.

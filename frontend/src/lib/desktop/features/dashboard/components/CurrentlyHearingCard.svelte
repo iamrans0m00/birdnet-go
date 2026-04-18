@@ -21,9 +21,10 @@ Props:
   interface Props {
     detections: PendingDetection[];
     className?: string;
+    onBirdClick?: (_detection: PendingDetection) => void;
   }
 
-  let { detections = [], className = '' }: Props = $props();
+  let { detections = [], className = '', onBirdClick }: Props = $props();
 
   // How long terminal (approved/rejected) detections remain visible (ms)
   const TERMINAL_RETENTION_MS = 3000;
@@ -155,8 +156,11 @@ Props:
       {#each displayDetections as detection (`${detection.source}_${detection.scientificName}`)}
         {@const key = detection.source + detection.scientificName}
         {@const elapsedText = getElapsedForKey(key)}
-        <div
-          class="flex items-center gap-2 rounded-lg px-3 py-2 transition-colors duration-300
+        <button
+          onclick={() => onBirdClick?.(detection)}
+          type="button"
+          aria-label={t('dashboard.currentlyHearing.viewGuide', { species: detection.species })}
+          class="flex items-center gap-2 rounded-lg px-3 py-2 transition-colors duration-300 cursor-pointer hover:opacity-80
             {detection.status === 'approved'
             ? 'border border-[var(--color-success)]/30 bg-[var(--color-success)]/15'
             : detection.status === 'rejected'
@@ -204,7 +208,7 @@ Props:
               class="ml-1 h-4 w-4 text-[var(--color-error)]"
             />
           {/if}
-        </div>
+        </button>
       {/each}
     </div>
   {:else}

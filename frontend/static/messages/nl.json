@@ -574,7 +574,8 @@
     "currentlyHearing": {
       "title": "Nu te horen",
       "subtitle": "Soorten worden in realtime geïdentificeerd",
-      "empty": "Alles rustig — momenteel geen vogels gedetecteerd"
+      "empty": "Alles rustig — momenteel geen vogels gedetecteerd",
+      "viewGuide": "Gids weergeven voor {species}"
     },
     "rejected": "Afgewezen",
     "dailySummary": {

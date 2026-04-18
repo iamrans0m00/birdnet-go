@@ -574,7 +574,8 @@
     "currentlyHearing": {
       "title": "Currently Hearing",
       "subtitle": "Real-time species being identified",
-      "empty": "All quiet — no birds detected right now"
+      "empty": "All quiet — no birds detected right now",
+      "viewGuide": "View guide for {species}"
     },
     "rejected": "Rejected",
     "dailySummary": {

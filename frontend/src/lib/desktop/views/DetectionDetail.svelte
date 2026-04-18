@@ -202,6 +202,7 @@
       taxonomyController?.abort();
       attributionController?.abort();
       guideController?.abort();
+      notesController?.abort();
     };
   });
 
@@ -218,6 +219,11 @@
 
     isLoadingDetection = true;
     detectionError = null;
+    imageAttribution = null;
+    speciesInfo = null;
+    taxonomyInfo = null;
+    guideData = null;
+    speciesNotes = [];
 
     try {
       const response = await fetch(buildAppUrl(`/api/v2/detections/${resolvedDetectionId}`), {
@@ -280,24 +286,27 @@
     if (!detection?.scientificName) return;
 
     attributionController?.abort();
-    attributionController = new AbortController();
+    const controller = new AbortController();
+    attributionController = controller;
 
     try {
       const url = buildAppUrl(
         `/api/v2/media/species-image/info?name=${encodeURIComponent(detection.scientificName)}`
       );
-      const response = await fetch(url, { signal: attributionController?.signal });
-      if (attributionController?.signal.aborted) return;
+      const response = await fetch(url, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       if (response.ok) {
         const data = await response.json();
-        if (attributionController?.signal.aborted) return;
+        if (controller.signal.aborted) return;
         imageAttribution = data as ImageAttribution;
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
       // Attribution is non-critical — fail silently
     } finally {
-      attributionController = null;
+      if (attributionController === controller) {
+        attributionController = null;
+      }
     }
   }
 
@@ -306,19 +315,20 @@
     if (!detection?.scientificName) return;
 
     speciesController?.abort();
-    speciesController = new AbortController();
+    const controller = new AbortController();
+    speciesController = controller;
 
     try {
       const response = await fetch(
         buildAppUrl(
           `/api/v2/species?scientific_name=${encodeURIComponent(detection.scientificName)}`
         ),
-        { signal: speciesController?.signal }
+        { signal: controller.signal }
       );
-      if (speciesController?.signal.aborted) return;
+      if (controller.signal.aborted) return;
       if (response.ok) {
         const data = await response.json();
-        if (speciesController?.signal.aborted) return;
+        if (controller.signal.aborted) return;
         speciesInfo = data;
       }
     } catch (error) {
@@ -327,7 +337,9 @@
       }
       logger.error('Error fetching species info:', error);
     } finally {
-      speciesController = null;
+      if (speciesController === controller) {
+        speciesController = null;
+      }
     }
   }
 
@@ -336,7 +348,8 @@
     if (!detection?.scientificName) return;
 
     taxonomyController?.abort();
-    taxonomyController = new AbortController();
+    const controller = new AbortController();
+    taxonomyController = controller;
 
     isLoadingTaxonomy = true;
     try {
@@ -344,12 +357,12 @@
         buildAppUrl(
           `/api/v2/species/taxonomy?scientific_name=${encodeURIComponent(detection.scientificName)}`
         ),
-        { signal: taxonomyController?.signal }
+        { signal: controller.signal }
       );
-      if (taxonomyController?.signal.aborted) return;
+      if (controller.signal.aborted) return;
       if (response.ok) {
         const data = await response.json();
-        if (taxonomyController?.signal.aborted) return;
+        if (controller.signal.aborted) return;
         taxonomyInfo = data;
       }
     } catch (error) {
@@ -359,7 +372,9 @@
       logger.error('Error fetching taxonomy info:', error);
     } finally {
       isLoadingTaxonomy = false;
-      taxonomyController = null;
+      if (taxonomyController === controller) {
+        taxonomyController = null;
+      }
     }
   }
 
@@ -368,7 +383,8 @@
     if (!detection?.scientificName) return;
 
     guideController?.abort();
-    guideController = new AbortController();
+    const controller = new AbortController();
+    guideController = controller;
 
     isLoadingGuide = true;
     try {
@@ -378,12 +394,12 @@
         buildAppUrl(
           `/api/v2/species/${encodeURIComponent(detection.scientificName)}/guide${localeParam}`
         ),
-        { signal: guideController?.signal }
+        { signal: controller.signal }
       );
-      if (guideController?.signal.aborted) return;
+      if (controller.signal.aborted) return;
       if (response.ok) {
         const data: SpeciesGuideData = await response.json();
-        if (guideController?.signal.aborted) return;
+        if (controller.signal.aborted) return;
         guideData = data;
       }
     } catch (error) {
@@ -391,7 +407,9 @@
       // Guide is non-critical — fail silently
     } finally {
       isLoadingGuide = false;
-      guideController = null;
+      if (guideController === controller) {
+        guideController = null;
+      }
     }
   }
 
@@ -400,15 +418,16 @@
     if (!detection?.scientificName) return;
 
     notesController?.abort();
-    notesController = new AbortController();
+    const controller = new AbortController();
+    notesController = controller;
 
     isLoadingNotes = true;
     try {
       const response = await fetch(
         buildAppUrl(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`),
-        { signal: notesController?.signal }
+        { signal: controller.signal }
       );
-      if (notesController?.signal.aborted) return;
+      if (controller.signal.aborted) return;
       if (response.ok) {
         speciesNotes = await response.json();
       }
@@ -417,7 +436,9 @@
       // Notes are non-critical — fail silently
     } finally {
       isLoadingNotes = false;
-      notesController = null;
+      if (notesController === controller) {
+        notesController = null;
+      }
     }
   }
 

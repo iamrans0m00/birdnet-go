@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tphakala/birdnet-go/internal/analysis/processor"
@@ -57,6 +58,12 @@ type ControlMonitor struct {
 
 	// Quiet hours scheduler for stream/soundcard lifecycle management
 	quietHoursScheduler *schedule.QuietHoursScheduler
+
+	// guideCacheInitVersion is incremented each time a new species guide
+	// reconfiguration is launched. The goroutine captures its version at
+	// start and discards its result if a newer reconfiguration has since
+	// been initiated, preventing stale configurations from overwriting newer ones.
+	guideCacheInitVersion atomic.Uint64
 }
 
 // NewControlMonitor creates a new ControlMonitor instance.
@@ -232,6 +239,8 @@ func (cm *ControlMonitor) handleControlSignal(signal string) {
 		cm.handleRecalculateDynamicThresholds()
 	case "reconfigure_dynamic_thresholds":
 		cm.handleReconfigureDynamicThresholds()
+	case "reconfigure_species_guide":
+		cm.handleReconfigureSpeciesGuide()
 	case schedule.SignalReconfigureQuietHours:
 		cm.handleReconfigureQuietHours()
 	case schedule.SignalQuietHoursStopSoundCard:
@@ -817,4 +826,82 @@ func (cm *ControlMonitor) handleQuietHoursStartSoundCard() {
 	default:
 		GetLogger().Warn("Quiet hours: restart channel full, could not signal sound card restart")
 	}
+}
+
+// handleReconfigureSpeciesGuide reinitializes the species guide cache with updated settings.
+// This allows the settings for enabled state, provider selection, and warm-up configuration
+// to take effect without requiring a server restart.
+func (cm *ControlMonitor) handleReconfigureSpeciesGuide() {
+	GetLogger().Info("Reconfiguring species guide cache")
+
+	if cm.apiController == nil {
+		GetLogger().Error("API controller not available for species guide reconfiguration")
+		cm.notifyError("Failed to reconfigure species guide", errors.Newf("API controller not available").
+			Component("analysis").
+			Category(errors.CategoryConfiguration).
+			Context("operation", "reconfigure_species_guide").
+			Build())
+		return
+	}
+
+	settings := conf.Setting()
+	if cm.proc == nil || cm.proc.Ds == nil {
+		GetLogger().Error("Processor or datastore not available for species guide reconfiguration")
+		cm.notifyError("Failed to reconfigure species guide", errors.Newf("processor or datastore unavailable").
+			Component("analysis").
+			Category(errors.CategoryConfiguration).
+			Context("operation", "reconfigure_species_guide").
+			Build())
+		return
+	}
+
+	// Get metrics instance from processor
+	metrics := cm.proc.Metrics
+	if metrics == nil {
+		GetLogger().Error("Metrics not available for species guide reconfiguration")
+		cm.notifyError("Failed to reconfigure species guide", errors.Newf("metrics not available").
+			Component("analysis").
+			Category(errors.CategoryConfiguration).
+			Context("operation", "reconfigure_species_guide").
+			Build())
+		return
+	}
+
+	// Increment the generation counter before spawning so that any goroutine
+	// from a prior reconfig sees a stale version and discards its result.
+	version := cm.guideCacheInitVersion.Add(1)
+
+	// Run initialization in a goroutine — warm-up launches async inside the
+	// cache but initGuideCacheIfNeeded itself must not block the control monitor.
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				GetLogger().Error("Recovered from panic in species guide reconfiguration",
+					logger.Any("panic", r))
+			}
+		}()
+
+		newGuideCache := initGuideCacheIfNeeded(settings, cm.proc.Ds, cm.proc.Ds, metrics.GuideProvider)
+
+		// If a newer reconfiguration has started while we were initializing,
+		// discard this result so the latest config always wins.
+		if cm.guideCacheInitVersion.Load() != version {
+			GetLogger().Info("Discarding stale species guide reconfiguration (superseded by newer request)")
+			if newGuideCache != nil {
+				newGuideCache.Close()
+			}
+			return
+		}
+
+		// Replace the old cache with the new one. SetGuideCache handles closing the old cache.
+		cm.apiController.SetGuideCache(newGuideCache)
+
+		if settings.Realtime.Dashboard.SpeciesGuide.Enabled {
+			GetLogger().Info("Species guide cache reconfigured successfully")
+			cm.notifySuccess("Species guide cache reconfigured successfully")
+		} else {
+			GetLogger().Info("Species guide feature disabled")
+			cm.notifySuccess("Species guide feature disabled")
+		}
+	}()
 }

@@ -74,6 +74,7 @@ Performance Optimizations:
   import MiniSpectrogram from '$lib/desktop/features/dashboard/components/MiniSpectrogram.svelte';
   import DashboardEditMode from '$lib/desktop/features/dashboard/components/DashboardEditMode.svelte';
   import DailySummaryConfigForm from '$lib/desktop/features/dashboard/components/DailySummaryConfigForm.svelte';
+  import SpeciesDetailModal from '$lib/desktop/features/analytics/components/modals/SpeciesDetailModal.svelte';
   import {
     Image,
     Map as MapIcon,
@@ -157,6 +158,20 @@ Performance Optimizations:
   let summaryLimit = $state(30); // Default from backend (conf/defaults.go) - species count limit for daily summary
   let configLoaded = $state(false); // Gates reactive preloading until config is loaded
   let pendingDetections = $state<PendingDetection[]>([]);
+
+  // Species detail modal state
+  interface SpeciesData {
+    common_name: string;
+    scientific_name: string;
+    count: number;
+    avg_confidence: number;
+    max_confidence: number;
+    first_heard: string;
+    last_heard: string;
+    thumbnail_url?: string;
+  }
+  let selectedSpecies = $state<SpeciesData | null>(null);
+  let showSpeciesDetailModal = $state(false);
 
   // Subscribe to edit mode store
   let isEditing = $derived($dashboardEditMode);
@@ -494,6 +509,27 @@ Performance Optimizations:
 
     // Just fetch recent detections - don't touch daily summary
     fetchRecentDetections();
+  }
+
+  // Handle clicking on a bird in the "currently hearing" section
+  function handleBirdClick(detection: PendingDetection) {
+    // Convert PendingDetection to SpeciesData format expected by SpeciesDetailModal
+    selectedSpecies = {
+      common_name: detection.species,
+      scientific_name: detection.scientificName,
+      count: 1, // Pending detections are single, real-time events
+      avg_confidence: 0, // Not available in pending detection
+      max_confidence: 0, // Not available in pending detection
+      first_heard: new Date(detection.firstDetected * 1000).toISOString(),
+      last_heard: new Date(detection.firstDetected * 1000).toISOString(),
+      thumbnail_url: detection.thumbnail || undefined,
+    };
+    showSpeciesDetailModal = true;
+  }
+
+  function handleCloseSpeciesModal() {
+    showSpeciesDetailModal = false;
+    selectedSpecies = null;
   }
 
   // Animation cleanup timers and RAF manager - use $state.raw() for performance
@@ -1525,7 +1561,10 @@ Performance Optimizations:
           onDateChange={handleDateChange}
         />
       {:else if element.type === 'currently-hearing'}
-        <CurrentlyHearingCard detections={isViewingToday ? pendingDetections : []} />
+        <CurrentlyHearingCard
+          detections={isViewingToday ? pendingDetections : []}
+          onBirdClick={handleBirdClick}
+        />
       {:else if element.type === 'live-spectrogram'}
         {#if isViewingToday}
           <MiniSpectrogram {pendingDetections} />
@@ -1553,3 +1592,10 @@ Performance Optimizations:
     {/snippet}
   </DashboardEditMode>
 </div>
+
+<!-- Species detail modal for "currently hearing" birds -->
+<SpeciesDetailModal
+  species={selectedSpecies}
+  isOpen={showSpeciesDetailModal}
+  onClose={handleCloseSpeciesModal}
+/>

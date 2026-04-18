@@ -24,6 +24,12 @@
   let selectedSimilarIndex = $state<number>(0);
   let isLoadingSimilarGuide = $state(false);
   let similarGuideSections = $state<ReturnType<typeof parseGuideDescription>>([]);
+  let selectedSimilarEntry = $derived(
+    selectedSimilarIndex >= 0 && selectedSimilarIndex < similarSpecies.length
+      ? // eslint-disable-next-line security/detect-object-injection -- bounds-checked by the condition above
+        similarSpecies[selectedSimilarIndex]
+      : null
+  );
 
   // AbortController for the per-species guide fetch — cancelled when switching species.
   let similarGuideController: AbortController | null = null;
@@ -101,6 +107,7 @@
       isLoadingSimilarGuide = true;
       similarGuideSections = [];
       try {
+        // eslint-disable-next-line security/detect-object-injection -- index is a numeric loop counter, not user input
         const entry = similarSpecies[index];
         const encoded = encodeURIComponent(entry.scientific_name);
         const locale = getLocale();
@@ -218,8 +225,8 @@
     </div>
 
     <!-- Comparison panel -->
-    {#if selectedSimilarIndex >= 0 && selectedSimilarIndex < similarSpecies.length}
-      {@const similarEntry = similarSpecies[selectedSimilarIndex]}
+    {#if selectedSimilarEntry !== null}
+      {@const similarEntry = selectedSimilarEntry}
       {@const similarSections = similarEntry.sections ?? null}
 
       <div class="comparison-panel">

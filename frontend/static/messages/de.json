@@ -574,7 +574,8 @@
     "currentlyHearing": {
       "title": "Gerade gehört",
       "subtitle": "Arten werden in Echtzeit identifiziert",
-      "empty": "Alles ruhig — derzeit keine Vögel erkannt"
+      "empty": "Alles ruhig — derzeit keine Vögel erkannt",
+      "viewGuide": "Steckbrief für {species} anzeigen"
     },
     "rejected": "Abgelehnt",
     "dailySummary": {
@@ -3948,7 +3949,7 @@
         "description": "Artenführer konfigurieren.",
         "enabled": {
           "label": "Artenführer aktivieren",
-          "helpText": "Wikipedia-basierte Führerinhalte anzeigen."
+          "helpText": "Online-Führerinhalte anzeigen (z. B. Wikipedia oder eBird)."
         },
         "provider": {
           "label": "Datenquelle",

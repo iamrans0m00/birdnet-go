@@ -231,6 +231,11 @@ realtime:
       enabled: false       # true to enable species guide text (description, attribution)
       provider: wikipedia # preferred guide provider: wikipedia, auto
       fallbackpolicy: all # fallback policy: none (primary only), all (try all providers)
+      warmtopn: 0         # number of top species to pre-warm on startup (0 = disabled)
+      prefetchenabled: false # pre-fetch guides for newly detected species
+      shownotes: true     # show species notes section (user-authored notes)
+      showenrichments: true # show season badges and external links (All About Birds, Xeno-canto)
+      showsimilarspecies: true # show similar species comparison with side-by-side descriptions
 
   dynamicthreshold:
     enabled: true         # true to enable dynamic confidence threshold
