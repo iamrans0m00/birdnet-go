@@ -264,11 +264,8 @@
           fetchSpeciesInfo(),
           fetchTaxonomy(),
           fetchImageAttribution(),
-          fetchGuide().then(() => {
-            if (guideData && guideData.features && guideData.features.notes !== false) {
-              return fetchSpeciesNotes();
-            }
-          }),
+          fetchGuide(),
+          fetchSpeciesNotes(),
         ]);
       }
     } catch (error) {
