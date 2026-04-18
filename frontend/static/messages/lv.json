@@ -1577,15 +1577,15 @@
           "summer": "Vasara",
           "fall": "Rudens",
           "winter": "Ziema",
-          "wet1": "Lietus sezona",
-          "dry1": "Sausā sezona",
-          "wet2": "Lietus sezona",
-          "dry2": "Sausā sezona"
+          "wet1": "1. lietainā sezona",
+          "dry1": "1. sausā sezona",
+          "wet2": "2. lietainā sezona",
+          "dry2": "2. sausā sezona"
         },
         "vs": "vs",
-        "noDescription": "No description available",
-        "noSongs": "No songs/calls info available",
-        "noSimilar": "No similar species listed"
+        "noDescription": "Nav pieejams apraksts",
+        "noSongs": "Nav pieejama informācija par dziesmām/saucieniem",
+        "noSimilar": "Nav norādītas līdzīgas sugas"
       },
       "notes": {
         "title": "Sugas piezīmes",
@@ -1604,7 +1604,7 @@
         "empty": "Šajā ģintī nav atrasta neviena līdzīga suga.",
         "sameGenus": "Tā pati ģints",
         "sameFamily": "Tā pati dzimta",
-        "similar": "Similar"
+        "similar": "Līdzīgs"
       }
     },
     "advanced": {

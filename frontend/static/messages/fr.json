@@ -1555,10 +1555,10 @@
           "summer": "Été",
           "fall": "Automne",
           "winter": "Hiver",
-          "wet1": "Saison humide",
-          "dry1": "Saison sèche",
-          "wet2": "Saison humide",
-          "dry2": "Saison sèche"
+          "wet1": "Première Saison Humide",
+          "dry1": "Première Saison Sèche",
+          "wet2": "Deuxième Saison Humide",
+          "dry2": "Deuxième Saison Sèche"
         },
         "vs": "vs",
         "noDescription": "Aucune description disponible",

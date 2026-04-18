@@ -1553,15 +1553,15 @@
           "summer": "Leto",
           "fall": "Jeseň",
           "winter": "Zima",
-          "wet1": "Obdobie dažďov",
-          "dry1": "Suché obdobie",
-          "wet2": "Obdobie dažďov",
-          "dry2": "Suché obdobie"
+          "wet1": "1. Obdobie dažďov",
+          "dry1": "1. Suché obdobie",
+          "wet2": "2. Obdobie dažďov",
+          "dry2": "2. Suché obdobie"
         },
         "vs": "vs",
-        "noDescription": "No description available",
-        "noSongs": "No songs/calls info available",
-        "noSimilar": "No similar species listed"
+        "noDescription": "Žiadny popis nie je k dispozícii",
+        "noSongs": "Nie sú k dispozícii informácie o speve/volaní",
+        "noSimilar": "Nie sú uvedené žiadne podobné druhy"
       },
       "notes": {
         "title": "Poznámky o druhu",
@@ -1580,7 +1580,7 @@
         "empty": "V tomto rode sa nenašli žiadne podobné druhy.",
         "sameGenus": "Rovnaký rod",
         "sameFamily": "Rovnaká čeľaď",
-        "similar": "Similar"
+        "similar": "Podobné"
       }
     },
     "advanced": {

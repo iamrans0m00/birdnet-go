@@ -1577,15 +1577,15 @@
           "summer": "Sommer",
           "fall": "Efterår",
           "winter": "Vinter",
-          "wet1": "Regntid",
-          "dry1": "Tørtid",
-          "wet2": "Regntid",
-          "dry2": "Tørtid"
+          "wet1": "Første Regntid",
+          "dry1": "Første Tørtid",
+          "wet2": "Anden Regntid",
+          "dry2": "Anden Tørtid"
         },
         "vs": "vs",
-        "noDescription": "No description available",
-        "noSongs": "No songs/calls info available",
-        "noSimilar": "No similar species listed"
+        "noDescription": "Ingen beskrivelse tilgængelig",
+        "noSongs": "Ingen sang/kald-oplysninger tilgængelige",
+        "noSimilar": "Ingen lignende arter angivet"
       },
       "notes": {
         "title": "Artsnoter",
@@ -1604,7 +1604,7 @@
         "empty": "Ingen lignende arter fundet i denne slægt.",
         "sameGenus": "Samme slægt",
         "sameFamily": "Samme familie",
-        "similar": "Similar"
+        "similar": "Lignende"
       }
     },
     "advanced": {

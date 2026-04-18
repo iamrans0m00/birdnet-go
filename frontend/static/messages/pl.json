@@ -1555,10 +1555,10 @@
           "summer": "Lato",
           "fall": "Jesień",
           "winter": "Zima",
-          "wet1": "Pora deszczowa",
-          "dry1": "Pora sucha",
-          "wet2": "Pora deszczowa",
-          "dry2": "Pora sucha"
+          "wet1": "1. Pora deszczowa",
+          "dry1": "1. Pora sucha",
+          "wet2": "2. Pora deszczowa",
+          "dry2": "2. Pora sucha"
         },
         "vs": "vs",
         "noDescription": "Brak dostępnego opisu",

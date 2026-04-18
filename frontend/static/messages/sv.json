@@ -1577,15 +1577,15 @@
           "summer": "Sommar",
           "fall": "Höst",
           "winter": "Vinter",
-          "wet1": "Regnperiod",
-          "dry1": "Torrperiod",
-          "wet2": "Regnperiod",
-          "dry2": "Torrperiod"
+          "wet1": "Första Regnperiod",
+          "dry1": "Första Torrperiod",
+          "wet2": "Andra Regnperiod",
+          "dry2": "Andra Torrperiod"
         },
         "vs": "vs",
-        "noDescription": "No description available",
-        "noSongs": "No songs/calls info available",
-        "noSimilar": "No similar species listed"
+        "noDescription": "Ingen beskrivning tillgänglig",
+        "noSongs": "Ingen information om sång/läten tillgänglig",
+        "noSimilar": "Inga liknande arter listade"
       },
       "notes": {
         "title": "Artanteckningar",
@@ -1604,7 +1604,7 @@
         "empty": "Inga liknande arter hittades i detta släkte.",
         "sameGenus": "Samma släkte",
         "sameFamily": "Samma familj",
-        "similar": "Similar"
+        "similar": "Liknande"
       }
     },
     "advanced": {
