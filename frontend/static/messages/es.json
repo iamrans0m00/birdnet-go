@@ -395,7 +395,7 @@
         "reconfiguringDynamicThresholds": "Reconfigurando umbrales dinámicos...",
         "webserverRestartRequired": "Los ajustes del servidor web han cambiado. Se requiere reinicio.",
         "reconfiguringSoundLevel": "Actualizando monitorización del nivel de sonido...",
-        "audioDeviceRestartRequired": "Dispositivo de audio cambiado. Se requiere reinicio.",
+        "reconfiguringAudioSources": "Reconfigurando fuentes de audio...",
         "rebuildingExtendedCapture": "Reconstruyendo filtro de captura extendida...",
         "extendedCaptureRestartRequired": "Ajustes de captura extendida cambiados. Se requiere reinicio.",
         "equalizerUpdateFailed": "Error al actualizar los ajustes del ecualizador de audio",
@@ -658,6 +658,8 @@
       },
       "actions": {
         "menuLabel": "Acciones para {species}",
+        "markCorrect": "Correcto",
+        "markFalsePositive": "Incorrecto",
         "review": "Revisar detección",
         "showSpecies": "Mostrar especie",
         "ignoreSpecies": "Ignorar especie",
@@ -763,6 +765,7 @@
     "headers": {
       "dateTime": "Fecha y hora",
       "weather": "Clima",
+      "source": "Fuente",
       "species": "Especie",
       "confidence": "Confianza",
       "thumbnail": "Miniatura",
@@ -2583,7 +2586,7 @@
       },
       "audioFilters": {
         "title": "Filtros de audio",
-        "description": "Configurar filtros de procesamiento de audio",
+        "description": "Configurar filtros de audio predeterminados aplicados a todas las fuentes. Los ajustes de EQ por fuente están disponibles en la configuración de cada tarjeta de sonido.",
         "enableEqualizer": "Habilitar ecualizador de audio",
         "enableEqualizerHelp": "Aplica filtrado de frecuencia para mejorar la detección de cantos de aves reduciendo el ruido no deseado y frecuencias.",
         "filterType": "Tipo de filtro",
@@ -3265,9 +3268,10 @@
       },
       "synonyms": {
         "tabLabel": "Sinónimos",
-        "description": "Asigne nombres de especies de BirdNET a sus nombres preferidos. Cuando una detección coincida con un sinónimo, se usará el nombre actualizado.",
+        "description": "Asigne nombres científicos de BirdNET a sus equivalentes actualizados en una taxonomía más reciente. Se usa solo como alternativa al buscar fotos de aves en Wikipedia y AviCommons; no renombra especies en las detecciones ni en el panel.",
+        "helpText": "Para cambiar cómo se muestra una especie en la interfaz, edite su archivo de etiquetas de BirdNET (ajuste \"Ruta de etiquetas\" en Configuración principal).",
         "birdnetName": "Nombre BirdNET",
-        "updatedName": "Nombre actualizado",
+        "updatedName": "Nombre científico actualizado",
         "addButton": "Agregar sinónimo",
         "emptyState": "No hay sinónimos de taxonomía configurados",
         "errors": {

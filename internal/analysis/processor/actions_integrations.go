@@ -14,6 +14,7 @@ import (
 	"github.com/tphakala/birdnet-go/internal/imageprovider"
 	"github.com/tphakala/birdnet-go/internal/logger"
 	"github.com/tphakala/birdnet-go/internal/mqtt"
+	"github.com/tphakala/birdnet-go/internal/notification"
 	"github.com/tphakala/birdnet-go/internal/privacy"
 )
 
@@ -102,6 +103,23 @@ func (a *BirdWeatherAction) Execute(_ context.Context, data any) error {
 				logger.String("operation", "birdweather_upload"))
 			// Return nil - this is not an error condition worth retrying
 			return nil
+		}
+
+		// Circuit breaker open/half-open: the BirdWeather client's breaker
+		// has short-circuited this upload because the upstream service is
+		// currently flapping. This is an operational throttle state, not a
+		// code bug. Return the sentinel unchanged so the job queue still
+		// retries (any non-nil error triggers retry with backoff) while
+		// shouldReportToSentry suppresses it via the notification-component
+		// filter — wrapping here would hide the sentinel from that filter.
+		if errors.Is(err, notification.ErrCircuitBreakerOpen) || errors.Is(err, notification.ErrTooManyRequests) {
+			GetLogger().Debug("BirdWeather upload short-circuited: circuit breaker open",
+				logger.String("component", "analysis.processor.actions"),
+				logger.String("detection_id", a.CorrelationID),
+				logger.String("species", a.Result.Species.CommonName),
+				logger.String("scientific_name", a.Result.Species.ScientificName),
+				logger.String("operation", "birdweather_upload_breaker_open"))
+			return err
 		}
 
 		// Transient network errors (DNS, timeout, connection issues) are expected

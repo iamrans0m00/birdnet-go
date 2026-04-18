@@ -2,6 +2,7 @@
 package errors
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -151,22 +152,46 @@ func (sr *SentryReporter) IsEnabled() bool {
 	return sr.enabled
 }
 
+// isContextCancellation reports whether err (or any wrapped error in its
+// chain) is context.Canceled or context.DeadlineExceeded. Uses the package's
+// Is wrapper so wrapped EnhancedError chains are unwrapped correctly.
+func isContextCancellation(err error) bool {
+	return Is(err, context.Canceled) || Is(err, context.DeadlineExceeded)
+}
+
 // shouldReportToSentry determines if an error should be sent to Sentry
 // It filters out operational/configuration errors that aren't code bugs
 func shouldReportToSentry(ee *EnhancedError) bool {
 	if ee.Err == nil {
 		return true
 	}
+
+	// Database operations frequently observe context.Canceled and
+	// context.DeadlineExceeded during graceful shutdown and request-timeout
+	// conditions (e.g. an HTTP client disconnects mid-query, or a caller's
+	// ctx.Done() fires while a long row iteration is in progress). These are
+	// not code bugs — the query layer correctly surfaces the cancellation to
+	// the caller, and the caller is expected to handle it. Suppressing here
+	// prevents hundreds of duplicate "[database] context canceled" events
+	// per day from drowning legitimate database errors.
+	if ee.Category == CategoryDatabase && isContextCancellation(ee.Err) {
+		return false
+	}
+
 	errorMsg := strings.ToLower(ee.Err.Error())
 
 	// Notification circuit-breaker open/half-open conditions are operational
-	// throttling state, not bugs. Suppress only that component — NOT all
-	// CategoryLimit producers. eBird API quota exhaustion, analysis job
-	// queue overflow, and spectrogram pre-render memory limits should still
-	// reach Sentry as legitimate signals. The notification state transitions
-	// themselves are already surfaced via the dedicated CircuitBreakerStateTransition
-	// telemetry path, so the per-call errors from that component are pure
+	// throttling state, not bugs. BirdWeather reuses the notification package's
+	// PushCircuitBreaker, whose sentinel ErrCircuitBreakerOpen is tagged with
+	// component="notification" regardless of the caller — so this single check
+	// also covers BirdWeather's breaker-open errors. The breaker state transitions
+	// themselves are surfaced via the dedicated CircuitBreakerStateTransition
+	// telemetry path, so the per-call "circuit breaker is open" errors are pure
 	// noise when forwarded to Sentry.
+	//
+	// Other CategoryLimit producers (eBird API quota exhaustion, analysis job
+	// queue overflow, spectrogram pre-render memory limits) use different
+	// components and continue to reach Sentry as legitimate signals.
 	if ee.Category == CategoryLimit && ee.GetComponent() == "notification" {
 		return false
 	}

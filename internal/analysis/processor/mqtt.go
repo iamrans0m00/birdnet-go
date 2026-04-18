@@ -3,6 +3,7 @@ package processor
 
 import (
 	"context"
+	stderrors "errors"
 	"time"
 
 	"github.com/tphakala/birdnet-go/internal/audiocore"
@@ -19,6 +20,28 @@ const (
 	// discoveryPublishTimeout is the timeout for publishing discovery messages
 	discoveryPublishTimeout = 30 * time.Second
 )
+
+// ErrMQTTClientNotReady is returned by PublishMQTT whenever the MQTT client
+// reference is nil, regardless of whether MQTT is enabled in settings. In
+// practice this happens when MQTT is configured but:
+//   - initializeMQTT() failed to connect at startup (broker unreachable,
+//     auth failure, TLS issue, etc.)
+//   - The client is between DisconnectMQTTClient() and SetMQTTClient() during
+//     runtime reconfiguration.
+//
+// Callers in streaming publish paths (sound level, etc.) should check for
+// this sentinel with errors.Is and treat it as a graceful no-op to avoid
+// flooding telemetry with identical "client not available" events while
+// the broker is unreachable. The detection pipeline already skips MQTT
+// action creation when the client is nil (see processor.go), so this
+// sentinel is primarily for streaming (non-detection) publishers.
+//
+// This sentinel error is intentionally a plain stderrors.New value so it has
+// no telemetry category attached. Wrapping layers must preserve it with
+// errors.Is-compatible wrapping (fmt.Errorf("...: %w", err) or the internal
+// errors builder's New() which chains cause) so callers can detect and
+// silently drop publishes while the broker is unreachable.
+var ErrMQTTClientNotReady = stderrors.New("MQTT client not ready")
 
 // GetMQTTClient safely returns the current MQTT client
 func (p *Processor) GetMQTTClient() mqtt.Client {
@@ -48,6 +71,17 @@ func (p *Processor) DisconnectMQTTClient() {
 
 // PublishMQTT safely publishes a message using the MQTT client if available.
 // Does NOT pre-check IsConnected() to avoid TOCTOU race (GitHub #2397).
+//
+// When the MQTT client reference is nil (initializeMQTT() failed at startup,
+// or the client is between DisconnectMQTTClient() and SetMQTTClient()), this
+// returns ErrMQTTClientNotReady. Streaming publishers that run on a timer
+// (sound level publisher, etc.) should check for this sentinel with
+// errors.Is and silently skip to avoid flooding telemetry. See
+// internal/analysis/sound_level.go for the canonical caller pattern.
+//
+// The returned error is intentionally NOT tagged with a telemetry category:
+// the sentinel is filtered at the caller, but if it leaks through, it still
+// has no CategoryMQTTPublish tag so it will not be reported to Sentry.
 func (p *Processor) PublishMQTT(ctx context.Context, topic, payload string) error {
 	p.mqttMutex.RLock()
 	client := p.MqttClient
@@ -56,11 +90,16 @@ func (p *Processor) PublishMQTT(ctx context.Context, topic, payload string) erro
 	if client != nil {
 		return client.Publish(ctx, topic, payload)
 	}
-	return errors.Newf("MQTT client not available").
-		Component("analysis.processor").
-		Category(errors.CategoryMQTTPublish).
-		Context("operation", "publish_mqtt").
-		Build()
+	// Emit a single warn log per process lifetime so operators learn MQTT is
+	// configured but not reachable. Subsequent attempts are silent — the
+	// sentinel is all the caller needs to decide to skip.
+	p.mqttNotReadyWarnOnce.Do(func() {
+		GetLogger().Warn(
+			"MQTT publish suppressed: client not ready (further suppressed publishes are silent)",
+			logger.String("topic", topic),
+			logger.String("operation", "publish_mqtt_not_ready"))
+	})
+	return ErrMQTTClientNotReady
 }
 
 // initializeMQTT initializes the MQTT client if enabled in settings

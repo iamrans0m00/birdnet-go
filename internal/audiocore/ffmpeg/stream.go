@@ -16,6 +16,7 @@ import (
 
 	"github.com/tphakala/birdnet-go/internal/alerting"
 	"github.com/tphakala/birdnet-go/internal/audiocore"
+	"github.com/tphakala/birdnet-go/internal/audiocore/buffer"
 	"github.com/tphakala/birdnet-go/internal/errors"
 	"github.com/tphakala/birdnet-go/internal/logger"
 	"github.com/tphakala/birdnet-go/internal/privacy"
@@ -482,13 +483,19 @@ type Stream struct {
 	exitProcessState string
 	exitWaitCalled   bool
 	exitInfoMu       sync.Mutex
+
+	// Optional buffer manager used to pool stdout read buffers. When nil the
+	// reader falls back to a fresh make() per iteration (legacy behavior).
+	bufMgr *buffer.Manager
 }
 
 // NewStream creates a new FFmpeg stream handler.
 // The onFrame callback is invoked for each chunk of audio data read from FFmpeg
 // with a fully populated AudioFrame including source metadata.
 // The onReset callback is invoked when the stream restarts, allowing consumers to reset state.
-func NewStream(cfg *StreamConfig, onFrame func(frame audiocore.AudioFrame), onReset func(sourceID string), metrics audiocore.StreamMetrics) *Stream {
+// bufMgr is an optional buffer manager used to pool stdout read buffers via
+// FrameRef; when nil, readStdout falls back to a fresh per-iteration allocation.
+func NewStream(cfg *StreamConfig, onFrame func(frame audiocore.AudioFrame), onReset func(sourceID string), metrics audiocore.StreamMetrics, bufMgr *buffer.Manager) *Stream {
 	return &Stream{
 		config:           *cfg,
 		onFrame:          onFrame,
@@ -506,6 +513,7 @@ func NewStream(cfg *StreamConfig, onFrame func(frame audiocore.AudioFrame), onRe
 		stateTransitions: make([]StateTransition, 0, maxStateHistory),
 		errorContexts:    make([]*ErrorContext, 0, maxErrorHistorySize),
 		maxErrorHistory:  maxErrorHistorySize,
+		bufMgr:           bufMgr,
 	}
 }
 
@@ -899,6 +907,7 @@ func (s *Stream) buildFFmpegInputArgs(ffmpegParameters []string) []string {
 // dedicated reader goroutine back to the processAudio event loop.
 type readResult struct {
 	data []byte
+	ref  *audiocore.FrameRef
 	err  error
 }
 
@@ -966,6 +975,19 @@ func (s *Stream) processAudio() error {
 	// readerDone is closed when the main event loop exits to unblock the
 	// reader goroutine if readCh is full, preventing a goroutine leak.
 	readerDone := make(chan struct{})
+	// Defers run LIFO: close(readerDone) fires first (so any reader send
+	// blocked on readCh unblocks via the readerDone branch and releases
+	// its own ref there), then the drain runs to catch at most one
+	// readResult the reader already buffered into readCh before we
+	// signalled. Without this drain the pooled slice would leak from the
+	// pool's perspective (GC still reclaims it).
+	defer func() {
+		select {
+		case pending := <-readCh:
+			pending.ref.Release()
+		default:
+		}
+	}()
 	defer close(readerDone)
 
 	// Launch a dedicated reader goroutine. It exits when stdout is closed
@@ -982,7 +1004,7 @@ func (s *Stream) processAudio() error {
 			if result.err != nil {
 				return s.handleReadError(result.err, startTime)
 			}
-			s.dispatchAudioData(result.data)
+			s.dispatchAudioData(result.data, result.ref)
 
 		case <-s.restartChan:
 			getStreamLogger().Info("restart requested",
@@ -1029,22 +1051,52 @@ func (s *Stream) processAudio() error {
 }
 
 // readStdout is the body of the dedicated reader goroutine launched by
-// processAudio. It allocates a single buffer and copies data before sending
-// to avoid retaining references to a shared backing array. It exits when
-// stdout is closed (by cleanupProcess), on a read error, or when readerDone
-// is closed (main loop exited, preventing a goroutine leak).
+// processAudio. When a buffer manager is wired it borrows a full-sized slice
+// from the size-specific BytePool and attaches a FrameRef whose release
+// closure returns the slice to the pool; otherwise it falls back to a fresh
+// per-iteration allocation. It exits when stdout is closed (by
+// cleanupProcess), on a read error, or when readerDone is closed (main loop
+// exited, preventing a goroutine leak).
+//
+// The release closure captures the FULL-capacity slice, not the n-byte
+// sub-slice sent downstream, so the pool always sees a correctly sized buffer
+// on Put.
 func (s *Stream) readStdout(stdout io.ReadCloser, readCh chan<- readResult, readerDone <-chan struct{}) {
-	buf := make([]byte, ffmpegBufferSize)
 	for {
-		n, err := stdout.Read(buf)
+		var (
+			out []byte
+			ref *audiocore.FrameRef
+		)
+		if s.bufMgr != nil {
+			// ffmpegBufferSize is a positive compile-time constant so
+			// BytePoolFor returns non-nil. BytePool.Get guarantees
+			// len(out) == ffmpegBufferSize (pool rejects mismatches on
+			// Put and reallocates on Get). The release closure captures
+			// the full-length slice so pool.Put receives a correctly
+			// sized buffer regardless of how downstream reslices it.
+			pool := s.bufMgr.BytePoolFor(ffmpegBufferSize)
+			out = pool.Get()
+			ref = audiocore.NewFrameRef(func() { pool.Put(out) })
+		} else {
+			out = make([]byte, ffmpegBufferSize)
+		}
+
+		n, err := stdout.Read(out)
 		if n > 0 {
-			dataCopy := make([]byte, n)
-			copy(dataCopy, buf[:n])
+			// Shrink the slice to the actual read size; the underlying
+			// capacity is preserved and returned to the pool via the ref
+			// closure (which captures the full-length slice).
 			select {
-			case readCh <- readResult{data: dataCopy}:
+			case readCh <- readResult{data: out[:n], ref: ref}:
 			case <-readerDone:
+				// Main loop exited before we could hand off: release the
+				// producer's own reference so the pool slice is not leaked.
+				ref.Release()
 				return
 			}
+		} else {
+			// No bytes read: return the buffer to the pool immediately.
+			ref.Release()
 		}
 		if err != nil {
 			select {
@@ -1078,11 +1130,20 @@ func (s *Stream) handleReadError(readErr error, startTime time.Time) error {
 
 // dispatchAudioData processes a chunk of audio data received from the reader
 // goroutine: updates tracking state, resets failure counters if stable, and
-// invokes the onFrame callback.
-func (s *Stream) dispatchAudioData(data []byte) {
+// invokes the onFrame callback. The ref (optional) owns the pool reference
+// for the underlying read buffer; the producer's own reference is released
+// after onFrame returns, mirroring the malgo capture dispatch path. Router
+// and drainers must retain per enqueue before onFrame returns if they need
+// to keep the data alive beyond this call. Release is nil-safe.
+func (s *Stream) dispatchAudioData(data []byte, ref *audiocore.FrameRef) {
 	if len(data) == 0 {
+		ref.Release()
 		return
 	}
+	// Defer the producer's own Release so a panic inside s.onFrame does
+	// not strand the pool slice. Release is nil-safe. Routes that need the
+	// data beyond this call must already have retained via Dispatch.
+	defer ref.Release()
 
 	s.updateLastDataTime()
 
@@ -1106,6 +1167,7 @@ func (s *Stream) dispatchAudioData(data []byte) {
 			BitDepth:   s.config.BitDepth,
 			Channels:   s.config.Channels,
 			Timestamp:  time.Now(),
+			Ref:        ref,
 		})
 	}
 

@@ -64,7 +64,7 @@
     hasAudio: boolean;
   }
 
-  type VerifiedStatus = 'any' | 'verified' | 'unverified' | 'false_positive';
+  type VerifiedStatus = 'any' | 'correct' | 'unverified' | 'false_positive';
   type LockedStatus = 'any' | 'locked' | 'unlocked';
   type TimeOfDayFilter = 'any' | 'day' | 'night' | 'sunrise' | 'sunset';
   type SortBy = 'date_desc' | 'date_asc' | 'species_asc' | 'confidence_desc';
@@ -210,8 +210,12 @@
     return true;
   }
 
-  // Form submission
+  // Form submission. Guarded against overlapping calls so any caller
+  // (form submit, pagination, sort dropdown, future programmatic trigger)
+  // cannot start a new request while one is still in flight; an older
+  // response would otherwise clobber newer state on completion.
   async function submitSearch(page = 1) {
+    if (isLoading) return;
     if (!validateForm()) return;
 
     isLoading = true;
@@ -241,6 +245,7 @@
       }
 
       const data = await api.post<SearchResponse>('/api/v2/search', requestBody);
+
       results = data.results ?? [];
       totalResults = data.total ?? 0;
       totalPages = data.pages ?? 1;
@@ -286,8 +291,11 @@
     submitSearch(page);
   }
 
-  // Handle sorting
+  // Handle sorting. Guarded against concurrent in-flight searches so a
+  // rapidly-clicked sort option cannot race an already-running submitSearch
+  // and clobber newer state with a stale response.
   function changeSort(sortOption: SortBy) {
+    if (isLoading) return;
     sortBy = sortOption;
     submitSearch(1);
   }
@@ -563,7 +571,7 @@
                 </label>
                 <select id="verifiedStatusFilter" bind:value={verifiedStatus} class="select w-full">
                   <option value="any">{t('search.verifiedOptions.any')}</option>
-                  <option value="verified">{t('search.verifiedOptions.verified')}</option>
+                  <option value="correct">{t('search.verifiedOptions.verified')}</option>
                   <option value="unverified">{t('search.verifiedOptions.unverified')}</option>
                   <option value="false_positive">{t('common.review.status.falsePositive')}</option>
                 </select>
@@ -642,11 +650,14 @@
             >
             <div class="dropdown dropdown-end">
               <div
-                tabindex="0"
+                tabindex={isLoading ? -1 : 0}
                 role="button"
                 class="btn btn-sm btn-outline"
+                class:opacity-50={isLoading}
+                class:pointer-events-none={isLoading}
                 aria-haspopup="true"
                 aria-expanded="false"
+                aria-disabled={isLoading}
                 aria-label={t('common.sort')}
               >
                 <ArrowDownUp class="size-5" />
@@ -661,6 +672,7 @@
                   <button
                     type="button"
                     class="btn btn-ghost btn-sm justify-start w-full"
+                    disabled={isLoading}
                     onclick={() => changeSort('date_desc')}
                     >{t('search.sortOptions.dateDesc')}</button
                   >
@@ -669,6 +681,7 @@
                   <button
                     type="button"
                     class="btn btn-ghost btn-sm justify-start w-full"
+                    disabled={isLoading}
                     onclick={() => changeSort('date_asc')}>{t('search.sortOptions.dateAsc')}</button
                   >
                 </li>
@@ -676,6 +689,7 @@
                   <button
                     type="button"
                     class="btn btn-ghost btn-sm justify-start w-full"
+                    disabled={isLoading}
                     onclick={() => changeSort('species_asc')}
                     >{t('search.sortOptions.speciesAsc')}</button
                   >
@@ -684,6 +698,7 @@
                   <button
                     type="button"
                     class="btn btn-ghost btn-sm justify-start w-full"
+                    disabled={isLoading}
                     onclick={() => changeSort('confidence_desc')}
                     >{t('search.sortOptions.confidenceDesc')}</button
                   >

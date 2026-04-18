@@ -395,7 +395,7 @@
         "reconfiguringDynamicThresholds": "Määritetään dynaamisia kynnysarvoja uudelleen...",
         "webserverRestartRequired": "Verkkopalvelimen asetukset muuttuivat. Uudelleenkäynnistys vaaditaan.",
         "reconfiguringSoundLevel": "Päivitetään äänitason seurantaa...",
-        "audioDeviceRestartRequired": "Äänilaite vaihdettu. Uudelleenkäynnistys vaaditaan.",
+        "reconfiguringAudioSources": "Määritetään äänilähteitä uudelleen...",
         "rebuildingExtendedCapture": "Rakennetaan laajennetun tallennuksen suodatinta uudelleen...",
         "extendedCaptureRestartRequired": "Laajennetun tallennuksen asetukset muuttuneet. Uudelleenkäynnistys vaaditaan.",
         "equalizerUpdateFailed": "Äänen taajuuskorjaimen asetusten päivitys epäonnistui",
@@ -658,6 +658,8 @@
       },
       "actions": {
         "menuLabel": "Toiminnot: {species}",
+        "markCorrect": "Oikein",
+        "markFalsePositive": "Virhe",
         "review": "Tarkista havainto",
         "showSpecies": "Näytä laji",
         "ignoreSpecies": "Ohita laji",
@@ -763,6 +765,7 @@
     "headers": {
       "dateTime": "Päivä ja aika",
       "weather": "Sää",
+      "source": "Lähde",
       "species": "Laji",
       "confidence": "Luottamus",
       "thumbnail": "Pienoiskuva",
@@ -2583,7 +2586,7 @@
       },
       "audioFilters": {
         "title": "Äänisuodattimet",
-        "description": "Määritä äänenkäsittelysuodattimet",
+        "description": "Määritä oletusäänisuodattimet kaikille lähteille. Lähdekohtaiset taajuuskorjainasetukset ovat saatavilla kunkin äänikortin asetuksissa.",
         "enableEqualizer": "Ota taajuuskorjain käyttöön",
         "enableEqualizerHelp": "Käytä taajuussuodatusta parantaaksesi lintuäänten tunnistusta vähentämällä ei-toivottua melua ja taajuuksia.",
         "filterType": "Suodatintyyppi",
@@ -3265,9 +3268,10 @@
       },
       "synonyms": {
         "tabLabel": "Synonyymit",
-        "description": "Yhdistä BirdNET-lajinimet haluamiisi nimiin. Kun havainto vastaa synonyymia, käytetään päivitettyä nimeä.",
+        "description": "Yhdistä BirdNETin tieteelliset lajinimet niiden päivitettyihin vastineisiin uudemmassa taksonomiassa. Käytetään vain varasijana haettaessa lintukuvia Wikipediasta ja AviCommonsista; ei nimeä lajeja uudelleen havainnoissa tai koontinäytöllä.",
+        "helpText": "Muuttaaksesi lajin käyttöliittymässä näkyvää nimeä, muokkaa BirdNETin tunnistetiedostoa (asetus \"Nimikkeiden polku\" pääasetuksissa).",
         "birdnetName": "BirdNET-nimi",
-        "updatedName": "Päivitetty nimi",
+        "updatedName": "Päivitetty tieteellinen nimi",
         "addButton": "Lisää synonyymi",
         "emptyState": "Ei määritettyjä taksonomiasynonyymejä",
         "errors": {

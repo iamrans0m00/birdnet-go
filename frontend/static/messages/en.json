@@ -395,7 +395,7 @@
         "reconfiguringDynamicThresholds": "Reconfiguring dynamic thresholds...",
         "webserverRestartRequired": "Web server settings changed. Restart required.",
         "reconfiguringSoundLevel": "Updating sound level monitoring...",
-        "audioDeviceRestartRequired": "Audio device changed. Restart required.",
+        "reconfiguringAudioSources": "Reconfiguring audio sources...",
         "rebuildingExtendedCapture": "Rebuilding extended capture filter...",
         "extendedCaptureRestartRequired": "Extended capture settings changed. Restart required.",
         "equalizerUpdateFailed": "Failed to update audio equalizer settings",
@@ -658,6 +658,8 @@
       },
       "actions": {
         "menuLabel": "Actions for {species}",
+        "markCorrect": "Correct",
+        "markFalsePositive": "Incorrect",
         "review": "Review detection",
         "showSpecies": "Show species",
         "ignoreSpecies": "Ignore species",
@@ -763,6 +765,7 @@
     "headers": {
       "dateTime": "Date & Time",
       "weather": "Weather",
+      "source": "Source",
       "species": "Species",
       "confidence": "Confidence",
       "thumbnail": "Thumbnail",
@@ -3002,7 +3005,7 @@
       },
       "audioFilters": {
         "title": "Audio Filters",
-        "description": "Configure audio processing filters",
+        "description": "Configure default audio filters applied to all sources. Per-source EQ overrides are available in each sound card's settings.",
         "enableEqualizer": "Enable Audio Equalizer",
         "enableEqualizerHelp": "Apply frequency filtering to improve bird call detection by reducing unwanted noise and frequencies.",
         "filterType": "Filter Type",
@@ -3530,9 +3533,10 @@
       },
       "synonyms": {
         "tabLabel": "Synonyms",
-        "description": "Map BirdNET species names to your preferred names. When a detection matches a synonym, the updated name is used instead.",
+        "description": "Map BirdNET scientific names to their updated equivalents in newer taxonomy. Used only as a fallback when looking up bird photos from Wikipedia and AviCommons; does not rename species in detections or on the dashboard.",
+        "helpText": "To change how a species is named in the UI, edit your BirdNET labels file (the \"Label Path\" setting under Main settings).",
         "birdnetName": "BirdNET Name",
-        "updatedName": "Updated Name",
+        "updatedName": "Updated Scientific Name",
         "addButton": "Add Synonym",
         "emptyState": "No taxonomy synonyms configured",
         "errors": {

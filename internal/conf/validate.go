@@ -48,18 +48,18 @@ var (
 	// misconfiguration seen in the wild. The leading colon is optional:
 	// the originally reported case was `:45.5,-120.5` (an ALSA-style
 	// device prefix with the PCM name replaced by coordinates), but the
-	// naked variant `45.5,-120.5` — and integer-only forms like
-	// `45,120` — are equally nonsensical as audio devices and would
-	// otherwise slip through. Real ALSA/Pulse device strings always
-	// start with a letter (`default`, `hw:0,0`, `pulse:0`, etc.), so
-	// a leading digit / sign / optional colon never collides with a
-	// valid configuration. Optional whitespace around the comma is
-	// allowed because users frequently paste coordinates copied from
-	// map services with a space after the separator (`45.5, -120.5`).
-	// Detecting this shape at validation time lets us point the user
-	// at the right field with a single clear error instead of emitting
-	// recurring telemetry.
-	gpsCoordPattern = regexp.MustCompile(`^:?[+-]?\d+(\.\d+)?\s*,\s*[+-]?\d+(\.\d+)?$`)
+	// naked variant `45.5,-120.5` is equally nonsensical as an audio
+	// device. At least one of the two numbers must contain a decimal
+	// point so that ALSA shorthand device names like `:2,0` (equivalent
+	// to `hw:2,0`) are not falsely rejected. Real GPS coordinates are
+	// virtually always fractional; pure-integer pairs like `45,120` are
+	// valid ALSA card/subdevice selectors and must be allowed through.
+	// Optional whitespace around the comma is allowed because users
+	// frequently paste coordinates copied from map services with a
+	// space after the separator (`45.5, -120.5`). Detecting this shape
+	// at validation time lets us point the user at the right field with
+	// a single clear error instead of emitting recurring telemetry.
+	gpsCoordPattern = regexp.MustCompile(`^:?[+-]?\d+\.\d+\s*,\s*[+-]?\d+(\.\d+)?$|^:?[+-]?\d+(\.\d+)?\s*,\s*[+-]?\d+\.\d+$`)
 )
 
 // Audio gain limits in dB

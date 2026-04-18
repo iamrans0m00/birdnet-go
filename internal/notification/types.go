@@ -339,6 +339,9 @@ type NotificationStore interface {
 	Get(id string) (*Notification, error)
 	// List returns notifications with optional filtering
 	List(filter *FilterOptions) ([]*Notification, error)
+	// Count returns the number of notifications matching filter. filter.Limit
+	// and filter.Offset are ignored — pagination does not apply to a count.
+	Count(filter *FilterOptions) (int, error)
 	// Update modifies an existing notification
 	Update(notification *Notification) error
 	// Delete removes a notification
@@ -367,6 +370,13 @@ type FilterOptions struct {
 	Limit int
 	// Offset for pagination
 	Offset int
+	// IncludeToasts, when true, allows toast-flagged notifications to appear
+	// in results. Toasts are ephemeral by design (short expiry, SSE-only
+	// delivery); the default (false) keeps them out of List/Count results so
+	// callers that inspect "the notifications view" cannot accidentally leak
+	// them — a concrete concern after the guest-visible endpoints widened in
+	// PR #2775. Set to true only when the caller truly needs toast metadata.
+	IncludeToasts bool
 }
 
 // InMemoryStore provides a thread-safe in-memory notification store
@@ -374,7 +384,6 @@ type InMemoryStore struct {
 	mu            sync.RWMutex
 	notifications map[string]*Notification
 	maxSize       int
-	unreadCount   int // Track unread count for optimization
 }
 
 // NewInMemoryStore creates a new in-memory notification store
@@ -390,7 +399,11 @@ func NewInMemoryStore(maxSize int) *InMemoryStore {
 	}
 }
 
-// Save stores a notification in memory
+// Save stores a notification in memory. A deep copy is made so later
+// mutations of the caller's notification (adding metadata, changing status)
+// do not leak into the store or into concurrent subscribers reading via
+// List/Count/Get. Broadcasting already clones before sending to subscribers,
+// so storing a clone keeps the store's copy independent from both.
 func (s *InMemoryStore) Save(notification *Notification) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -400,13 +413,7 @@ func (s *InMemoryStore) Save(notification *Notification) error {
 		s.removeOldest()
 	}
 
-	s.notifications[notification.ID] = notification
-
-	// Update unread count if this is a new unread notification
-	if notification.Status == StatusUnread {
-		s.unreadCount++
-	}
-
+	s.notifications[notification.ID] = notification.Clone()
 	return nil
 }
 
@@ -456,24 +463,37 @@ func (s *InMemoryStore) List(filter *FilterOptions) ([]*Notification, error) {
 	return results, nil
 }
 
-// Update modifies an existing notification
+// Count returns the number of notifications matching filter. Reuses the same
+// matchesFilter predicate as List but avoids allocating a result slice, which
+// matters for callers that only need a badge count (e.g. NotificationBell
+// polling /notifications/unread/count). filter.Limit and filter.Offset are
+// ignored — a count is not paginated.
+func (s *InMemoryStore) Count(filter *FilterOptions) (int, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	count := 0
+	for _, notif := range s.notifications {
+		if s.matchesFilter(notif, filter) {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// Update modifies an existing notification. Stores a deep copy for the same
+// reason as Save: the caller's pointer may continue to mutate after the call
+// returns (e.g. MarkAsRead builds a new status on the returned copy and
+// writes back; the store must not share map references with that copy).
 func (s *InMemoryStore) Update(notification *Notification) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	oldNotif, exists := s.notifications[notification.ID]
-	if !exists {
+	if _, exists := s.notifications[notification.ID]; !exists {
 		return ErrNotificationNotFound
 	}
 
-	// Update unread count if status changed
-	if oldNotif.Status == StatusUnread && notification.Status != StatusUnread {
-		s.unreadCount--
-	} else if oldNotif.Status != StatusUnread && notification.Status == StatusUnread {
-		s.unreadCount++
-	}
-
-	s.notifications[notification.ID] = notification
+	s.notifications[notification.ID] = notification.Clone()
 	return nil
 }
 
@@ -481,13 +501,6 @@ func (s *InMemoryStore) Update(notification *Notification) error {
 func (s *InMemoryStore) Delete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	// Check if notification exists and is unread
-	if notif, exists := s.notifications[id]; exists {
-		if notif.Status == StatusUnread {
-			s.unreadCount--
-		}
-	}
 
 	delete(s.notifications, id)
 	return nil
@@ -500,9 +513,6 @@ func (s *InMemoryStore) DeleteExpired() error {
 
 	for id, notif := range s.notifications {
 		if notif.IsExpired() {
-			if notif.Status == StatusUnread {
-				s.unreadCount--
-			}
 			delete(s.notifications, id)
 		}
 	}
@@ -522,19 +532,16 @@ func (s *InMemoryStore) removeOldest() {
 	}
 
 	if oldestID != "" {
-		// Update unread count if removing an unread notification
-		if notif, exists := s.notifications[oldestID]; exists && notif.Status == StatusUnread {
-			s.unreadCount--
-		}
 		delete(s.notifications, oldestID)
 	}
 }
 
-// matchesFilter checks if a notification matches the filter criteria
+// matchesFilter checks if a notification matches the filter criteria.
+// Toast-flagged notifications are excluded by default (they are ephemeral
+// SSE-only payloads); callers that need toast metadata must opt in via
+// FilterOptions.IncludeToasts.
 func (s *InMemoryStore) matchesFilter(notif *Notification, filter *FilterOptions) bool {
-	// Always exclude toast notifications from lists
-	// Toast notifications should only be sent via SSE as ephemeral messages
-	if isToastNotification(notif) {
+	if isToastNotification(notif) && (filter == nil || !filter.IncludeToasts) {
 		return false
 	}
 
@@ -573,11 +580,12 @@ func (s *InMemoryStore) matchesTimeFilters(notif *Notification, filter *FilterOp
 	return true
 }
 
-// GetUnreadCount returns the count of unread notifications
+// GetUnreadCount returns the count of unread, non-toast notifications.
+// Toasts are ephemeral and are excluded so the count matches what callers
+// see via List. Iterates the store because a single cached counter cannot
+// correctly distinguish toast from non-toast saves at write time.
 func (s *InMemoryStore) GetUnreadCount() (int, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.unreadCount, nil
+	return s.Count(&FilterOptions{Status: []Status{StatusUnread}})
 }
 
 // sortNotificationsByTime sorts notifications by timestamp (newest first)

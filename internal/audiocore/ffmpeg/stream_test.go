@@ -5,12 +5,14 @@ import (
 	"context"
 	"io"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tphakala/birdnet-go/internal/audiocore"
+	"github.com/tphakala/birdnet-go/internal/audiocore/buffer"
 )
 
 // ffmpegTimeoutFlag is the FFmpeg flag name for connection timeout used in tests.
@@ -36,13 +38,13 @@ func newTestConfig() StreamConfig {
 func newTestStream(t *testing.T) *Stream {
 	t.Helper()
 	cfg := newTestConfig()
-	return NewStream(&cfg, nil, nil, nil)
+	return NewStream(&cfg, nil, nil, nil, nil)
 }
 
 // newTestStreamWithConfig creates a Stream for testing with a custom config.
 func newTestStreamWithConfig(t *testing.T, cfg *StreamConfig) *Stream {
 	t.Helper()
-	return NewStream(cfg, nil, nil, nil)
+	return NewStream(cfg, nil, nil, nil, nil)
 }
 
 // --- Test helpers for accessing internal state ---
@@ -1095,7 +1097,7 @@ func TestStream_OnFrameCallback(t *testing.T) {
 	cfg := newTestConfig()
 	stream := NewStream(&cfg, func(frame audiocore.AudioFrame) {
 		receivedFrame = frame
-	}, nil, nil)
+	}, nil, nil, nil)
 
 	assert.NotNil(t, stream)
 	assert.NotNil(t, stream.onFrame)
@@ -1126,7 +1128,7 @@ func TestStream_OnResetCallback(t *testing.T) {
 	stream := NewStream(&cfg, nil, func(sourceID string) {
 		resetCalled = true
 		resetSourceID = sourceID
-	}, nil)
+	}, nil, nil)
 
 	assert.NotNil(t, stream.onReset)
 
@@ -1370,7 +1372,7 @@ func TestProcessAudio_DataFlowsThroughReaderGoroutine(t *testing.T) {
 	cfg := newTestConfig()
 	stream := NewStream(&cfg, func(frame audiocore.AudioFrame) {
 		received = frame.Data
-	}, nil, nil)
+	}, nil, nil, nil)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
@@ -1590,7 +1592,7 @@ func TestProcessAudio_NonBlockingEventLoop(t *testing.T) {
 	var frameCount int
 	stream := NewStream(&cfg, func(frame audiocore.AudioFrame) {
 		frameCount++
-	}, nil, nil)
+	}, nil, nil, nil)
 
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
@@ -1636,4 +1638,125 @@ func TestProcessAudio_NonBlockingEventLoop(t *testing.T) {
 	}
 
 	assert.Positive(t, frameCount, "at least one frame should have been dispatched")
+}
+
+// TestStream_DispatchAttachesFrameRef_WhenPooled verifies that a Stream
+// constructed with a real buffer.Manager attaches a FrameRef to the
+// dispatched AudioFrame. The ref here is synthesised directly by the test
+// (dispatchAudioData does not allocate a pool slice; readStdout does) but
+// it must survive round-tripping through the onFrame callback.
+func TestStream_DispatchAttachesFrameRef_WhenPooled(t *testing.T) {
+	t.Parallel()
+
+	bufMgr := buffer.NewManager(audiocore.GetLogger())
+	cfg := newTestConfig()
+
+	var gotRef *audiocore.FrameRef
+	stream := NewStream(&cfg, func(frame audiocore.AudioFrame) {
+		gotRef = frame.Ref
+	}, nil, nil, bufMgr)
+
+	var released atomic.Int32
+	ref := audiocore.NewFrameRef(func() { released.Add(1) })
+	stream.dispatchAudioData([]byte{1, 2, 3}, ref)
+
+	require.NotNil(t, gotRef, "pooled Stream must forward FrameRef to dispatched frames")
+	assert.EqualValues(t, 1, released.Load(),
+		"dispatchAudioData must release the producer's reference exactly once")
+}
+
+// TestStream_DispatchNilRef_WhenNoBufMgr verifies that when no buffer
+// manager is wired the dispatch path forwards a nil Ref, preserving the
+// legacy non-pooled contract.
+func TestStream_DispatchNilRef_WhenNoBufMgr(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+
+	// Seed the captured ref with a non-nil sentinel; the callback must
+	// overwrite it with nil when the producer has no buffer manager.
+	gotRef := audiocore.NewFrameRef(func() {})
+	stream := NewStream(&cfg, func(frame audiocore.AudioFrame) {
+		gotRef = frame.Ref
+	}, nil, nil, nil)
+
+	stream.dispatchAudioData([]byte{1, 2, 3}, nil)
+
+	assert.Nil(t, gotRef, "non-pooled Stream must dispatch with nil Ref")
+}
+
+// TestStream_DispatchEmptyData_ReleasesRef verifies that the empty-data
+// early-return path in dispatchAudioData still releases the producer's
+// reference exactly once, so pool slices are not leaked when a read
+// returns zero useful bytes.
+func TestStream_DispatchEmptyData_ReleasesRef(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	stream := NewStream(&cfg, func(frame audiocore.AudioFrame) {
+		t.Fatalf("onFrame must not be called for empty data")
+	}, nil, nil, nil)
+
+	var released atomic.Int32
+	ref := audiocore.NewFrameRef(func() { released.Add(1) })
+	stream.dispatchAudioData(nil, ref)
+
+	assert.EqualValues(t, 1, released.Load(),
+		"empty-data dispatch must release the producer's reference exactly once")
+}
+
+// TestStream_ReadStdout_AttachesRefWhenPooled exercises the real pool-borrow
+// path inside readStdout: a Stream constructed with a buffer.Manager must
+// attach a non-nil FrameRef to every readResult so pool.Put can return the
+// slice when the last holder releases. This is the regression test that
+// proves the bufMgr wiring in NewStream is load-bearing.
+func TestStream_ReadStdout_AttachesRefWhenPooled(t *testing.T) {
+	t.Parallel()
+
+	bufMgr := buffer.NewManager(audiocore.GetLogger())
+	cfg := newTestConfig()
+	stream := NewStream(&cfg, nil, nil, nil, bufMgr)
+
+	reader := io.NopCloser(bytes.NewReader([]byte{1, 2, 3}))
+	readCh := make(chan readResult, 1)
+	readerDone := make(chan struct{})
+	t.Cleanup(func() { close(readerDone) })
+
+	go stream.readStdout(reader, readCh, readerDone)
+
+	select {
+	case result := <-readCh:
+		require.NoError(t, result.err)
+		require.NotNil(t, result.ref, "pooled readStdout must attach a FrameRef to every readResult")
+		assert.Equal(t, []byte{1, 2, 3}, result.data)
+		result.ref.Release()
+	case <-time.After(time.Second):
+		t.Fatal("readStdout did not produce a readResult within 1s")
+	}
+}
+
+// TestStream_ReadStdout_NilRefWhenNoBufMgr verifies that when no buffer
+// manager is wired, readStdout dispatches readResult values with nil ref so
+// the non-pooled legacy path remains intact.
+func TestStream_ReadStdout_NilRefWhenNoBufMgr(t *testing.T) {
+	t.Parallel()
+
+	cfg := newTestConfig()
+	stream := NewStream(&cfg, nil, nil, nil, nil)
+
+	reader := io.NopCloser(bytes.NewReader([]byte{1, 2, 3}))
+	readCh := make(chan readResult, 1)
+	readerDone := make(chan struct{})
+	t.Cleanup(func() { close(readerDone) })
+
+	go stream.readStdout(reader, readCh, readerDone)
+
+	select {
+	case result := <-readCh:
+		require.NoError(t, result.err)
+		assert.Nil(t, result.ref, "non-pooled readStdout must dispatch nil ref")
+		assert.Equal(t, []byte{1, 2, 3}, result.data)
+	case <-time.After(time.Second):
+		t.Fatal("readStdout did not produce a readResult within 1s")
+	}
 }

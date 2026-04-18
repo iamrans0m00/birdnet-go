@@ -27,18 +27,25 @@ const (
 	// ActionStatsTargetSize is the target size after cleanup (with hysteresis margin)
 	// Set to 80% of max to avoid repeated cleanup triggers
 	ActionStatsTargetSize = int(MaxActionStatsEntries * 0.8)
+
+	// MinStopTimeout is the minimum grace period enforced inside
+	// StopWithTimeout when a caller passes a zero or negative timeout. The
+	// canonical caller (processor shutdown) already floors the timeout at
+	// its own MinJobQueueGracePeriod, but this constant provides a safety
+	// net for any future caller and prevents a 0s select-case fallthrough
+	// that would report "timed out waiting for jobs to complete after 0s"
+	// to telemetry even though the shutdown is behaving correctly.
+	MinStopTimeout = 500 * time.Millisecond
 )
 
 // JobQueue manages a queue of jobs that can be retried
 type JobQueue struct {
 	jobs               []*Job
-	archivedJobs       []*Job // Store stale jobs here instead of discarding
 	mu                 sync.Mutex
 	stats              JobStats
 	stopCh             chan struct{}
 	runningJobs        sync.WaitGroup // Track running jobs for graceful shutdown
 	isRunning          bool
-	maxArchivedJobs    int  // Maximum number of archived jobs to keep
 	maxJobs            int  // Maximum number of pending jobs in the queue
 	droppedJobs        int  // Counter for jobs dropped due to queue full
 	logAllSuccesses    bool // Whether to log all successful jobs, not just retries
@@ -50,16 +57,19 @@ type JobQueue struct {
 
 // NewJobQueue creates a new job queue with default settings
 func NewJobQueue() *JobQueue {
-	return NewJobQueueWithOptions(1000, 100, false)
+	return NewJobQueueWithOptions(1000, false)
 }
 
-// NewJobQueueWithOptions creates a new job queue with custom settings
-func NewJobQueueWithOptions(maxJobs, maxArchivedJobs int, logAllSuccesses bool) *JobQueue {
+// NewJobQueueWithOptions creates a new job queue with custom settings.
+// A non-positive maxJobs is clamped to 1 so callers cannot silently produce
+// a queue that rejects every Enqueue with ErrQueueFull.
+func NewJobQueueWithOptions(maxJobs int, logAllSuccesses bool) *JobQueue {
+	if maxJobs < 1 {
+		maxJobs = 1
+	}
 	return &JobQueue{
 		jobs:               make([]*Job, 0),
-		archivedJobs:       make([]*Job, 0),
 		stopCh:             make(chan struct{}),
-		maxArchivedJobs:    maxArchivedJobs,
 		maxJobs:            maxJobs,
 		logAllSuccesses:    logAllSuccesses,
 		allowJobDropping:   true,            // Default to allowing job dropping when queue is full
@@ -125,8 +135,20 @@ func (q *JobQueue) Stop() error {
 	return q.StopWithTimeout(10 * time.Second)
 }
 
-// StopWithTimeout stops the job queue processing with a timeout
+// StopWithTimeout stops the job queue processing with a timeout.
+//
+// If the supplied timeout is zero or negative, it is silently floored to
+// MinStopTimeout. This matters during shutdown: callers commonly derive the
+// timeout from context.Deadline()-time.Now(), which can already be
+// non-positive by the time Stop runs. Without a floor, the select below
+// returns immediately with a "timed out waiting for jobs to complete after
+// 0s" error that gets reported to telemetry even though the shutdown is
+// behaving correctly.
 func (q *JobQueue) StopWithTimeout(timeout time.Duration) error {
+	if timeout <= 0 {
+		timeout = MinStopTimeout
+	}
+
 	q.mu.Lock()
 	if !q.isRunning {
 		q.mu.Unlock()
@@ -341,9 +363,12 @@ func (q *JobQueue) processJobs(ctx context.Context) {
 	}
 }
 
-// cleanupStaleJobs moves completed and failed jobs to the archived jobs list
+// cleanupStaleJobs drops terminal-state jobs (completed, failed, or cancelled)
+// from the active queue so the Job struct, its Action, and any buffers it holds
+// become eligible for garbage collection on the next GC cycle. The per-action
+// stats and queue-wide counters (StaleJobs, FailedJobs, SuccessfulJobs) already
+// record every outcome, so no per-job state is preserved after completion.
 func (q *JobQueue) cleanupStaleJobs(ctx context.Context) {
-	// Quick check for context cancellation
 	if ctx.Err() != nil {
 		return
 	}
@@ -351,32 +376,30 @@ func (q *JobQueue) cleanupStaleJobs(ctx context.Context) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	var activeJobs []*Job
-	var staleJobs []*Job
-
-	// Identify stale jobs (completed or failed)
+	// Compact in place: keep only jobs still pending, running, or retrying.
+	// Completed, failed, and cancelled jobs are dropped entirely; leaving
+	// cancelled jobs in the active slice would otherwise pin their payloads
+	// and, because maxJobs caps the active queue, eventually cause legitimate
+	// Enqueue calls to fail with ErrQueueFull.
+	var staleCount int
+	kept := 0
 	for _, job := range q.jobs {
-		if job.Status == JobStatusCompleted || job.Status == JobStatusFailed {
-			staleJobs = append(staleJobs, job)
-		} else {
-			activeJobs = append(activeJobs, job)
+		if job.Status == JobStatusCompleted ||
+			job.Status == JobStatusFailed ||
+			job.Status == JobStatusCancelled {
+			staleCount++
+			continue
 		}
+		q.jobs[kept] = job
+		kept++
 	}
-
-	// Update the jobs list to only include active jobs
-	q.jobs = activeJobs
-
-	// Add stale jobs to the archived jobs list
-	q.archivedJobs = append(q.archivedJobs, staleJobs...)
-	q.stats.StaleJobs += len(staleJobs)
-	q.stats.ArchivedJobs = len(q.archivedJobs)
-
-	// Trim archived jobs if needed
-	if len(q.archivedJobs) > q.maxArchivedJobs {
-		excess := len(q.archivedJobs) - q.maxArchivedJobs
-		q.archivedJobs = q.archivedJobs[excess:]
-		q.stats.ArchivedJobs = len(q.archivedJobs)
+	// Null out the tail so the discarded *Job pointers (and the Action plus
+	// any payload they reference) become eligible for garbage collection.
+	for i := kept; i < len(q.jobs); i++ {
+		q.jobs[i] = nil
 	}
+	q.jobs = q.jobs[:kept]
+	q.stats.StaleJobs += staleCount
 }
 
 // calculateBackoffDelay calculates the delay before the next retry attempt
@@ -836,7 +859,6 @@ func (q *JobQueue) GetStats() JobStatsSnapshot {
 		SuccessfulJobs: q.stats.SuccessfulJobs,
 		FailedJobs:     q.stats.FailedJobs,
 		StaleJobs:      q.stats.StaleJobs,
-		ArchivedJobs:   q.stats.ArchivedJobs,
 		DroppedJobs:    q.stats.DroppedJobs,
 		RetryAttempts:  q.stats.RetryAttempts,
 

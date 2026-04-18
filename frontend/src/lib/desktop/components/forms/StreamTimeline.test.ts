@@ -330,4 +330,223 @@ describe('StreamTimeline', () => {
       expect(stateLabels[2]).toHaveTextContent('state2');
     });
   });
+
+  describe('Duplicate Timestamps', () => {
+    // Regression coverage for BIRDNET-GO-1A0: Svelte 5 threw `each_key_duplicate`
+    // when multiple events shared the same millisecond timestamp and the #each
+    // key was `event.timestamp.getTime()`. The composite key must include the
+    // event type and data discriminator to stay unique.
+    const SHARED_TIMESTAMP = '2026-04-14T10:00:00.000Z';
+
+    it('renders a state transition and an error sharing the same timestamp', () => {
+      const stateHistory: StateTransition[] = [
+        createStateTransition('idle', 'running', SHARED_TIMESTAMP),
+      ];
+      const errorHistory: ErrorContext[] = [
+        createErrorContext('connection_failed', 'Connection refused', SHARED_TIMESTAMP),
+      ];
+
+      expect(() =>
+        timelineTest.render({
+          stateHistory,
+          errorHistory,
+        })
+      ).not.toThrow();
+
+      // Both events should be rendered as distinct nodes.
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBe(2);
+    });
+
+    it('renders two state events with identical timestamp but different to_state', () => {
+      const stateHistory: StateTransition[] = [
+        createStateTransition('idle', 'running', SHARED_TIMESTAMP),
+        createStateTransition('running', 'restarting', SHARED_TIMESTAMP),
+      ];
+
+      expect(() =>
+        timelineTest.render({
+          stateHistory,
+        })
+      ).not.toThrow();
+
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBe(2);
+    });
+
+    it('renders two error events with identical timestamp but different error_type', () => {
+      const errorHistory: ErrorContext[] = [
+        createErrorContext('connection_failed', 'Connection refused', SHARED_TIMESTAMP),
+        createErrorContext('timeout', 'Operation timed out', SHARED_TIMESTAMP),
+      ];
+
+      expect(() =>
+        timelineTest.render({
+          errorHistory,
+        })
+      ).not.toThrow();
+
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBe(2);
+    });
+
+    it('renders identical events sharing timestamp, type, and discriminator', () => {
+      // Worst case: two events with timestamp, type, and discriminator all
+      // identical. The per-duplicate ordinal in the composite key keeps each
+      // block entry unique without relying on the sliding-window render index.
+      const errorHistory: ErrorContext[] = [
+        createErrorContext('connection_failed', 'Connection refused', SHARED_TIMESTAMP),
+        createErrorContext('connection_failed', 'Connection refused', SHARED_TIMESTAMP),
+      ];
+
+      expect(() =>
+        timelineTest.render({
+          errorHistory,
+        })
+      ).not.toThrow();
+
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBe(2);
+    });
+
+    it('gives identical-tuple duplicates distinct accessible names', () => {
+      // Screen-reader regression (CodeRabbit round-3): when timestamp, type,
+      // and discriminator all match, aria-label must include an ordinal
+      // tiebreaker so the duplicates are distinguishable. First occurrence
+      // keeps the plain label; subsequent ones get "(2)", "(3)", …
+      const errorHistory: ErrorContext[] = [
+        createErrorContext('connection_failed', 'Connection refused', SHARED_TIMESTAMP),
+        createErrorContext('connection_failed', 'Connection refused', SHARED_TIMESTAMP),
+        createErrorContext('connection_failed', 'Connection refused', SHARED_TIMESTAMP),
+      ];
+
+      timelineTest.render({ errorHistory });
+
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBe(3);
+
+      const labels = buttons.map(btn => btn.getAttribute('aria-label'));
+      const unique = new Set(labels);
+      expect(unique.size).toBe(3);
+
+      // First duplicate has no tiebreaker; second and third have (2) / (3).
+      expect(labels[0]).not.toMatch(/\(\d+\)$/);
+      expect(labels[1]).toMatch(/\(2\)$/);
+      expect(labels[2]).toMatch(/\(3\)$/);
+    });
+
+    it('toggles the popover on click for events sharing a timestamp', async () => {
+      // Regression: earlier implementation used the render index in the
+      // composite key and stored the clicked index, so clicking two events
+      // that collided on timestamp could fail to close the popover.
+      const stateHistory: StateTransition[] = [
+        createStateTransition('idle', 'running', SHARED_TIMESTAMP),
+      ];
+      const errorHistory: ErrorContext[] = [
+        createErrorContext('connection_failed', 'Connection refused', SHARED_TIMESTAMP),
+      ];
+
+      timelineTest.render({ stateHistory, errorHistory });
+
+      const buttons = screen.getAllByRole('button');
+      expect(buttons.length).toBe(2);
+
+      // Click the first node — popover opens.
+      await fireEvent.click(buttons[0]);
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      // Click the same node again — popover closes (composite-key equality).
+      await fireEvent.click(buttons[0]);
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
+
+      // Click the second node — popover opens for the other event.
+      await fireEvent.click(buttons[1]);
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Sliding-window key stability', () => {
+    // Regression: earlier implementation included the render index in the
+    // each-key. Because timelineEvents is capped at the last 10 events, any
+    // new event shifts the indices of all older survivors and forces Svelte
+    // to recreate their DOM nodes. This test confirms two events that
+    // survive a window shift keep stable keys and therefore stable elements.
+    it('keeps surviving events on stable keys as older events drop off', async () => {
+      const base = new Date('2026-04-14T10:00:00.000Z').getTime();
+      const ts = (offset: number) => new Date(base + offset).toISOString();
+
+      // Render with 10 events so the window is full.
+      const initialHistory: StateTransition[] = Array.from({ length: 10 }, (_, i) =>
+        createStateTransition('idle', `state${i}`, ts(i * 1000))
+      );
+      const rendered = timelineTest.render({ stateHistory: initialHistory });
+
+      const initialButtons = screen.getAllByRole('button');
+      expect(initialButtons.length).toBe(10);
+      const survivorBefore = initialButtons[9]; // newest at the end
+
+      // Append one more event — the oldest drops off.
+      const withShift: StateTransition[] = [
+        ...initialHistory,
+        createStateTransition('idle', 'state10', ts(10 * 1000)),
+      ];
+      rendered.rerender({ stateHistory: withShift });
+
+      await waitFor(() => {
+        const after = screen.getAllByRole('button');
+        expect(after.length).toBe(10);
+      });
+
+      const afterButtons = screen.getAllByRole('button');
+      // state10 is now the newest; the previously-newest survivor (state9)
+      // should still be represented by the same DOM node because its key
+      // did not change.
+      const survivorAfter = afterButtons[8];
+      expect(survivorAfter).toBe(survivorBefore);
+    });
+
+    // Regression: earlier revisions left `selectedKey` / `selectedEvent`
+    // set after the selected event dropped out of the sliding window, so
+    // the popover remained mounted against a detached node (CodeRabbit
+    // round-3). The $effect must reconcile the selection and close the
+    // popover when the selected event is no longer in the visible window.
+    it('closes the popover when the selected event drops out of the window', async () => {
+      const base = new Date('2026-04-14T10:00:00.000Z').getTime();
+      const ts = (offset: number) => new Date(base + offset).toISOString();
+
+      const initialHistory: StateTransition[] = Array.from({ length: 10 }, (_, i) =>
+        createStateTransition('idle', `state${i}`, ts(i * 1000))
+      );
+      const rendered = timelineTest.render({ stateHistory: initialHistory });
+
+      // Open the popover on the OLDEST visible event — the one that will
+      // drop off when a new event arrives.
+      const initialButtons = screen.getAllByRole('button');
+      await fireEvent.click(initialButtons[0]);
+      await waitFor(() => {
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+      });
+
+      // Push 3 new events so the original oldest falls outside slice(-10).
+      const withShift: StateTransition[] = [
+        ...initialHistory,
+        createStateTransition('idle', 'state10', ts(10 * 1000)),
+        createStateTransition('idle', 'state11', ts(11 * 1000)),
+        createStateTransition('idle', 'state12', ts(12 * 1000)),
+      ];
+      rendered.rerender({ stateHistory: withShift });
+
+      // The selected event is gone — the popover must close automatically
+      // rather than linger against a detached DOM node.
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
+    });
+  });
 });

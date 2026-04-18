@@ -341,6 +341,7 @@ export type TranslationKey =
   | 'notifications.content.settings.reconfiguringSoundLevel'
   | 'notifications.content.settings.audioDeviceRestartRequired'
   | 'notifications.content.settings.rebuildingExtendedCapture'
+  | 'notifications.content.settings.reconfiguringAudioSources'
   | 'notifications.content.settings.extendedCaptureRestartRequired'
   | 'notifications.content.settings.equalizerUpdateFailed'
   | 'notifications.content.settings.equalizerUpdated'

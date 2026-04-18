@@ -117,11 +117,13 @@ func TestShouldReportToSentry_AllowsNetworkCategoryCodeBugs(t *testing.T) {
 }
 
 // TestShouldReportToSentry_CategoryLimitNotificationOnly verifies that the
-// CategoryLimit suppression is scoped to the notification component only.
-// The notification circuit breaker produces high-volume [limit] state noise
-// that is already covered by the dedicated CircuitBreakerStateTransition
-// telemetry path. Other CategoryLimit producers (eBird API quota, analysis
-// job queue full, spectrogram pre-render memory limits) are legitimate
+// CategoryLimit suppression is scoped to the notification component. The
+// notification.PushCircuitBreaker's ErrCircuitBreakerOpen sentinel is tagged
+// component="notification", and that single sentinel is what every caller
+// (notification push providers AND birdweather uploads, which reuse the
+// same breaker) receives — so the notification-only filter suppresses both
+// in practice. Other CategoryLimit producers (eBird API quota, analysis job
+// queue full, spectrogram pre-render memory limits) are legitimate
 // operational signals that ops needs to see and must still reach Sentry.
 func TestShouldReportToSentry_CategoryLimitNotificationOnly(t *testing.T) {
 	t.Parallel()
@@ -269,4 +271,75 @@ func TestShouldReportToSentry_DiskFullCooldownExpiry(t *testing.T) {
 		Component("datastore").Category(CategoryDatabase).Build()
 
 	assert.True(t, shouldReportToSentry(ee), "disk-full should be reported after cooldown expires")
+}
+
+// TestShouldReportToSentry_FiltersDatabaseContextCancellation verifies that
+// context.Canceled and context.DeadlineExceeded errors from CategoryDatabase
+// operations are not forwarded to Sentry. These happen routinely during
+// graceful shutdown and request-timeout conditions (e.g. HTTP client
+// disconnects mid-query), and they are not code bugs. Prior behavior forwarded
+// every row-iterator cancellation to Sentry, creating hundreds of duplicate
+// "[database] context canceled" events per day.
+func TestShouldReportToSentry_FiltersDatabaseContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		err        error
+		wantReport bool
+	}{
+		{
+			name:       "context.Canceled wrapped in dbError is suppressed",
+			err:        fmt.Errorf("iterate rows: %w", context.Canceled),
+			wantReport: false,
+		},
+		{
+			name:       "context.DeadlineExceeded wrapped in dbError is suppressed",
+			err:        fmt.Errorf("query timed out: %w", context.DeadlineExceeded),
+			wantReport: false,
+		},
+		{
+			name:       "plain context.Canceled is suppressed",
+			err:        context.Canceled,
+			wantReport: false,
+		},
+		{
+			name:       "plain context.DeadlineExceeded is suppressed",
+			err:        context.DeadlineExceeded,
+			wantReport: false,
+		},
+		{
+			name:       "real database error is still reported",
+			err:        fmt.Errorf("no such table: notes"),
+			wantReport: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ee := New(tt.err).
+				Component("datastore").
+				Category(CategoryDatabase).
+				Context("operation", "iterate_species_summary_rows").
+				Build()
+			got := shouldReportToSentry(ee)
+			assert.Equal(t, tt.wantReport, got,
+				"shouldReportToSentry for %q = %v, want %v", tt.name, got, tt.wantReport)
+		})
+	}
+}
+
+// TestShouldReportToSentry_AllowsNonDatabaseContextCancellation verifies that
+// the database-specific context-cancellation filter does not leak into other
+// categories where a canceled context may indicate a real bug (e.g. a
+// worker's supervisor cancelling at an unexpected time).
+func TestShouldReportToSentry_AllowsNonDatabaseContextCancellation(t *testing.T) {
+	t.Parallel()
+	ee := New(fmt.Errorf("worker loop exited: %w", context.Canceled)).
+		Component("birdnet").
+		Category(CategoryWorker).
+		Build()
+	assert.True(t, shouldReportToSentry(ee),
+		"context.Canceled outside CategoryDatabase should still be forwarded to Sentry")
 }

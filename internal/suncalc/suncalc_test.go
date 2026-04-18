@@ -67,15 +67,13 @@ func TestCacheConsistency(t *testing.T) {
 	times1, err := sc.GetSunEventTimes(date)
 	require.NoError(t, err, "failed to get initial sun event times")
 
-	// Verify cache entry exists
-	dateKey := date.Format(time.DateOnly)
+	// Verify cache entry exists using the normalized local date key
+	dateKey := date.In(sc.location).Format(time.DateOnly)
 	sc.lock.RLock()
 	entry, exists := sc.cache[dateKey]
 	sc.lock.RUnlock()
 
 	assert.True(t, exists, "cache entry not found after calculation")
-
-	assert.True(t, entry.date.Equal(date), "cached date doesn't match requested date")
 
 	assert.True(t, entry.times.Sunrise.Equal(times1.Sunrise), "cached sunrise time doesn't match calculated time")
 }

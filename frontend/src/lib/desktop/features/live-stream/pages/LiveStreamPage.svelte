@@ -61,6 +61,7 @@
   // Source discovery
   let sources = $state<Array<{ id: string; name: string }>>([]);
   let selectedSourceId = $state<string>('');
+  let sourceDiscoveryDone = $state(false);
 
   // Connection state
   let connectionError = $state<string | null>(null);
@@ -117,6 +118,12 @@
                 name: level.name ?? id,
               })
             );
+
+            // Mark discovery as done after the first message from the backend.
+            // If levels is empty, there are no configured audio sources.
+            if (!sourceDiscoveryDone) {
+              sourceDiscoveryDone = true;
+            }
 
             if (newSources.length > 0) {
               // Update sources if count changed or this is the first time
@@ -768,9 +775,11 @@
         <SelectDropdown
           options={sourceOptions}
           value={selectedSourceId}
-          placeholder={sources.length === 0
-            ? t('common.loading') + '...'
-            : t('spectrogram.page.sourceLabel')}
+          placeholder={sources.length > 0
+            ? t('spectrogram.page.sourceLabel')
+            : sourceDiscoveryDone
+              ? t('common.ui.noAudioSources')
+              : t('common.loading') + '...'}
           variant="select"
           size="sm"
           groupBy={false}
@@ -849,9 +858,12 @@
           disabled={!selectedSourceId || sources.length === 0}
           class="flex h-full w-full flex-col items-center justify-center gap-3 bg-black text-[var(--color-base-content)]/60 transition-colors hover:text-[var(--color-base-content)]/80 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {#if sources.length === 0}
+          {#if sources.length === 0 && !sourceDiscoveryDone}
             <Loader2 class="size-8 animate-spin" />
             <span class="text-sm">{t('common.loading')}...</span>
+          {:else if sources.length === 0 && sourceDiscoveryDone}
+            <Mic class="size-8" />
+            <span class="text-sm">{t('common.ui.noAudioSources')}</span>
           {:else}
             <Play class="size-12" />
             <span class="text-sm">{t('spectrogram.page.sourceLabel')}</span>

@@ -36,8 +36,11 @@
   import { handleBirdImageError } from '$lib/desktop/components/ui/image-utils.js';
   import { t } from '$lib/i18n';
   import type { Detection } from '$lib/types/detection.types';
+  import { settingsStore } from '$lib/stores/settings';
   import { toastActions } from '$lib/stores/toast';
   import { fetchWithCSRF } from '$lib/utils/api';
+  import { getFriendlyAudioSourceName } from '$lib/utils/audioSourceLabel';
+  import { setDetectionVerification } from '$lib/utils/reviewDetection';
   import { useImageDelayedLoading } from '$lib/utils/delayedLoading.svelte.js';
   import { loggers } from '$lib/utils/logger';
   import { navigation } from '$lib/stores/navigation.svelte';
@@ -63,6 +66,22 @@
     onRefresh,
     onPlayMobileAudio,
   }: Props = $props();
+
+  // Resolve the audio source label, falling back to the current settings when
+  // the API payload lacks a displayName (e.g. v1 legacy reads) or when the
+  // recorded id has since been renamed in the configuration.
+  let sourceLabel = $derived(
+    getFriendlyAudioSourceName(
+      detection.source,
+      $settingsStore.formData.realtime?.audio?.sources,
+      $settingsStore.formData.realtime?.rtsp?.streams
+    )
+  );
+  // Dim the label when we had to fall back to the raw id (no friendly name
+  // resolved from settings and the server did not send a distinct displayName).
+  let sourceIsRawId = $derived(
+    sourceLabel !== null && sourceLabel === (detection.source?.id ?? '')
+  );
 
   // Modal states
   let showConfirmModal = $state(false);
@@ -168,6 +187,20 @@
     showConfirmModal = true;
   }
 
+  async function handleMarkCorrect() {
+    if (await setDetectionVerification(detection.id, 'correct')) {
+      detection.verified = 'correct';
+      onRefresh?.();
+    }
+  }
+
+  async function handleMarkFalsePositive() {
+    if (await setDetectionVerification(detection.id, 'false_positive')) {
+      detection.verified = 'false_positive';
+      onRefresh?.();
+    }
+  }
+
   function handleDelete() {
     confirmModalConfig = {
       title: t('dashboard.recentDetections.modals.deleteDetection', {
@@ -261,6 +294,19 @@
     <div class="text-[var(--color-base-content)] opacity-50 text-xs">
       {t('detections.weather.noData')}
     </div>
+  {/if}
+</td>
+
+<!-- Source -->
+<td class="text-sm hidden lg:table-cell">
+  {#if sourceLabel}
+    <span
+      class="truncate max-w-32 inline-block"
+      class:opacity-50={sourceIsRawId}
+      title={sourceLabel}
+    >
+      {sourceLabel}
+    </span>
   {/if}
 </td>
 
@@ -373,6 +419,8 @@
   <ActionMenu
     {detection}
     {isExcluded}
+    onMarkCorrect={handleMarkCorrect}
+    onMarkFalsePositive={handleMarkFalsePositive}
     onReview={handleReview}
     onToggleSpecies={handleToggleSpecies}
     onToggleLock={handleToggleLock}

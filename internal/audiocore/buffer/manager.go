@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/tphakala/birdnet-go/internal/audiocore"
 	"github.com/tphakala/birdnet-go/internal/logger"
 )
 
@@ -32,14 +31,19 @@ type Manager struct {
 	bytePool        *BytePool
 	float32Pools    map[int]*Float32Pool
 	float32PoolMu   sync.Mutex // protects float32Pools; separate from mu to avoid contention
+	bytePools       map[int]*BytePool
+	bytePoolMu      sync.Mutex // protects bytePools; separate from mu to avoid contention
+	float64Pools    map[int]*Float64Pool
+	float64PoolMu   sync.Mutex // protects float64Pools; separate from mu to avoid contention
 	mu              sync.RWMutex
 	logger          logger.Logger
 }
 
 // NewManager creates a Manager with a shared BytePool pre-allocated at the
-// default size and an empty Float32Pool map that lazily creates pools on first
-// request for each size. The provided logger is forwarded to each
-// AnalysisBuffer created by AllocateAnalysis.
+// default size and empty per-size maps for BytePool, Float32Pool, and
+// Float64Pool that lazily create pools on first request for each size. The
+// provided logger is forwarded to each AnalysisBuffer created by
+// AllocateAnalysis.
 func NewManager(log logger.Logger) *Manager {
 	// Errors from the pool constructors are only possible when size <= 0, which
 	// cannot happen with compile-time positive constants.
@@ -50,6 +54,8 @@ func NewManager(log logger.Logger) *Manager {
 		captureBuffers:  make(map[string]*CaptureBuffer),
 		bytePool:        bytePool,
 		float32Pools:    make(map[int]*Float32Pool),
+		bytePools:       make(map[int]*BytePool),
+		float64Pools:    make(map[int]*Float64Pool),
 		logger:          log,
 	}
 }
@@ -66,13 +72,22 @@ func (m *Manager) AllocateAnalysis(sourceID, modelID string, capacity, overlapSi
 		return fmt.Errorf("analysis buffer already allocated for source %q model %q", sourceID, modelID)
 	}
 
-	ab, err := NewAnalysisBuffer(capacity, overlapSize, readSize, sourceID, m.logger)
+	ab, err := NewAnalysisBuffer(capacity, overlapSize, readSize, sourceID, m.logger, m)
 	if err != nil {
 		return err
 	}
 
 	m.analysisBuffers[key] = ab
 	return nil
+}
+
+// HasAnalysis reports whether an analysis buffer has been allocated for
+// the given source and model pair. Safe for concurrent use.
+func (m *Manager) HasAnalysis(sourceID, modelID string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	_, exists := m.analysisBuffers[bufferKey{sourceID: sourceID, modelID: modelID}]
+	return exists
 }
 
 // AllocateCapture creates a CaptureBuffer for the given sourceID and stores it
@@ -112,7 +127,7 @@ func (m *Manager) DeallocateSource(sourceID string) {
 }
 
 // AnalysisBuffer returns the AnalysisBuffer allocated for the given
-// (sourceID, modelID) pair. Returns audiocore.ErrBufferNotFound if no buffer
+// (sourceID, modelID) pair. Returns ErrBufferNotFound if no buffer
 // has been allocated for that composite key.
 func (m *Manager) AnalysisBuffer(sourceID, modelID string) (*AnalysisBuffer, error) {
 	m.mu.RLock()
@@ -120,7 +135,7 @@ func (m *Manager) AnalysisBuffer(sourceID, modelID string) (*AnalysisBuffer, err
 	m.mu.RUnlock()
 
 	if !ok {
-		return nil, audiocore.ErrBufferNotFound
+		return nil, ErrBufferNotFound
 	}
 	return ab, nil
 }
@@ -142,7 +157,7 @@ func (m *Manager) AnalysisBuffers(sourceID string) map[string]*AnalysisBuffer {
 }
 
 // CaptureBuffer returns the CaptureBuffer allocated for the given sourceID.
-// Returns audiocore.ErrBufferNotFound if no buffer has been allocated for
+// Returns ErrBufferNotFound if no buffer has been allocated for
 // sourceID.
 func (m *Manager) CaptureBuffer(sourceID string) (*CaptureBuffer, error) {
 	m.mu.RLock()
@@ -150,7 +165,7 @@ func (m *Manager) CaptureBuffer(sourceID string) (*CaptureBuffer, error) {
 	m.mu.RUnlock()
 
 	if !ok {
-		return nil, audiocore.ErrBufferNotFound
+		return nil, ErrBufferNotFound
 	}
 	return cb, nil
 }
@@ -160,10 +175,10 @@ func (m *Manager) BytePool() *BytePool {
 	return m.bytePool
 }
 
-// Float32Pool returns a pool for the given buffer size, creating one lazily if
-// needed. Thread-safe via a dedicated mutex separate from the Manager's main
-// RWMutex.
-func (m *Manager) Float32Pool(size int) *Float32Pool {
+// Float32PoolFor returns a Float32Pool for the given slice length, creating
+// one lazily if needed. Returns nil for non-positive sizes. Thread-safe via a
+// dedicated mutex.
+func (m *Manager) Float32PoolFor(size int) *Float32Pool {
 	if size <= 0 {
 		return nil
 	}
@@ -179,5 +194,49 @@ func (m *Manager) Float32Pool(size int) *Float32Pool {
 		return nil
 	}
 	m.float32Pools[size] = pool
+	return pool
+}
+
+// BytePoolFor returns a BytePool for the given buffer size, creating one
+// lazily if needed. Returns nil for non-positive sizes. Thread-safe via a
+// dedicated mutex.
+func (m *Manager) BytePoolFor(size int) *BytePool {
+	if size <= 0 {
+		return nil
+	}
+	m.bytePoolMu.Lock()
+	defer m.bytePoolMu.Unlock()
+	if pool, ok := m.bytePools[size]; ok {
+		return pool
+	}
+	pool, err := NewBytePool(size)
+	if err != nil {
+		m.logger.Error("failed to create BytePool",
+			logger.Int("size", size), logger.Error(err))
+		return nil
+	}
+	m.bytePools[size] = pool
+	return pool
+}
+
+// Float64PoolFor returns a Float64Pool for the given slice length, creating
+// one lazily if needed. Returns nil for non-positive sizes. Thread-safe via a
+// dedicated mutex.
+func (m *Manager) Float64PoolFor(size int) *Float64Pool {
+	if size <= 0 {
+		return nil
+	}
+	m.float64PoolMu.Lock()
+	defer m.float64PoolMu.Unlock()
+	if pool, ok := m.float64Pools[size]; ok {
+		return pool
+	}
+	pool, err := NewFloat64Pool(size)
+	if err != nil {
+		m.logger.Error("failed to create Float64Pool",
+			logger.Int("size", size), logger.Error(err))
+		return nil
+	}
+	m.float64Pools[size] = pool
 	return pool
 }
