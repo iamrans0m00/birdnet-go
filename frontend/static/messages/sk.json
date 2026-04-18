@@ -1557,7 +1557,11 @@
           "dry1": "Suché obdobie",
           "wet2": "Obdobie dažďov",
           "dry2": "Suché obdobie"
-        }
+        },
+        "vs": "vs",
+        "noDescription": "No description available",
+        "noSongs": "No songs/calls info available",
+        "noSimilar": "No similar species listed"
       },
       "notes": {
         "title": "Poznámky o druhu",
@@ -1575,7 +1579,8 @@
         "loading": "Načítavanie podobných druhov...",
         "empty": "V tomto rode sa nenašli žiadne podobné druhy.",
         "sameGenus": "Rovnaký rod",
-        "sameFamily": "Rovnaká čeľaď"
+        "sameFamily": "Rovnaká čeľaď",
+        "similar": "Similar"
       }
     },
     "advanced": {

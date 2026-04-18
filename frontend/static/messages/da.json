@@ -1581,7 +1581,11 @@
           "dry1": "Tørtid",
           "wet2": "Regntid",
           "dry2": "Tørtid"
-        }
+        },
+        "vs": "vs",
+        "noDescription": "No description available",
+        "noSongs": "No songs/calls info available",
+        "noSimilar": "No similar species listed"
       },
       "notes": {
         "title": "Artsnoter",
@@ -1599,7 +1603,8 @@
         "loading": "Indlæser lignende arter...",
         "empty": "Ingen lignende arter fundet i denne slægt.",
         "sameGenus": "Samme slægt",
-        "sameFamily": "Samme familie"
+        "sameFamily": "Samme familie",
+        "similar": "Similar"
       }
     },
     "advanced": {

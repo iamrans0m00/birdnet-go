@@ -1557,7 +1557,11 @@
           "dry1": "Stagione secca",
           "wet2": "Stagione umida",
           "dry2": "Stagione secca"
-        }
+        },
+        "vs": "vs",
+        "noDescription": "No description available",
+        "noSongs": "No songs/calls info available",
+        "noSimilar": "No similar species listed"
       },
       "notes": {
         "title": "Note sulla Specie",
@@ -1575,7 +1579,8 @@
         "loading": "Caricamento specie simili...",
         "empty": "Nessuna specie simile trovata in questo genere.",
         "sameGenus": "Stesso genere",
-        "sameFamily": "Stessa famiglia"
+        "sameFamily": "Stessa famiglia",
+        "similar": "Similar"
       }
     },
     "advanced": {

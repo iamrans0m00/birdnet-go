@@ -1559,7 +1559,11 @@
           "dry1": "Trockenzeit",
           "wet2": "Regenzeit",
           "dry2": "Trockenzeit"
-        }
+        },
+        "vs": "vs",
+        "noDescription": "Keine Beschreibung verfügbar",
+        "noSongs": "Keine Gesangs- und Rufinfos verfügbar",
+        "noSimilar": "Keine ähnlichen Arten aufgeführt"
       },
       "notes": {
         "title": "Artnotizen",
@@ -1577,7 +1581,8 @@
         "loading": "Ähnliche Arten werden geladen...",
         "empty": "Keine ähnlichen Arten in dieser Gattung gefunden.",
         "sameGenus": "Gleiche Gattung",
-        "sameFamily": "Gleiche Familie"
+        "sameFamily": "Gleiche Familie",
+        "similar": "Ähnlich"
       }
     },
     "advanced": {

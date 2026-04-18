@@ -1559,7 +1559,11 @@
           "dry1": "Saison sèche",
           "wet2": "Saison humide",
           "dry2": "Saison sèche"
-        }
+        },
+        "vs": "vs",
+        "noDescription": "Aucune description disponible",
+        "noSongs": "Aucune information sur les chants/cris",
+        "noSimilar": "Aucune espèce similaire répertoriée"
       },
       "notes": {
         "title": "Notes d'espèce",
@@ -1577,7 +1581,8 @@
         "loading": "Chargement des espèces similaires...",
         "empty": "Aucune espèce similaire trouvée dans ce genre.",
         "sameGenus": "Même genre",
-        "sameFamily": "Même famille"
+        "sameFamily": "Même famille",
+        "similar": "Similaire"
       }
     },
     "advanced": {

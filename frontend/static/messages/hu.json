@@ -1581,7 +1581,11 @@
           "dry1": "Száraz évszak",
           "wet2": "Esős évszak",
           "dry2": "Száraz évszak"
-        }
+        },
+        "vs": "vs",
+        "noDescription": "No description available",
+        "noSongs": "No songs/calls info available",
+        "noSimilar": "No similar species listed"
       },
       "notes": {
         "title": "Fajjegyzetek",
@@ -1599,7 +1603,8 @@
         "loading": "Hasonló fajok betöltése...",
         "empty": "Nem találhatók hasonló fajok ebben a nemben.",
         "sameGenus": "Azonos nem",
-        "sameFamily": "Azonos család"
+        "sameFamily": "Azonos család",
+        "similar": "Similar"
       }
     },
     "advanced": {

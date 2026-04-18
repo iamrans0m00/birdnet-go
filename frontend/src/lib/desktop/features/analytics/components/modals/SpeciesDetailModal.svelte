@@ -31,8 +31,8 @@
     common_name: string;
     scientific_name: string;
     count: number;
-    avg_confidence: number;
-    max_confidence: number;
+    avg_confidence: number | null;
+    max_confidence: number | null;
     first_heard: string;
     last_heard: string;
     thumbnail_url?: string;
@@ -488,10 +488,12 @@
           <span class="opacity-70">{t('analytics.species.card.detections')}</span>
           <span class="font-semibold">{displaySpecies.count}</span>
         </div>
-        <div class="flex justify-between bg-[var(--color-base-200)] rounded px-3 py-2">
-          <span class="opacity-70">{t('analytics.species.card.confidence')}</span>
-          <span class="font-semibold">{formatPercentage(displaySpecies.avg_confidence)}</span>
-        </div>
+        {#if displaySpecies.avg_confidence !== null}
+          <div class="flex justify-between bg-[var(--color-base-200)] rounded px-3 py-2">
+            <span class="opacity-70">{t('analytics.species.card.confidence')}</span>
+            <span class="font-semibold">{formatPercentage(displaySpecies.avg_confidence)}</span>
+          </div>
+        {/if}
         {#if displaySpecies.first_heard}
           <div class="flex justify-between bg-[var(--color-base-200)] rounded px-3 py-2">
             <span class="opacity-70">{t('analytics.species.headers.firstDetected')}</span>

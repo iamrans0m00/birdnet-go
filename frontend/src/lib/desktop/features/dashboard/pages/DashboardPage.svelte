@@ -518,8 +518,8 @@ Performance Optimizations:
       common_name: detection.species,
       scientific_name: detection.scientificName,
       count: 1, // Pending detections are single, real-time events
-      avg_confidence: 0, // Not available in pending detection
-      max_confidence: 0, // Not available in pending detection
+      avg_confidence: null,
+      max_confidence: null,
       first_heard: new Date(detection.firstDetected * 1000).toISOString(),
       last_heard: new Date(detection.firstDetected * 1000).toISOString(),
       thumbnail_url: detection.thumbnail || undefined,

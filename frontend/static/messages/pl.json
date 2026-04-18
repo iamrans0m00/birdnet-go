@@ -1559,7 +1559,11 @@
           "dry1": "Pora sucha",
           "wet2": "Pora deszczowa",
           "dry2": "Pora sucha"
-        }
+        },
+        "vs": "vs",
+        "noDescription": "Brak dostępnego opisu",
+        "noSongs": "Brak informacji o pieśniach/głosach",
+        "noSimilar": "Brak podobnych gatunków"
       },
       "notes": {
         "title": "Notatki o gatunku",
@@ -1577,7 +1581,8 @@
         "loading": "Ładowanie podobnych gatunków...",
         "empty": "Nie znaleziono podobnych gatunków w tym rodzaju.",
         "sameGenus": "Ten sam rodzaj",
-        "sameFamily": "Ta sama rodzina"
+        "sameFamily": "Ta sama rodzina",
+        "similar": "Podobny"
       }
     },
     "advanced": {

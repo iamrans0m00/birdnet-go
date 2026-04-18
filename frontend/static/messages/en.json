@@ -1565,6 +1565,10 @@
         "description": "Description",
         "songs": "Songs and calls",
         "similar": "Similar species",
+        "vs": "vs",
+        "noDescription": "No description available",
+        "noSongs": "No songs/calls info available",
+        "noSimilar": "No similar species listed",
         "qualityFull": "Detailed",
         "qualityIntroOnly": "Brief",
         "qualityStub": "Stub",
@@ -1579,10 +1583,10 @@
           "summer": "Summer",
           "fall": "Fall",
           "winter": "Winter",
-          "wet1": "Wet Season",
-          "dry1": "Dry Season",
-          "wet2": "Wet Season",
-          "dry2": "Dry Season"
+          "wet1": "First Wet Season",
+          "dry1": "First Dry Season",
+          "wet2": "Second Wet Season",
+          "dry2": "Second Dry Season"
         }
       },
       "notes": {
@@ -1601,7 +1605,8 @@
         "loading": "Loading similar species...",
         "empty": "No similar species found in this genus.",
         "sameGenus": "Same genus",
-        "sameFamily": "Same family"
+        "sameFamily": "Same family",
+        "similar": "Similar"
       }
     },
     "advanced": {
@@ -3973,7 +3978,7 @@
         "description": "Configure the species identification guide shown in detection details and species modals.",
         "enabled": {
           "label": "Enable Species Guide",
-          "helpText": "Show Wikipedia-powered identification guides when viewing a detection or species."
+          "helpText": "Show identification guides from the selected provider (e.g., Wikipedia or eBird) when viewing a detection or species."
         },
         "provider": {
           "label": "Guide Provider",

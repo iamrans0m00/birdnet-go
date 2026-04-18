@@ -1581,7 +1581,11 @@
           "dry1": "Sausā sezona",
           "wet2": "Lietus sezona",
           "dry2": "Sausā sezona"
-        }
+        },
+        "vs": "vs",
+        "noDescription": "No description available",
+        "noSongs": "No songs/calls info available",
+        "noSimilar": "No similar species listed"
       },
       "notes": {
         "title": "Sugas piezīmes",
@@ -1599,7 +1603,8 @@
         "loading": "Ielādē līdzīgas sugas...",
         "empty": "Šajā ģintī nav atrasta neviena līdzīga suga.",
         "sameGenus": "Tā pati ģints",
-        "sameFamily": "Tā pati dzimta"
+        "sameFamily": "Tā pati dzimta",
+        "similar": "Similar"
       }
     },
     "advanced": {

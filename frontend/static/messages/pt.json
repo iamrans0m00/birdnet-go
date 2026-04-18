@@ -1559,7 +1559,11 @@
           "dry1": "Estação seca",
           "wet2": "Estação chuvosa",
           "dry2": "Estação seca"
-        }
+        },
+        "vs": "vs",
+        "noDescription": "Sem descrição disponível",
+        "noSongs": "Sem informações de cantos/chamadas",
+        "noSimilar": "Nenhuma espécie semelhante listada"
       },
       "notes": {
         "title": "Notas da Espécie",
@@ -1577,7 +1581,8 @@
         "loading": "Carregando espécies semelhantes...",
         "empty": "Nenhuma espécie semelhante encontrada neste gênero.",
         "sameGenus": "Mesmo gênero",
-        "sameFamily": "Mesma família"
+        "sameFamily": "Mesma família",
+        "similar": "Semelhante"
       }
     },
     "advanced": {

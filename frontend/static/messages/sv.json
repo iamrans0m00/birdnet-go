@@ -1581,7 +1581,11 @@
           "dry1": "Torrperiod",
           "wet2": "Regnperiod",
           "dry2": "Torrperiod"
-        }
+        },
+        "vs": "vs",
+        "noDescription": "No description available",
+        "noSongs": "No songs/calls info available",
+        "noSimilar": "No similar species listed"
       },
       "notes": {
         "title": "Artanteckningar",
@@ -1599,7 +1603,8 @@
         "loading": "Laddar liknande arter...",
         "empty": "Inga liknande arter hittades i detta släkte.",
         "sameGenus": "Samma släkte",
-        "sameFamily": "Samma familj"
+        "sameFamily": "Samma familj",
+        "similar": "Similar"
       }
     },
     "advanced": {
