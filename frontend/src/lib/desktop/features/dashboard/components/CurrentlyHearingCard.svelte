@@ -212,10 +212,7 @@ Props:
             {@render cardContent()}
           </button>
         {:else}
-          <div
-            class={cardClass}
-            transition:fade={{ duration: 200 }}
-          >
+          <div class={cardClass} transition:fade={{ duration: 200 }}>
             {@render cardContent()}
           </div>
         {/if}

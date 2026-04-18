@@ -218,7 +218,11 @@
           <span class="species-common">{entry.common_name}</span>
           <span class="species-scientific">{entry.scientific_name}</span>
           {#if entry.relationship}
-            <span class="species-relationship">{t(`analytics.species.similar.${entry.relationship === 'same_genus' ? 'sameGenus' : entry.relationship === 'same_family' ? 'sameFamily' : 'similar'}`)}</span>
+            <span class="species-relationship"
+              >{t(
+                `analytics.species.similar.${entry.relationship === 'same_genus' ? 'sameGenus' : entry.relationship === 'same_family' ? 'sameFamily' : 'similar'}`
+              )}</span
+            >
           {/if}
           {#if entry.guide_summary}
             <span class="species-summary">{entry.guide_summary}</span>
@@ -234,7 +238,9 @@
 
       <div class="comparison-panel">
         <h4 class="panel-title">
-          {commonName} {t('analytics.species.guide.vs')} {similarEntry.common_name}
+          {commonName}
+          {t('analytics.species.guide.vs')}
+          {similarEntry.common_name}
         </h4>
 
         {#if isLoadingSimilarGuide}
@@ -277,7 +283,8 @@
                         focalGuide?.description?.substring(0, 300) ||
                         t('analytics.species.guide.noDescription')}
                     {:else}
-                      {focalGuide?.description?.substring(0, 300) || t('analytics.species.guide.noDescription')}
+                      {focalGuide?.description?.substring(0, 300) ||
+                        t('analytics.species.guide.noDescription')}
                     {/if}
                   </p>
                 </div>
