@@ -16,6 +16,23 @@ const (
 	SpeciesGuideFallbackNone = "none" // No fallback; fail if primary provider fails
 )
 
+// SpeciesGuideValidProviders enumerates every recognized value for
+// SpeciesGuideConfig.Provider. Defined as a package-level slice so validation
+// avoids reallocating the list on every call. Treat as read-only.
+var SpeciesGuideValidProviders = []string{
+	SpeciesGuideProviderWikipedia,
+	SpeciesGuideProviderEBird,
+	SpeciesGuideProviderAuto,
+}
+
+// SpeciesGuideValidFallbackPolicies enumerates every recognized value for
+// SpeciesGuideConfig.FallbackPolicy. Defined as a package-level slice so
+// validation avoids reallocating the list on every call. Treat as read-only.
+var SpeciesGuideValidFallbackPolicies = []string{
+	SpeciesGuideFallbackAll,
+	SpeciesGuideFallbackNone,
+}
+
 const (
 	SampleRate    = 48000 // Sample rate of the audio fed to BirdNET Analyzer
 	BitDepth      = 16    // Bit depth of the audio fed to BirdNET Analyzer

@@ -997,6 +997,7 @@
                       class="w-full text-sm px-2 py-1 rounded border border-[var(--color-primary)] bg-[var(--color-base-100)] text-[var(--color-base-content)] focus:outline-none resize-none"
                       rows="3"
                       aria-label={t('analytics.species.notes.placeholder')}
+                      maxlength="10000"
                       bind:value={editingText}
                       onkeydown={(e: KeyboardEvent) => {
                         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveEditNote(note.id);
@@ -1065,6 +1066,7 @@
             placeholder={t('analytics.species.notes.placeholder')}
             aria-label={t('analytics.species.notes.placeholder')}
             rows="3"
+            maxlength="10000"
             bind:value={newNoteText}
             onkeydown={(e: KeyboardEvent) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {

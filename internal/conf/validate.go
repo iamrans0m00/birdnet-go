@@ -1570,35 +1570,32 @@ func validateDashboardSettings(settings *Dashboard) error {
 		logger.Bool("raw", settings.Spectrogram.Raw),
 		logger.String("style", settings.Spectrogram.Style))
 
-	// Validate SpeciesGuide settings using package-level constants from consts.go.
+	// Validate SpeciesGuide settings using package-level lists from consts.go.
 	// When the feature is enabled, Provider is required. Empty string can only
 	// reach here via explicit YAML edit or raw API payload (the UI dropdown and
 	// viper SetDefault in defaults.go:157 both populate a real value). Catching
 	// it here turns silent runtime degradation into an actionable error.
-	validProviders := []string{SpeciesGuideProviderWikipedia, SpeciesGuideProviderEBird, SpeciesGuideProviderAuto}
 	if settings.SpeciesGuide.Enabled && settings.SpeciesGuide.Provider == "" {
 		return errors.Newf("SpeciesGuide.Provider is required when species guide is enabled (valid: %s)",
-			strings.Join(validProviders, ", ")).
+			strings.Join(SpeciesGuideValidProviders, ", ")).
 			Category(errors.CategoryValidation).
 			Context("validation_type", "species-guide-provider-missing").
 			Build()
 	}
-	if settings.SpeciesGuide.Provider != "" && !slices.Contains(validProviders, settings.SpeciesGuide.Provider) {
+	if settings.SpeciesGuide.Provider != "" && !slices.Contains(SpeciesGuideValidProviders, settings.SpeciesGuide.Provider) {
 		return errors.Newf("SpeciesGuide.Provider %q is invalid (valid: %s)",
-			settings.SpeciesGuide.Provider, strings.Join(validProviders, ", ")).
+			settings.SpeciesGuide.Provider, strings.Join(SpeciesGuideValidProviders, ", ")).
 			Category(errors.CategoryValidation).
 			Context("validation_type", "species-guide-provider").
 			Build()
 	}
-	if settings.SpeciesGuide.FallbackPolicy != "" {
-		validFallbacks := []string{SpeciesGuideFallbackAll, SpeciesGuideFallbackNone}
-		if !slices.Contains(validFallbacks, settings.SpeciesGuide.FallbackPolicy) {
-			return errors.Newf("SpeciesGuide.FallbackPolicy %q is invalid (valid: %s)",
-				settings.SpeciesGuide.FallbackPolicy, strings.Join(validFallbacks, ", ")).
-				Category(errors.CategoryValidation).
-				Context("validation_type", "species-guide-fallback-policy").
-				Build()
-		}
+	if settings.SpeciesGuide.FallbackPolicy != "" &&
+		!slices.Contains(SpeciesGuideValidFallbackPolicies, settings.SpeciesGuide.FallbackPolicy) {
+		return errors.Newf("SpeciesGuide.FallbackPolicy %q is invalid (valid: %s)",
+			settings.SpeciesGuide.FallbackPolicy, strings.Join(SpeciesGuideValidFallbackPolicies, ", ")).
+			Category(errors.CategoryValidation).
+			Context("validation_type", "species-guide-fallback-policy").
+			Build()
 	}
 	if settings.SpeciesGuide.WarmTopN < 0 {
 		return errors.Newf("SpeciesGuide.WarmTopN must be >= 0, got %d", settings.SpeciesGuide.WarmTopN).
