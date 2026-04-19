@@ -1,6 +1,6 @@
 services:
   birdnet-go:
-    image: birdnet-go:local
+    image: ghcr.io/tphakala/birdnet-go:nightly
     container_name: birdnet-go
     restart: unless-stopped
     ports:
