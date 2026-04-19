@@ -273,7 +273,7 @@ Returns species guide information from Wikipedia (or configured provider) with t
 
 **Expectedness values:** `expected`, `uncommon`, `rare`, `unexpected`. Derived from BirdNET's probable species scores for the current date and location.
 
-**Error responses:** `400` invalid name, `404` guide feature disabled or species not found, `503` guide cache not available.
+**Error responses:** `400` invalid or missing scientific name, `404` species guide not found, `503` guide feature disabled / cache not available / all providers unavailable, `500` unexpected server error.
 
 #### GET /api/v2/species/:scientific_name/similar
 
@@ -321,7 +321,7 @@ Returns all user-authored notes for a species.
 
 #### POST /api/v2/species/:scientific_name/notes
 
-Creates a new species note. Requires authentication. Maximum note length: 10,000 characters.
+Creates a new species note. Requires authentication. Maximum note length: 10,000 bytes.
 
 **Request Body:**
 
@@ -338,6 +338,33 @@ Creates a new species note. Requires authentication. Maximum note length: 10,000
 Deletes a species note by ID. Requires authentication.
 
 **Response:** `200 OK` with `{"message": "Note deleted successfully"}`.
+
+#### PUT /api/v2/species/notes/:id
+
+Updates an existing species note. Requires authentication.
+
+**Request Body:**
+
+```json
+{
+  "entry": "Updated observation text"
+}
+```
+
+**Validation:** `entry` must be non-empty and at most 10,000 bytes.
+
+**Response:** `200 OK` with the updated `SpeciesNoteResponse`:
+
+```json
+{
+  "id": 1,
+  "entry": "Updated observation text",
+  "created_at": "2026-04-04T08:30:00Z",
+  "updated_at": "2026-04-05T10:15:00Z"
+}
+```
+
+**Error responses:** `400` missing/invalid ID or entry validation failure, `404` note not found, `503` notes feature disabled, `500` unexpected server error.
 
 ### Server-Sent Events (`sse.go`)
 
