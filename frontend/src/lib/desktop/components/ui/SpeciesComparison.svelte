@@ -17,6 +17,14 @@
 
   let { scientificName, commonName, onclose }: Props = $props();
 
+  // Unique, instance-scoped prefix so aria-controls IDs don't collide when
+  // this component is rendered twice on the same page (e.g. DetectionDetail
+  // while a SpeciesDetailModal is open).
+  const uid = $props.id();
+  const descriptionSectionId = `species-description-${uid}`;
+  const songsSectionId = `species-songs-${uid}`;
+  const similarSectionId = `species-similar-${uid}`;
+
   let similarSpecies = $state<SimilarSpeciesEntry[]>([]);
   let isLoading = $state(true);
   let focalGuide = $state<SpeciesGuideData | null>(null);
@@ -266,7 +274,7 @@
           <button
             class="section-header"
             aria-expanded={descriptionOpen}
-            aria-controls="species-description-section"
+            aria-controls={descriptionSectionId}
             onclick={() => (descriptionOpen = !descriptionOpen)}
           >
             {#if descriptionOpen}
@@ -278,7 +286,7 @@
             <span>{t('analytics.species.guide.description')}</span>
           </button>
           {#if descriptionOpen}
-            <div id="species-description-section" class="section-content">
+            <div id={descriptionSectionId} class="section-content">
               <div class="comparison-row">
                 <div class="comparison-side focal">
                   <span class="side-label">{commonName}</span>
@@ -311,7 +319,7 @@
           <button
             class="section-header"
             aria-expanded={songsOpen}
-            aria-controls="species-songs-section"
+            aria-controls={songsSectionId}
             onclick={() => (songsOpen = !songsOpen)}
           >
             {#if songsOpen}
@@ -323,7 +331,7 @@
             <span>{t('analytics.species.guide.songs')}</span>
           </button>
           {#if songsOpen}
-            <div id="species-songs-section" class="section-content">
+            <div id={songsSectionId} class="section-content">
               <div class="comparison-row">
                 <div class="comparison-side focal">
                   <span class="side-label">{commonName}</span>
@@ -359,7 +367,7 @@
           <button
             class="section-header"
             aria-expanded={similarOpen}
-            aria-controls="species-similar-section"
+            aria-controls={similarSectionId}
             onclick={() => (similarOpen = !similarOpen)}
           >
             {#if similarOpen}
@@ -371,7 +379,7 @@
             <span>{t('analytics.species.guide.similar')}</span>
           </button>
           {#if similarOpen}
-            <div id="species-similar-section" class="section-content">
+            <div id={similarSectionId} class="section-content">
               <div class="comparison-row">
                 <div class="comparison-side focal">
                   <span class="side-label">{commonName}</span>
