@@ -1570,18 +1570,9 @@ func validateDashboardSettings(settings *Dashboard) error {
 		logger.Bool("raw", settings.Spectrogram.Raw),
 		logger.String("style", settings.Spectrogram.Style))
 
-	// Validate SpeciesGuide settings.
-	// Note: guideprovider imports conf, so provider/policy constants must be defined
-	// here rather than imported from that package to avoid a circular dependency.
-	const (
-		speciesGuideProviderWikipedia = "wikipedia"
-		speciesGuideProviderEBird     = "ebird"
-		speciesGuideProviderAuto      = "auto"
-		speciesGuideFallbackAll       = "all"
-		speciesGuideFallbackNone      = "none"
-	)
+	// Validate SpeciesGuide settings using package-level constants from consts.go.
 	if settings.SpeciesGuide.Provider != "" {
-		validProviders := []string{speciesGuideProviderWikipedia, speciesGuideProviderEBird, speciesGuideProviderAuto}
+		validProviders := []string{SpeciesGuideProviderWikipedia, SpeciesGuideProviderEBird, SpeciesGuideProviderAuto}
 		if !slices.Contains(validProviders, settings.SpeciesGuide.Provider) {
 			return errors.Newf("SpeciesGuide.Provider %q is invalid (valid: %s)",
 				settings.SpeciesGuide.Provider, strings.Join(validProviders, ", ")).
@@ -1591,7 +1582,7 @@ func validateDashboardSettings(settings *Dashboard) error {
 		}
 	}
 	if settings.SpeciesGuide.FallbackPolicy != "" {
-		validFallbacks := []string{speciesGuideFallbackAll, speciesGuideFallbackNone}
+		validFallbacks := []string{SpeciesGuideFallbackAll, SpeciesGuideFallbackNone}
 		if !slices.Contains(validFallbacks, settings.SpeciesGuide.FallbackPolicy) {
 			return errors.Newf("SpeciesGuide.FallbackPolicy %q is invalid (valid: %s)",
 				settings.SpeciesGuide.FallbackPolicy, strings.Join(validFallbacks, ", ")).

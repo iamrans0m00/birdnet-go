@@ -1,6 +1,21 @@
 // conf/consts.go hard coded constants
 package conf
 
+// Species guide provider and fallback-policy constants.
+//
+// These are defined here rather than in the guideprovider package so that the
+// conf package can validate SpeciesGuideConfig without importing guideprovider
+// (which would create a circular dependency: guideprovider already imports conf).
+// Any package that imports conf can use these constants directly.
+const (
+	SpeciesGuideProviderWikipedia = "wikipedia" // Wikipedia REST API provider
+	SpeciesGuideProviderEBird     = "ebird"     // eBird taxonomy enrichment provider
+	SpeciesGuideProviderAuto      = "auto"      // Auto-select provider based on availability
+
+	SpeciesGuideFallbackAll  = "all"  // Try all providers in order on failure
+	SpeciesGuideFallbackNone = "none" // No fallback; fail if primary provider fails
+)
+
 const (
 	SampleRate    = 48000 // Sample rate of the audio fed to BirdNET Analyzer
 	BitDepth      = 16    // Bit depth of the audio fed to BirdNET Analyzer
