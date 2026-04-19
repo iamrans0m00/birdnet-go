@@ -183,10 +183,10 @@
     </div>
   {:else if similarSpecies.length === 0}
     <div class="species-row">
-      <button class="species-card focal">
+      <div class="species-card focal">
         <span class="species-common">{commonName}</span>
         <span class="species-scientific">{scientificName}</span>
-      </button>
+      </div>
     </div>
     <p class="p-4 text-sm opacity-50">{t('analytics.species.similar.empty')}</p>
   {:else}
@@ -263,7 +263,12 @@
 
         <!-- Description Section - Expanded by default -->
         <div class="section">
-          <button class="section-header" onclick={() => (descriptionOpen = !descriptionOpen)}>
+          <button
+            class="section-header"
+            aria-expanded={descriptionOpen}
+            aria-controls="species-description-section"
+            onclick={() => (descriptionOpen = !descriptionOpen)}
+          >
             {#if descriptionOpen}
               <ChevronDown class="h-4 w-4" />
             {:else}
@@ -273,7 +278,7 @@
             <span>{t('analytics.species.guide.description')}</span>
           </button>
           {#if descriptionOpen}
-            <div class="section-content">
+            <div id="species-description-section" class="section-content">
               <div class="comparison-row">
                 <div class="comparison-side focal">
                   <span class="side-label">{commonName}</span>
@@ -303,7 +308,12 @@
 
         <!-- Songs and Calls Section - Collapsed by default -->
         <div class="section">
-          <button class="section-header" onclick={() => (songsOpen = !songsOpen)}>
+          <button
+            class="section-header"
+            aria-expanded={songsOpen}
+            aria-controls="species-songs-section"
+            onclick={() => (songsOpen = !songsOpen)}
+          >
             {#if songsOpen}
               <ChevronDown class="h-4 w-4" />
             {:else}
@@ -313,7 +323,7 @@
             <span>{t('analytics.species.guide.songs')}</span>
           </button>
           {#if songsOpen}
-            <div class="section-content">
+            <div id="species-songs-section" class="section-content">
               <div class="comparison-row">
                 <div class="comparison-side focal">
                   <span class="side-label">{commonName}</span>
@@ -346,7 +356,12 @@
 
         <!-- Similar Species Section - Collapsed by default -->
         <div class="section">
-          <button class="section-header" onclick={() => (similarOpen = !similarOpen)}>
+          <button
+            class="section-header"
+            aria-expanded={similarOpen}
+            aria-controls="species-similar-section"
+            onclick={() => (similarOpen = !similarOpen)}
+          >
             {#if similarOpen}
               <ChevronDown class="h-4 w-4" />
             {:else}
@@ -356,7 +371,7 @@
             <span>{t('analytics.species.guide.similar')}</span>
           </button>
           {#if similarOpen}
-            <div class="section-content">
+            <div id="species-similar-section" class="section-content">
               <div class="comparison-row">
                 <div class="comparison-side focal">
                   <span class="side-label">{commonName}</span>

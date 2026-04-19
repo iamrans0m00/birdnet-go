@@ -223,7 +223,9 @@
     speciesInfo = null;
     taxonomyInfo = null;
     guideData = null;
+    isLoadingGuide = false;
     speciesNotes = [];
+    isLoadingNotes = false;
 
     try {
       const response = await fetch(buildAppUrl(`/api/v2/detections/${resolvedDetectionId}`), {
@@ -406,8 +408,8 @@
       if (error instanceof Error && error.name === 'AbortError') return;
       // Guide is non-critical — fail silently
     } finally {
-      isLoadingGuide = false;
       if (guideController === controller) {
+        isLoadingGuide = false;
         guideController = null;
       }
     }
@@ -435,8 +437,8 @@
       if (error instanceof Error && error.name === 'AbortError') return;
       // Notes are non-critical — fail silently
     } finally {
-      isLoadingNotes = false;
       if (notesController === controller) {
+        isLoadingNotes = false;
         notesController = null;
       }
     }
@@ -994,6 +996,7 @@
                     <textarea
                       class="w-full text-sm px-2 py-1 rounded border border-[var(--color-primary)] bg-[var(--color-base-100)] text-[var(--color-base-content)] focus:outline-none resize-none"
                       rows="3"
+                      aria-label={t('analytics.species.notes.placeholder')}
                       bind:value={editingText}
                       onkeydown={(e: KeyboardEvent) => {
                         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveEditNote(note.id);
