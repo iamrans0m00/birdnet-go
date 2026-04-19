@@ -1571,15 +1571,24 @@ func validateDashboardSettings(settings *Dashboard) error {
 		logger.String("style", settings.Spectrogram.Style))
 
 	// Validate SpeciesGuide settings using package-level constants from consts.go.
-	if settings.SpeciesGuide.Provider != "" {
-		validProviders := []string{SpeciesGuideProviderWikipedia, SpeciesGuideProviderEBird, SpeciesGuideProviderAuto}
-		if !slices.Contains(validProviders, settings.SpeciesGuide.Provider) {
-			return errors.Newf("SpeciesGuide.Provider %q is invalid (valid: %s)",
-				settings.SpeciesGuide.Provider, strings.Join(validProviders, ", ")).
-				Category(errors.CategoryValidation).
-				Context("validation_type", "species-guide-provider").
-				Build()
-		}
+	// When the feature is enabled, Provider is required. Empty string can only
+	// reach here via explicit YAML edit or raw API payload (the UI dropdown and
+	// viper SetDefault in defaults.go:157 both populate a real value). Catching
+	// it here turns silent runtime degradation into an actionable error.
+	validProviders := []string{SpeciesGuideProviderWikipedia, SpeciesGuideProviderEBird, SpeciesGuideProviderAuto}
+	if settings.SpeciesGuide.Enabled && settings.SpeciesGuide.Provider == "" {
+		return errors.Newf("SpeciesGuide.Provider is required when species guide is enabled (valid: %s)",
+			strings.Join(validProviders, ", ")).
+			Category(errors.CategoryValidation).
+			Context("validation_type", "species-guide-provider-missing").
+			Build()
+	}
+	if settings.SpeciesGuide.Provider != "" && !slices.Contains(validProviders, settings.SpeciesGuide.Provider) {
+		return errors.Newf("SpeciesGuide.Provider %q is invalid (valid: %s)",
+			settings.SpeciesGuide.Provider, strings.Join(validProviders, ", ")).
+			Category(errors.CategoryValidation).
+			Context("validation_type", "species-guide-provider").
+			Build()
 	}
 	if settings.SpeciesGuide.FallbackPolicy != "" {
 		validFallbacks := []string{SpeciesGuideFallbackAll, SpeciesGuideFallbackNone}
