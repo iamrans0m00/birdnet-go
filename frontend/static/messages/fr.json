@@ -3955,10 +3955,10 @@
       },
       "speciesGuide": {
         "title": "Guide des espèces",
-        "description": "Configurez le guide d identification affiché dans les détails.",
+        "description": "Configurez le guide d'identification affiché dans les détails.",
         "enabled": {
           "label": "Activer le guide des espèces",
-          "helpText": "Afficher des guides basés sur Wikipedia."
+          "helpText": "Afficher les guides d'identification du fournisseur sélectionné (p. ex., Wikipedia ou eBird) lors de la consultation d'une détection ou d'une espèce."
         },
         "provider": {
           "label": "Fournisseur de guide",
@@ -4000,7 +4000,7 @@
         },
         "warmTopN": {
           "label": "Préchauffer le cache au démarrage",
-          "helpText": "Nombre d espèces à précharger. 0 = désactivé."
+          "helpText": "Nombre d'espèces à précharger. 0 = désactivé."
         }
       }
     },
