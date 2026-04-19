@@ -3958,7 +3958,7 @@
         "description": "Configureer de soortidentificatiegids.",
         "enabled": {
           "label": "Soortengids inschakelen",
-          "helpText": "Wikipedia-gebaseerde identificatiegidsen tonen."
+          "helpText": "Identificatiegidsen van de geselecteerde provider (bijv. Wikipedia of eBird) weergeven bij het bekijken van een detectie of soort."
         },
         "provider": {
           "label": "Gidsleverancier",

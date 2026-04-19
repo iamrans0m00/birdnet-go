@@ -3958,7 +3958,7 @@
         "description": "Configure o guia de identificação de espécies.",
         "enabled": {
           "label": "Ativar guia de espécies",
-          "helpText": "Exibir guias de identificação baseados na Wikipédia."
+          "helpText": "Exibir guias de identificação do provedor selecionado (ex.: Wikipedia ou eBird) ao visualizar uma detecção ou espécie."
         },
         "provider": {
           "label": "Fornecedor do guia",
