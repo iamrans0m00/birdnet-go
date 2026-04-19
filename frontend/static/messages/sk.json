@@ -1571,7 +1571,8 @@
         "deleteConfirm": "Odstrániť túto poznámku?",
         "saving": "Ukladanie...",
         "deleteFailed": "Nepodarilo sa odstrániť poznámku",
-        "saveFailed": "Nepodarilo sa uložiť poznámku"
+        "saveFailed": "Nepodarilo sa uložiť poznámku",
+        "tooLong": "Poznámka je príliš dlhá. Skráťte ju najviac na {max} bajtov."
       },
       "similar": {
         "title": "Podobné druhy",

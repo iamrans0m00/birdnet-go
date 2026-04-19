@@ -1576,7 +1576,8 @@
         "deleteConfirm": "Poista tämä muistiinpano?",
         "saving": "Tallennetaan...",
         "deleteFailed": "Muistiinpanon poistaminen epäonnistui",
-        "saveFailed": "Muistiinpanon tallentaminen epäonnistui"
+        "saveFailed": "Muistiinpanon tallentaminen epäonnistui",
+        "tooLong": "Muistiinpano on liian pitkä. Lyhennä se enintään {max} tavuun."
       },
       "similar": {
         "title": "Samankaltaiset lajit",

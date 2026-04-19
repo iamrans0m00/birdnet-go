@@ -1576,7 +1576,8 @@
         "deleteConfirm": "Deze notitie verwijderen?",
         "saving": "Opslaan...",
         "deleteFailed": "Notitie verwijderen mislukt",
-        "saveFailed": "Notitie opslaan mislukt"
+        "saveFailed": "Notitie opslaan mislukt",
+        "tooLong": "Notitie is te lang. Kort deze in tot maximaal {max} bytes."
       },
       "similar": {
         "title": "Vergelijkbare soorten",

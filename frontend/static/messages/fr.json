@@ -1576,7 +1576,8 @@
         "deleteConfirm": "Supprimer cette note ?",
         "saving": "Enregistrement...",
         "deleteFailed": "Échec de la suppression de la note",
-        "saveFailed": "Échec de l'enregistrement de la note"
+        "saveFailed": "Échec de l'enregistrement de la note",
+        "tooLong": "La note est trop longue. Veuillez la raccourcir à {max} octets maximum."
       },
       "similar": {
         "title": "Espèces similaires",

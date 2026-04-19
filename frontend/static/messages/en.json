@@ -1600,7 +1600,8 @@
         "deleteConfirm": "Delete this note?",
         "saving": "Saving...",
         "deleteFailed": "Failed to delete note",
-        "saveFailed": "Failed to save note"
+        "saveFailed": "Failed to save note",
+        "tooLong": "Note is too long. Please shorten it to fit within {max} bytes."
       },
       "similar": {
         "title": "Similar Species",

@@ -1595,7 +1595,8 @@
         "deleteConfirm": "Ta bort denna anteckning?",
         "saving": "Sparar...",
         "deleteFailed": "Kunde inte ta bort anteckning",
-        "saveFailed": "Kunde inte spara anteckning"
+        "saveFailed": "Kunde inte spara anteckning",
+        "tooLong": "Anteckningen är för lång. Korta ner den till högst {max} byte."
       },
       "similar": {
         "title": "Liknande arter",

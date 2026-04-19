@@ -1595,7 +1595,8 @@
         "deleteConfirm": "Törli ezt a jegyzetet?",
         "saving": "Mentés...",
         "deleteFailed": "A jegyzet törlése sikertelen",
-        "saveFailed": "A jegyzet mentése sikertelen"
+        "saveFailed": "A jegyzet mentése sikertelen",
+        "tooLong": "A jegyzet túl hosszú. Rövidítse le legfeljebb {max} bájtra."
       },
       "similar": {
         "title": "Hasonló fajok",

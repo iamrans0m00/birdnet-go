@@ -1595,7 +1595,8 @@
         "deleteConfirm": "Dzēst šo piezīmi?",
         "saving": "Saglabā...",
         "deleteFailed": "Neizdevās dzēst piezīmi",
-        "saveFailed": "Neizdevās saglabāt piezīmi"
+        "saveFailed": "Neizdevās saglabāt piezīmi",
+        "tooLong": "Piezīme ir pārāk gara. Lūdzu, saīsiniet to līdz ne vairāk kā {max} baitiem."
       },
       "similar": {
         "title": "Līdzīgas sugas",

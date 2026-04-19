@@ -1595,7 +1595,8 @@
         "deleteConfirm": "Slet denne note?",
         "saving": "Gemmer...",
         "deleteFailed": "Kunne ikke slette note",
-        "saveFailed": "Kunne ikke gemme note"
+        "saveFailed": "Kunne ikke gemme note",
+        "tooLong": "Noten er for lang. Forkort den til højst {max} bytes."
       },
       "similar": {
         "title": "Lignende arter",

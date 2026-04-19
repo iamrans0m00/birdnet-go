@@ -1576,7 +1576,8 @@
         "deleteConfirm": "Diese Notiz löschen?",
         "saving": "Speichern...",
         "deleteFailed": "Notiz konnte nicht gelöscht werden",
-        "saveFailed": "Notiz konnte nicht gespeichert werden"
+        "saveFailed": "Notiz konnte nicht gespeichert werden",
+        "tooLong": "Notiz ist zu lang. Bitte kürzen Sie sie auf maximal {max} Bytes."
       },
       "similar": {
         "title": "Ähnliche Arten",

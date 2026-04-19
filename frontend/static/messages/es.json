@@ -1576,7 +1576,8 @@
         "deleteConfirm": "¿Eliminar esta nota?",
         "saving": "Guardando...",
         "deleteFailed": "Error al eliminar la nota",
-        "saveFailed": "Error al guardar la nota"
+        "saveFailed": "Error al guardar la nota",
+        "tooLong": "La nota es demasiado larga. Acórtela para que no supere los {max} bytes."
       },
       "similar": {
         "title": "Especies similares",

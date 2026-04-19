@@ -1571,7 +1571,8 @@
         "deleteConfirm": "Eliminare questa nota?",
         "saving": "Salvataggio...",
         "deleteFailed": "Impossibile eliminare la nota",
-        "saveFailed": "Impossibile salvare la nota"
+        "saveFailed": "Impossibile salvare la nota",
+        "tooLong": "La nota è troppo lunga. Accorciala entro {max} byte."
       },
       "similar": {
         "title": "Specie simili",

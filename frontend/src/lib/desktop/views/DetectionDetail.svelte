@@ -99,7 +99,18 @@
 
   // Constants
   const TAB_FOCUS_DELAY_MS = 50;
+  // Must match internal/api/v2/species.go:maxNoteEntryLength (UTF-8 bytes).
+  // HTML maxlength counts UTF-16 code units, which underestimates byte cost for
+  // non-ASCII (e.g. an emoji is 2 UTF-16 units but 4 UTF-8 bytes). We still set
+  // maxlength="10000" on the textareas as a rough cap for the common plain-text
+  // case, and then enforce the real byte limit with getByteLength() before submit.
+  const MAX_NOTE_BYTES = 10_000;
   type TabType = 'overview' | 'history' | 'notes' | 'review';
+
+  // UTF-8 byte length — matches what the backend counts with len(string).
+  function getByteLength(value: string): number {
+    return new TextEncoder().encode(value).length;
+  }
 
   interface Props {
     detectionId?: string;
@@ -134,6 +145,9 @@
   let isSavingNote = $state(false);
   let newNoteText = $state('');
   let showComparison = $state(false);
+  // Inline error surfaced above the save controls when client-side validation
+  // fails (e.g. note exceeds MAX_NOTE_BYTES). Cleared on next keystroke.
+  let noteError = $state<string | null>(null);
 
   // Editing state
   let editingNoteId = $state<number | null>(null);
@@ -226,6 +240,12 @@
     isLoadingGuide = false;
     speciesNotes = [];
     isLoadingNotes = false;
+    // Reset note editor state so a stale error, draft, or in-progress edit
+    // from the previous detection doesn't carry over.
+    noteError = null;
+    newNoteText = '';
+    editingNoteId = null;
+    editingText = '';
 
     try {
       const response = await fetch(buildAppUrl(`/api/v2/detections/${resolvedDetectionId}`), {
@@ -447,19 +467,28 @@
   // Save a new species note
   async function saveSpeciesNote() {
     if (!detection?.scientificName || !newNoteText.trim()) return;
+    const trimmed = newNoteText.trim();
+    // Backend enforces the 10,000-byte limit authoritatively. This guard just
+    // gives users a fast, specific error instead of a roundtrip failure.
+    if (getByteLength(trimmed) > MAX_NOTE_BYTES) {
+      noteError = t('analytics.species.notes.tooLong', { max: MAX_NOTE_BYTES });
+      return;
+    }
+    noteError = null;
     isSavingNote = true;
     try {
       await api.post(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`, {
-        entry: newNoteText.trim(),
+        entry: trimmed,
       });
       trackEvent(AnalyticsEvents.SPECIES_NOTE_CREATED, {
         species: detection.scientificName,
-        entry_length: newNoteText.trim().length,
+        entry_length: trimmed.length,
       });
       newNoteText = '';
       await fetchSpeciesNotes();
     } catch (err) {
       logger.error('Error saving species note', { error: err });
+      noteError = t('analytics.species.notes.saveFailed');
     } finally {
       isSavingNote = false;
     }
@@ -481,22 +510,34 @@
   function startEditNote(note: SpeciesNoteData) {
     editingNoteId = note.id;
     editingText = note.entry;
+    noteError = null;
   }
 
   function cancelEditNote() {
     editingNoteId = null;
     editingText = '';
+    noteError = null;
   }
 
   async function saveEditNote(noteId: number) {
     if (!editingText.trim()) return;
+    const trimmed = editingText.trim();
+    // Mirrors saveSpeciesNote() — pre-check the real UTF-8 byte size so users
+    // editing a long note with emoji or CJK get immediate feedback instead of
+    // a server-side failure.
+    if (getByteLength(trimmed) > MAX_NOTE_BYTES) {
+      noteError = t('analytics.species.notes.tooLong', { max: MAX_NOTE_BYTES });
+      return;
+    }
+    noteError = null;
     try {
-      await api.put(`/api/v2/species/notes/${noteId}`, { entry: editingText.trim() });
+      await api.put(`/api/v2/species/notes/${noteId}`, { entry: trimmed });
       editingNoteId = null;
       editingText = '';
       await fetchSpeciesNotes();
     } catch (err) {
       logger.error('Error updating species note', { error: err });
+      noteError = t('analytics.species.notes.saveFailed');
     }
   }
 
@@ -999,11 +1040,15 @@
                       aria-label={t('analytics.species.notes.placeholder')}
                       maxlength="10000"
                       bind:value={editingText}
+                      oninput={() => (noteError = null)}
                       onkeydown={(e: KeyboardEvent) => {
                         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveEditNote(note.id);
                         if (e.key === 'Escape') cancelEditNote();
                       }}
                     ></textarea>
+                    {#if noteError}
+                      <p class="text-xs text-red-500" role="alert">{noteError}</p>
+                    {/if}
                     <div class="flex gap-2 justify-end">
                       <button
                         class="p-1 rounded text-green-500 hover:bg-green-500 hover:text-white transition-all"
@@ -1068,6 +1113,7 @@
             rows="3"
             maxlength="10000"
             bind:value={newNoteText}
+            oninput={() => (noteError = null)}
             onkeydown={(e: KeyboardEvent) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
@@ -1075,6 +1121,9 @@
               }
             }}
           ></textarea>
+          {#if noteError && editingNoteId === null}
+            <p class="mt-1 text-xs text-red-500" role="alert">{noteError}</p>
+          {/if}
           <button
             class="mt-2 px-4 py-2 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-content)] hover:opacity-90 transition-opacity disabled:opacity-50"
             disabled={!newNoteText.trim() || isSavingNote}

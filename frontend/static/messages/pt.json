@@ -1576,7 +1576,8 @@
         "deleteConfirm": "Excluir esta nota?",
         "saving": "Salvando...",
         "deleteFailed": "Falha ao excluir nota",
-        "saveFailed": "Falha ao salvar nota"
+        "saveFailed": "Falha ao salvar nota",
+        "tooLong": "A nota é muito longa. Encurte-a para no máximo {max} bytes."
       },
       "similar": {
         "title": "Espécies semelhantes",
