@@ -468,8 +468,8 @@
 
   // Save a new species note
   async function saveSpeciesNote() {
-    if (!detection?.scientificName || !newNoteText.trim()) return;
     const trimmed = newNoteText.trim();
+    if (!detection?.scientificName || !trimmed) return;
     // Backend enforces the 10,000-byte limit authoritatively. This guard just
     // gives users a fast, specific error instead of a roundtrip failure.
     if (getByteLength(trimmed) > MAX_NOTE_BYTES) {
@@ -522,8 +522,8 @@
   }
 
   async function saveEditNote(noteId: number) {
-    if (!editingText.trim()) return;
     const trimmed = editingText.trim();
+    if (!trimmed) return;
     // Mirrors saveSpeciesNote() — pre-check the real UTF-8 byte size so users
     // editing a long note with emoji or CJK get immediate feedback instead of
     // a server-side failure.
