@@ -147,7 +147,8 @@
   let showComparison = $state(false);
   // Inline error surfaced above the save controls when client-side validation
   // fails (e.g. note exceeds MAX_NOTE_BYTES). Cleared on next keystroke.
-  let noteError = $state<string | null>(null);
+  let newNoteError = $state<string | null>(null);
+  let editNoteError = $state<string | null>(null);
 
   // Editing state
   let editingNoteId = $state<number | null>(null);
@@ -242,7 +243,8 @@
     isLoadingNotes = false;
     // Reset note editor state so a stale error, draft, or in-progress edit
     // from the previous detection doesn't carry over.
-    noteError = null;
+    newNoteError = null;
+    editNoteError = null;
     newNoteText = '';
     editingNoteId = null;
     editingText = '';
@@ -471,10 +473,10 @@
     // Backend enforces the 10,000-byte limit authoritatively. This guard just
     // gives users a fast, specific error instead of a roundtrip failure.
     if (getByteLength(trimmed) > MAX_NOTE_BYTES) {
-      noteError = t('analytics.species.notes.tooLong', { max: MAX_NOTE_BYTES });
+      newNoteError = t('analytics.species.notes.tooLong', { max: MAX_NOTE_BYTES });
       return;
     }
-    noteError = null;
+    newNoteError = null;
     isSavingNote = true;
     try {
       await api.post(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`, {
@@ -488,7 +490,7 @@
       await fetchSpeciesNotes();
     } catch (err) {
       logger.error('Error saving species note', { error: err });
-      noteError = t('analytics.species.notes.saveFailed');
+      newNoteError = t('analytics.species.notes.saveFailed');
     } finally {
       isSavingNote = false;
     }
@@ -510,13 +512,13 @@
   function startEditNote(note: SpeciesNoteData) {
     editingNoteId = note.id;
     editingText = note.entry;
-    noteError = null;
+    editNoteError = null;
   }
 
   function cancelEditNote() {
     editingNoteId = null;
     editingText = '';
-    noteError = null;
+    editNoteError = null;
   }
 
   async function saveEditNote(noteId: number) {
@@ -526,10 +528,10 @@
     // editing a long note with emoji or CJK get immediate feedback instead of
     // a server-side failure.
     if (getByteLength(trimmed) > MAX_NOTE_BYTES) {
-      noteError = t('analytics.species.notes.tooLong', { max: MAX_NOTE_BYTES });
+      editNoteError = t('analytics.species.notes.tooLong', { max: MAX_NOTE_BYTES });
       return;
     }
-    noteError = null;
+    editNoteError = null;
     try {
       await api.put(`/api/v2/species/notes/${noteId}`, { entry: trimmed });
       editingNoteId = null;
@@ -537,7 +539,7 @@
       await fetchSpeciesNotes();
     } catch (err) {
       logger.error('Error updating species note', { error: err });
-      noteError = t('analytics.species.notes.saveFailed');
+      editNoteError = t('analytics.species.notes.saveFailed');
     }
   }
 
@@ -1042,14 +1044,14 @@
                       aria-label={t('analytics.species.notes.placeholder')}
                       maxlength="10000"
                       bind:value={editingText}
-                      oninput={() => (noteError = null)}
+                      oninput={() => (editNoteError = null)}
                       onkeydown={(e: KeyboardEvent) => {
                         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveEditNote(note.id);
                         if (e.key === 'Escape') cancelEditNote();
                       }}
                     ></textarea>
-                    {#if noteError}
-                      <p class="text-xs text-red-500" role="alert">{noteError}</p>
+                    {#if editNoteError}
+                      <p class="text-xs text-red-500" role="alert">{editNoteError}</p>
                     {/if}
                     <div class="flex gap-2 justify-end">
                       <button
@@ -1115,7 +1117,7 @@
             rows="3"
             maxlength="10000"
             bind:value={newNoteText}
-            oninput={() => (noteError = null)}
+            oninput={() => (newNoteError = null)}
             onkeydown={(e: KeyboardEvent) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
@@ -1123,8 +1125,8 @@
               }
             }}
           ></textarea>
-          {#if noteError && editingNoteId === null}
-            <p class="mt-1 text-xs text-red-500" role="alert">{noteError}</p>
+          {#if newNoteError}
+            <p class="mt-1 text-xs text-red-500" role="alert">{newNoteError}</p>
           {/if}
           <button
             class="mt-2 px-4 py-2 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-content)] hover:opacity-90 transition-opacity disabled:opacity-50"
