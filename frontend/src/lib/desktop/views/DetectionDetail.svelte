@@ -950,7 +950,7 @@
           </div>
         {/if}
 
-        <div class="guide-attribution">
+        <div class="flex items-center gap-1 text-xs opacity-50 mt-2">
           <span>{t('analytics.species.guide.source')}</span>
           {#if guideData.source.url}
             <a
@@ -971,14 +971,14 @@
         </div>
 
         {#if guideData.features?.enrichments && guideData.external_links && guideData.external_links.length > 0}
-          <div class="external-links">
-            <span class="external-links-label">{t('common.buttons.learnMore')}</span>
+          <div class="flex items-center flex-wrap gap-2 mt-3">
+            <span class="text-[0.6875rem] opacity-50">{t('common.buttons.learnMore')}</span>
             {#each guideData.external_links as link (link.name)}
               <a
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="external-link-pill"
+                class="inline-flex items-center gap-1 text-[0.6875rem] font-medium px-2.5 py-0.5 rounded-full border border-[var(--border-100)] text-[var(--color-primary)] no-underline hover:bg-[color-mix(in_srgb,var(--color-primary)_8%,transparent)] hover:border-[var(--color-primary)] transition-all"
               >
                 {link.name}
                 <ExternalLink class="h-3 w-3" />
@@ -988,8 +988,10 @@
         {/if}
 
         {#if guideData.features?.similar_species}
-          <!-- Compare with similar species button -->
-          <button class="compare-button" onclick={() => (showComparison = !showComparison)}>
+          <button
+            class="inline-flex items-center gap-1.5 text-[0.6875rem] font-medium px-3 py-1 rounded-full border border-[var(--border-100)] bg-[var(--color-base-100)] opacity-70 hover:opacity-100 hover:bg-[var(--color-base-200)] transition-all mt-3 cursor-pointer"
+            onclick={() => (showComparison = !showComparison)}
+          >
             <GitCompareArrows class="h-3.5 w-3.5" />
             {t('analytics.species.similar.compare')}
           </button>
