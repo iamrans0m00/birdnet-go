@@ -624,8 +624,10 @@ tasks:
   frontend-install:
     desc: Install frontend dependencies
     dir: frontend
+    env:
+      HUSKY: "0"
     cmds:
-      - npm install
+      - npm ci
     sources:
       - package.json
       - package-lock.json

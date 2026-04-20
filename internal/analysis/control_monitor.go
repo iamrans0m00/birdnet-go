@@ -937,6 +937,13 @@ func (cm *ControlMonitor) handleReconfigureSpeciesGuide() {
 		// Replace the old cache with the new one. SetGuideCache handles closing the old cache.
 		cm.apiController.SetGuideCache(newGuideCache)
 
+		// Update the pre-fetch callback atomically: install when enabled, clear when disabled.
+		if settings.Realtime.Dashboard.SpeciesGuide.PreFetchEnabled && newGuideCache != nil {
+			cm.proc.SetGuidePreFetch(newGuideCache.PreFetch)
+		} else {
+			cm.proc.SetGuidePreFetch(nil)
+		}
+
 		if settings.Realtime.Dashboard.SpeciesGuide.Enabled {
 			GetLogger().Info("Species guide cache reconfigured successfully")
 			cm.notifySuccess("Species guide cache reconfigured successfully")

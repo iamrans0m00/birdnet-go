@@ -1576,7 +1576,8 @@
         "deleteConfirm": "Usunąć tę notatkę?",
         "saving": "Zapisywanie...",
         "deleteFailed": "Nie udało się usunąć notatki",
-        "saveFailed": "Nie udało się zapisać notatki"
+        "saveFailed": "Nie udało się zapisać notatki",
+        "tooLong": "Notatka jest zbyt długa. Skróć ją do maksymalnie {max} bajtów."
       },
       "similar": {
         "title": "Podobne gatunki",

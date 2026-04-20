@@ -2324,11 +2324,20 @@ func webserverSettingsChanged(oldSettings, currentSettings *conf.Settings) bool 
 	return false
 }
 
-// speciesGuideSettingsChanged checks if species guide enabled/provider settings changed.
+// speciesGuideSettingsChanged checks if any species guide setting changed that
+// warrants a cache reconfiguration. WarmTopN is only read at cache init
+// (guide_cache_init.go), so without this trigger UI changes wouldn't take
+// effect until restart. FallbackPolicy is read live in fetchFromProviders but
+// still belongs here so the user gets toast confirmation that their change
+// landed, and so we stay consistent if the value is ever cached in the future.
 func speciesGuideSettingsChanged(oldSettings, currentSettings *conf.Settings) bool {
 	old := oldSettings.Realtime.Dashboard.SpeciesGuide
 	cur := currentSettings.Realtime.Dashboard.SpeciesGuide
-	return old.Enabled != cur.Enabled || old.Provider != cur.Provider
+	return old.Enabled != cur.Enabled ||
+		old.Provider != cur.Provider ||
+		old.FallbackPolicy != cur.FallbackPolicy ||
+		old.WarmTopN != cur.WarmTopN ||
+		old.PreFetchEnabled != cur.PreFetchEnabled
 }
 
 // LocaleData represents a locale with its code and full name

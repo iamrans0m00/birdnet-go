@@ -1576,13 +1576,14 @@
         "deleteConfirm": "Deze notitie verwijderen?",
         "saving": "Opslaan...",
         "deleteFailed": "Notitie verwijderen mislukt",
-        "saveFailed": "Notitie opslaan mislukt"
+        "saveFailed": "Notitie opslaan mislukt",
+        "tooLong": "Notitie is te lang. Kort deze in tot maximaal {max} bytes."
       },
       "similar": {
         "title": "Vergelijkbare soorten",
         "compare": "Vergelijk met soortgelijken",
         "loading": "Vergelijkbare soorten laden...",
-        "empty": "Geen vergelijkbare soorten gevonden in dit geslacht.",
+        "empty": "Geen vergelijkbare soorten gevonden binnen hetzelfde geslacht of familie.",
         "sameGenus": "Zelfde geslacht",
         "sameFamily": "Zelfde familie",
         "similar": "Vergelijkbaar"
@@ -3958,7 +3959,7 @@
         "description": "Configureer de soortidentificatiegids.",
         "enabled": {
           "label": "Soortengids inschakelen",
-          "helpText": "Wikipedia-gebaseerde identificatiegidsen tonen."
+          "helpText": "Identificatiegidsen van de geselecteerde provider (bijv. Wikipedia of eBird) weergeven bij het bekijken van een detectie of soort."
         },
         "provider": {
           "label": "Gidsleverancier",

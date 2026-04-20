@@ -1549,7 +1549,7 @@
         "qualityStub": "Luonnos",
         "expectedness": {
           "expected": "Odotettu",
-          "uncommon": "Harvinainen",
+          "uncommon": "Melko harvinainen",
           "rare": "Harvinainen",
           "unexpected": "Odottamaton"
         },
@@ -1576,7 +1576,8 @@
         "deleteConfirm": "Poista tämä muistiinpano?",
         "saving": "Tallennetaan...",
         "deleteFailed": "Muistiinpanon poistaminen epäonnistui",
-        "saveFailed": "Muistiinpanon tallentaminen epäonnistui"
+        "saveFailed": "Muistiinpanon tallentaminen epäonnistui",
+        "tooLong": "Muistiinpano on liian pitkä. Lyhennä se enintään {max} tavuun."
       },
       "similar": {
         "title": "Samankaltaiset lajit",
@@ -3958,7 +3959,7 @@
         "description": "Määritä lajiopas havainnon yksityiskohtiin.",
         "enabled": {
           "label": "Ota lajiopas käyttöön",
-          "helpText": "Näytä Wikipedia-pohjainen tunnistusopas."
+          "helpText": "Näytä tunnistusopas valitulta palveluntarjoajalta (esim. Wikipedia tai eBird) havainnon tai lajin katselussa."
         },
         "provider": {
           "label": "Oppaan lähde",
@@ -3973,7 +3974,7 @@
           "helpText": "Mitä tehdä, kun ensisijainen lähde ei pysty toimittamaan opasta.",
           "options": {
             "all": "Kokeile kaikkia lähteitä",
-            "none": "Ei varavaihtoehtoea"
+            "none": "Ei varavaihtoehtoa"
           }
         },
         "sections": {

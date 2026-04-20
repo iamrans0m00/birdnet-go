@@ -1576,7 +1576,8 @@
         "deleteConfirm": "Excluir esta nota?",
         "saving": "Salvando...",
         "deleteFailed": "Falha ao excluir nota",
-        "saveFailed": "Falha ao salvar nota"
+        "saveFailed": "Falha ao salvar nota",
+        "tooLong": "A nota é muito longa. Encurte-a para no máximo {max} bytes."
       },
       "similar": {
         "title": "Espécies semelhantes",
@@ -3958,7 +3959,7 @@
         "description": "Configure o guia de identificação de espécies.",
         "enabled": {
           "label": "Ativar guia de espécies",
-          "helpText": "Exibir guias de identificação baseados na Wikipédia."
+          "helpText": "Exibir guias de identificação do provedor selecionado (ex.: Wikipedia ou eBird) ao visualizar uma detecção ou espécie."
         },
         "provider": {
           "label": "Fornecedor do guia",

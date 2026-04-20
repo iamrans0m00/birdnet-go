@@ -17,6 +17,14 @@
 
   let { scientificName, commonName, onclose }: Props = $props();
 
+  // Unique, instance-scoped prefix so aria-controls IDs don't collide when
+  // this component is rendered twice on the same page (e.g. DetectionDetail
+  // while a SpeciesDetailModal is open).
+  const uid = $props.id();
+  const descriptionSectionId = `species-description-${uid}`;
+  const songsSectionId = `species-songs-${uid}`;
+  const similarSectionId = `species-similar-${uid}`;
+
   let similarSpecies = $state<SimilarSpeciesEntry[]>([]);
   let isLoading = $state(true);
   let focalGuide = $state<SpeciesGuideData | null>(null);
@@ -183,10 +191,10 @@
     </div>
   {:else if similarSpecies.length === 0}
     <div class="species-row">
-      <button class="species-card focal">
+      <div class="species-card focal">
         <span class="species-common">{commonName}</span>
         <span class="species-scientific">{scientificName}</span>
-      </button>
+      </div>
     </div>
     <p class="p-4 text-sm opacity-50">{t('analytics.species.similar.empty')}</p>
   {:else}
@@ -263,7 +271,12 @@
 
         <!-- Description Section - Expanded by default -->
         <div class="section">
-          <button class="section-header" onclick={() => (descriptionOpen = !descriptionOpen)}>
+          <button
+            class="section-header"
+            aria-expanded={descriptionOpen}
+            aria-controls={descriptionSectionId}
+            onclick={() => (descriptionOpen = !descriptionOpen)}
+          >
             {#if descriptionOpen}
               <ChevronDown class="h-4 w-4" />
             {:else}
@@ -272,38 +285,41 @@
             <Bird class="h-4 w-4 text-blue-500" />
             <span>{t('analytics.species.guide.description')}</span>
           </button>
-          {#if descriptionOpen}
-            <div class="section-content">
-              <div class="comparison-row">
-                <div class="comparison-side focal">
-                  <span class="side-label">{commonName}</span>
-                  <p class="side-content">
-                    {#if focalSections.length > 0}
-                      {getFirstSectionBody(focalSections) ||
-                        focalGuide?.description?.substring(0, 300) ||
-                        t('analytics.species.guide.noDescription')}
-                    {:else}
-                      {focalGuide?.description?.substring(0, 300) ||
-                        t('analytics.species.guide.noDescription')}
-                    {/if}
-                  </p>
-                </div>
-                <div class="comparison-side">
-                  <span class="side-label">{similarEntry.common_name}</span>
-                  <p class="side-content">
-                    {similarSections?.description ||
-                      similarEntry.guide_summary ||
+          <div id={descriptionSectionId} class="section-content" hidden={!descriptionOpen}>
+            <div class="comparison-row">
+              <div class="comparison-side focal">
+                <span class="side-label">{commonName}</span>
+                <p class="side-content">
+                  {#if focalSections.length > 0}
+                    {getFirstSectionBody(focalSections) ||
+                      focalGuide?.description?.substring(0, 300) ||
                       t('analytics.species.guide.noDescription')}
-                  </p>
-                </div>
+                  {:else}
+                    {focalGuide?.description?.substring(0, 300) ||
+                      t('analytics.species.guide.noDescription')}
+                  {/if}
+                </p>
+              </div>
+              <div class="comparison-side">
+                <span class="side-label">{similarEntry.common_name}</span>
+                <p class="side-content">
+                  {similarSections?.description ||
+                    similarEntry.guide_summary ||
+                    t('analytics.species.guide.noDescription')}
+                </p>
               </div>
             </div>
-          {/if}
+          </div>
         </div>
 
         <!-- Songs and Calls Section - Collapsed by default -->
         <div class="section">
-          <button class="section-header" onclick={() => (songsOpen = !songsOpen)}>
+          <button
+            class="section-header"
+            aria-expanded={songsOpen}
+            aria-controls={songsSectionId}
+            onclick={() => (songsOpen = !songsOpen)}
+          >
             {#if songsOpen}
               <ChevronDown class="h-4 w-4" />
             {:else}
@@ -312,41 +328,44 @@
             <Music class="h-4 w-4 text-green-500" />
             <span>{t('analytics.species.guide.songs')}</span>
           </button>
-          {#if songsOpen}
-            <div class="section-content">
-              <div class="comparison-row">
-                <div class="comparison-side focal">
-                  <span class="side-label">{commonName}</span>
-                  <p class="side-content">
-                    {getSectionContent(focalSections, 'Songs and calls') ||
-                      getSectionContent(focalSections, 'Song and calls') ||
-                      getSectionContent(focalSections, 'Vocalisation') ||
-                      getSectionContent(focalSections, 'Voice') ||
-                      getSectionContent(focalSections, 'Stimme') ||
-                      getSectionContent(focalSections, 'Chant et cris') ||
-                      getSectionContent(focalSections, 'Voix') ||
-                      getSectionContent(focalSections, 'Voz') ||
-                      getSectionContent(focalSections, 'Canto') ||
-                      getSectionContent(focalSections, 'Głos') ||
-                      getSectionContent(focalSections, 'Ääntelyt') ||
-                      getSectionContent(focalSections, 'Läte') ||
-                      t('analytics.species.guide.noSongs')}
-                  </p>
-                </div>
-                <div class="comparison-side">
-                  <span class="side-label">{similarEntry.common_name}</span>
-                  <p class="side-content">
-                    {similarSections?.songs_and_calls || t('analytics.species.guide.noSongs')}
-                  </p>
-                </div>
+          <div id={songsSectionId} class="section-content" hidden={!songsOpen}>
+            <div class="comparison-row">
+              <div class="comparison-side focal">
+                <span class="side-label">{commonName}</span>
+                <p class="side-content">
+                  {getSectionContent(focalSections, 'Songs and calls') ||
+                    getSectionContent(focalSections, 'Song and calls') ||
+                    getSectionContent(focalSections, 'Vocalisation') ||
+                    getSectionContent(focalSections, 'Voice') ||
+                    getSectionContent(focalSections, 'Stimme') ||
+                    getSectionContent(focalSections, 'Chant et cris') ||
+                    getSectionContent(focalSections, 'Voix') ||
+                    getSectionContent(focalSections, 'Voz') ||
+                    getSectionContent(focalSections, 'Canto') ||
+                    getSectionContent(focalSections, 'Głos') ||
+                    getSectionContent(focalSections, 'Ääntelyt') ||
+                    getSectionContent(focalSections, 'Läte') ||
+                    t('analytics.species.guide.noSongs')}
+                </p>
+              </div>
+              <div class="comparison-side">
+                <span class="side-label">{similarEntry.common_name}</span>
+                <p class="side-content">
+                  {similarSections?.songs_and_calls || t('analytics.species.guide.noSongs')}
+                </p>
               </div>
             </div>
-          {/if}
+          </div>
         </div>
 
         <!-- Similar Species Section - Collapsed by default -->
         <div class="section">
-          <button class="section-header" onclick={() => (similarOpen = !similarOpen)}>
+          <button
+            class="section-header"
+            aria-expanded={similarOpen}
+            aria-controls={similarSectionId}
+            onclick={() => (similarOpen = !similarOpen)}
+          >
             {#if similarOpen}
               <ChevronDown class="h-4 w-4" />
             {:else}
@@ -355,37 +374,35 @@
             <ListOrdered class="h-4 w-4 text-orange-500" />
             <span>{t('analytics.species.guide.similar')}</span>
           </button>
-          {#if similarOpen}
-            <div class="section-content">
-              <div class="comparison-row">
-                <div class="comparison-side focal">
-                  <span class="side-label">{commonName}</span>
-                  <p class="side-content">
-                    {#if focalSections.length > 0}
-                      {getSectionContent(focalSections, 'Similar species') ||
-                        getSectionContent(focalSections, 'Ähnliche Arten') ||
-                        getSectionContent(focalSections, 'Espèces similaires') ||
-                        getSectionContent(focalSections, 'Especies similares') ||
-                        getSectionContent(focalSections, 'Verwechslungsmöglichkeiten') ||
-                        t('analytics.species.guide.noSimilar')}
-                    {:else}
-                      {t('analytics.species.guide.noSimilar')}
-                    {/if}
-                  </p>
-                </div>
-                <div class="comparison-side">
-                  <span class="side-label">{similarEntry.common_name}</span>
-                  <p class="side-content">
-                    {#if similarSections?.similar_species && similarSections.similar_species.length > 0}
-                      {similarSections.similar_species.join(', ')}
-                    {:else}
-                      {t('analytics.species.guide.noSimilar')}
-                    {/if}
-                  </p>
-                </div>
+          <div id={similarSectionId} class="section-content" hidden={!similarOpen}>
+            <div class="comparison-row">
+              <div class="comparison-side focal">
+                <span class="side-label">{commonName}</span>
+                <p class="side-content">
+                  {#if focalSections.length > 0}
+                    {getSectionContent(focalSections, 'Similar species') ||
+                      getSectionContent(focalSections, 'Ähnliche Arten') ||
+                      getSectionContent(focalSections, 'Espèces similaires') ||
+                      getSectionContent(focalSections, 'Especies similares') ||
+                      getSectionContent(focalSections, 'Verwechslungsmöglichkeiten') ||
+                      t('analytics.species.guide.noSimilar')}
+                  {:else}
+                    {t('analytics.species.guide.noSimilar')}
+                  {/if}
+                </p>
+              </div>
+              <div class="comparison-side">
+                <span class="side-label">{similarEntry.common_name}</span>
+                <p class="side-content">
+                  {#if similarSections?.similar_species && similarSections.similar_species.length > 0}
+                    {similarSections.similar_species.join(', ')}
+                  {:else}
+                    {t('analytics.species.guide.noSimilar')}
+                  {/if}
+                </p>
               </div>
             </div>
-          {/if}
+          </div>
         </div>
       </div>
     {/if}
