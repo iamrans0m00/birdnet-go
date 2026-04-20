@@ -1056,7 +1056,7 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
 			Category(errors.CategoryConfiguration).
 			Component("api-species").
-			Build(), "Species guide feature is disabled", http.StatusNotFound)
+			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
 	}
 
 	// Check if similar species UI component is enabled
@@ -1167,6 +1167,12 @@ type UpdateSpeciesNoteRequest struct {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v2/species/{scientific_name}/notes [get]
 func (c *Controller) GetSpeciesNotes(ctx echo.Context) error {
+	if !c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
+		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
+			Category(errors.CategoryConfiguration).
+			Component("api-species").
+			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
+	}
 	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
 		return c.HandleError(ctx, errors.Newf("species notes feature is disabled").
 			Category(errors.CategoryConfiguration).
@@ -1209,6 +1215,12 @@ func (c *Controller) GetSpeciesNotes(ctx echo.Context) error {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v2/species/{scientific_name}/notes [post]
 func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
+	if !c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
+		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
+			Category(errors.CategoryConfiguration).
+			Component("api-species").
+			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
+	}
 	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
 		return c.HandleError(ctx, errors.Newf("species notes feature is disabled").
 			Category(errors.CategoryConfiguration).
@@ -1269,6 +1281,12 @@ func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v2/species/notes/{id} [delete]
 func (c *Controller) DeleteSpeciesNote(ctx echo.Context) error {
+	if !c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
+		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
+			Category(errors.CategoryConfiguration).
+			Component("api-species").
+			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
+	}
 	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
 		return c.HandleError(ctx, errors.Newf("species notes feature is disabled").
 			Category(errors.CategoryConfiguration).
@@ -1305,6 +1323,12 @@ func (c *Controller) DeleteSpeciesNote(ctx echo.Context) error {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v2/species/notes/{id} [put]
 func (c *Controller) UpdateSpeciesNote(ctx echo.Context) error {
+	if !c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
+		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
+			Category(errors.CategoryConfiguration).
+			Component("api-species").
+			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
+	}
 	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
 		return c.HandleError(ctx, errors.Newf("species notes feature is disabled").
 			Category(errors.CategoryConfiguration).
