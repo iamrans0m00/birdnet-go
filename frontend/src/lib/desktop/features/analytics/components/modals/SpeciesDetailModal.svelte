@@ -115,7 +115,29 @@
       );
       if (signal?.aborted) return;
       if (!response.ok) {
-        if (response.status !== 404) {
+        if (response.status === 404) {
+          // Species has no guide, but notes are still available
+          guideData = {
+            scientific_name: scientificName,
+            common_name: '',
+            description: '',
+            conservation_status: '',
+            quality: 'stub',
+            features: {
+              notes: true,
+              enrichments: false,
+              similar_species: false,
+            },
+            source: {
+              provider: '',
+              url: '',
+              license: '',
+              license_url: '',
+            },
+            partial: false,
+            cached_at: new Date().toISOString(),
+          };
+        } else {
           logger.debug('Guide fetch failed', { status: response.status, species: scientificName });
         }
         return;
