@@ -753,7 +753,7 @@ func TestGetSpeciesNotes(t *testing.T) {
 		e := echo.New()
 		mockDS := mocks.NewMockInterface(t)
 		mockDS.EXPECT().
-			GetSpeciesNotes("Turdus merula").
+			GetSpeciesNotes(mock.Anything, "Turdus merula").
 			Return([]datastore.SpeciesNote{
 				{ID: 1, ScientificName: "Turdus merula", Entry: "Seen in garden"},
 				{ID: 2, ScientificName: "Turdus merula", Entry: "Singing at dawn"},
@@ -826,8 +826,8 @@ func TestCreateSpeciesNote(t *testing.T) {
 		e := echo.New()
 		mockDS := mocks.NewMockInterface(t)
 		mockDS.EXPECT().
-			SaveSpeciesNote(mock.AnythingOfType("*datastore.SpeciesNote")).
-			Run(func(note *datastore.SpeciesNote) {
+			SaveSpeciesNote(mock.Anything, mock.AnythingOfType("*datastore.SpeciesNote")).
+			Run(func(ctx context.Context, note *datastore.SpeciesNote) {
 				assert.Equal(t, "Turdus merula", note.ScientificName)
 				assert.Equal(t, "Beautiful singer", note.Entry)
 			}).
@@ -892,7 +892,7 @@ func TestDeleteSpeciesNote(t *testing.T) {
 		e := echo.New()
 		mockDS := mocks.NewMockInterface(t)
 		mockDS.EXPECT().
-			DeleteSpeciesNote("42").
+			DeleteSpeciesNote(mock.Anything, "42").
 			Return(nil)
 
 		req := httptest.NewRequest(http.MethodDelete, "/api/v2/species/notes/42", http.NoBody)
@@ -939,10 +939,10 @@ func TestUpdateSpeciesNote(t *testing.T) {
 		e := echo.New()
 		mockDS := mocks.NewMockInterface(t)
 		mockDS.EXPECT().
-			UpdateSpeciesNote("42", "updated entry").
+			UpdateSpeciesNote(mock.Anything, "42", "updated entry").
 			Return(nil)
 		mockDS.EXPECT().
-			GetSpeciesNoteByID(uint(42)).
+			GetSpeciesNoteByID(mock.Anything, uint(42)).
 			Return(&datastore.SpeciesNote{
 				ID:             42,
 				ScientificName: "Turdus merula",
