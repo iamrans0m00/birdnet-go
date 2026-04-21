@@ -1571,6 +1571,7 @@
       "notes": {
         "title": "Notes d'espèce",
         "placeholder": "Ajouter une note sur cette espèce...",
+        "editLabel": "Modifier la note d'espèce",
         "save": "Enregistrer la note",
         "empty": "Pas encore de notes. Ajoutez vos observations sur cette espèce.",
         "deleteConfirm": "Supprimer cette note ?",
@@ -1586,7 +1587,8 @@
         "empty": "Aucune espèce similaire trouvée dans ce genre.",
         "sameGenus": "Même genre",
         "sameFamily": "Même famille",
-        "similar": "Similaire"
+        "similar": "Similaire",
+        "hideComparison": "Masquer le panneau de comparaison"
       }
     },
     "advanced": {

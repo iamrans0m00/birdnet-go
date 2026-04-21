@@ -161,6 +161,12 @@
       : []
   );
 
+  // Type guard to help TypeScript understand guideData is not null
+  function shouldFetchNotes(guide: SpeciesGuideData | null): boolean {
+    if (!guide) return true; // Fetch by default if no guide data
+    return guide.features?.notes !== false;
+  }
+
   // AbortController for preventing race conditions
   let detectionController: AbortController | null = null;
   let speciesController: AbortController | null = null;
@@ -248,6 +254,7 @@
     newNoteText = '';
     editingNoteId = null;
     editingText = '';
+    showComparison = false;
 
     try {
       const response = await fetch(buildAppUrl(`/api/v2/detections/${resolvedDetectionId}`), {
@@ -284,13 +291,12 @@
       }
 
       if (detection) {
-        void Promise.all([
-          fetchSpeciesInfo(),
-          fetchTaxonomy(),
-          fetchImageAttribution(),
-          fetchGuide(),
-          fetchSpeciesNotes(),
-        ]);
+        void Promise.all([fetchSpeciesInfo(), fetchTaxonomy(), fetchImageAttribution()]);
+        // Fetch guide first, then conditionally fetch notes
+        await fetchGuide();
+        if (shouldFetchNotes(guideData)) {
+          void fetchSpeciesNotes();
+        }
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -468,8 +474,8 @@
 
   // Save a new species note
   async function saveSpeciesNote() {
-    if (!detection?.scientificName || !newNoteText.trim()) return;
     const trimmed = newNoteText.trim();
+    if (!detection?.scientificName || !trimmed) return;
     // Backend enforces the 10,000-byte limit authoritatively. This guard just
     // gives users a fast, specific error instead of a roundtrip failure.
     if (getByteLength(trimmed) > MAX_NOTE_BYTES) {
@@ -522,8 +528,8 @@
   }
 
   async function saveEditNote(noteId: number) {
-    if (!editingText.trim()) return;
     const trimmed = editingText.trim();
+    if (!trimmed) return;
     // Mirrors saveSpeciesNote() — pre-check the real UTF-8 byte size so users
     // editing a long note with emoji or CJK get immediate feedback instead of
     // a server-side failure.
@@ -1014,7 +1020,7 @@
   {/if}
 
   <!-- Species Notes -->
-  {#if guideData?.features?.notes !== false}
+  {#if guideData && guideData.features?.notes !== false}
     <section class="mt-4" aria-labelledby="species-notes-heading">
       <div class="flex items-center gap-2">
         <BookOpen class="h-4 w-4 opacity-60" />
@@ -1041,7 +1047,7 @@
                     <textarea
                       class="w-full text-sm px-2 py-1 rounded border border-[var(--color-primary)] bg-[var(--color-base-100)] text-[var(--color-base-content)] focus:outline-none resize-none"
                       rows="3"
-                      aria-label={t('analytics.species.notes.placeholder')}
+                      aria-label={t('analytics.species.notes.editLabel')}
                       maxlength="10000"
                       bind:value={editingText}
                       oninput={() => (editNoteError = null)}

@@ -1571,6 +1571,7 @@
       "notes": {
         "title": "Lajimuistiinpanot",
         "placeholder": "Lisää muistiinpano tästä lajista...",
+        "editLabel": "Muokkaa lajimuistiinpanoa",
         "save": "Tallenna muistiinpano",
         "empty": "Ei muistiinpanoja vielä. Lisää havaintosi tästä lajista.",
         "deleteConfirm": "Poista tämä muistiinpano?",
@@ -1586,7 +1587,8 @@
         "empty": "Samankaltaisia lajeja ei löytynyt tästä suvusta.",
         "sameGenus": "Sama suku",
         "sameFamily": "Sama heimo",
-        "similar": "Samankaltainen"
+        "similar": "Samankaltainen",
+        "hideComparison": "Piilota vertailupaneeli"
       }
     },
     "advanced": {

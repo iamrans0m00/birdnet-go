@@ -1595,6 +1595,7 @@
       "notes": {
         "title": "Species Notes",
         "placeholder": "Add a note about this species...",
+        "editLabel": "Edit species note",
         "save": "Save Note",
         "empty": "No notes yet. Add your observations about this species.",
         "deleteConfirm": "Delete this note?",
@@ -1610,7 +1611,8 @@
         "empty": "No similar species found in this genus.",
         "sameGenus": "Same genus",
         "sameFamily": "Same family",
-        "similar": "Similar"
+        "similar": "Similar",
+        "hideComparison": "Hide comparison panel"
       }
     },
     "advanced": {

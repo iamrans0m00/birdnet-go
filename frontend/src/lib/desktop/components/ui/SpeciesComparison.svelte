@@ -13,9 +13,11 @@
     scientificName: string;
     commonName: string;
     onclose: () => void;
+    className?: string;
+    [key: string]: any;
   }
 
-  let { scientificName, commonName, onclose }: Props = $props();
+  let { scientificName, commonName, onclose, className, ...rest }: Props = $props();
 
   // Unique, instance-scoped prefix so aria-controls IDs don't collide when
   // this component is rendered twice on the same page (e.g. DetectionDetail
@@ -150,6 +152,7 @@
     return () => {
       controller.abort();
       similarGuideController?.abort();
+      similarGuideController = null;
     };
   });
 
@@ -172,7 +175,7 @@
   }
 </script>
 
-<div class="species-comparison">
+<div class="species-comparison {className ?? ''}" {...rest}>
   <div class="comparison-header">
     <h3 class="text-sm font-semibold">
       {t('analytics.species.similar.title')}
@@ -200,12 +203,13 @@
   {:else}
     <!-- Single row of species cards -->
     <div class="species-row">
-      <!-- Focal species card -->
+      <!-- Focal species card — clicking hides the comparison panel while keeping the row visible. -->
       <button
         class="species-card focal"
         onclick={() => {
           selectedSimilarIndex = -1;
         }}
+        aria-label={t('analytics.species.similar.hideComparison')}
       >
         <span class="species-common">{commonName}</span>
         <span class="species-scientific">{scientificName}</span>

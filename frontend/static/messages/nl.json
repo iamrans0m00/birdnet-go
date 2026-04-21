@@ -1571,6 +1571,7 @@
       "notes": {
         "title": "Soortnotities",
         "placeholder": "Voeg een notitie toe over deze soort...",
+        "editLabel": "Soortnotitie bewerken",
         "save": "Notitie opslaan",
         "empty": "Nog geen notities. Voeg uw waarnemingen over deze soort toe.",
         "deleteConfirm": "Deze notitie verwijderen?",
@@ -1586,7 +1587,8 @@
         "empty": "Geen vergelijkbare soorten gevonden binnen hetzelfde geslacht of familie.",
         "sameGenus": "Zelfde geslacht",
         "sameFamily": "Zelfde familie",
-        "similar": "Vergelijkbaar"
+        "similar": "Vergelijkbaar",
+        "hideComparison": "Vergelijkingspaneel verbergen"
       }
     },
     "advanced": {
@@ -3986,7 +3988,7 @@
         },
         "showSimilarSpecies": {
           "label": "Vergelijkbare soorten tonen",
-          "helpText": "Vergelijkingspaneel met soorten van hetzelfde geslacht."
+          "helpText": "Vergelijkingspaneel met soorten van hetzelfde geslacht of dezelfde familie."
         },
         "showNotes": {
           "label": "Soortnotities tonen",
