@@ -339,9 +339,8 @@ export type TranslationKey =
   | 'notifications.content.settings.reconfiguringDynamicThresholds'
   | 'notifications.content.settings.webserverRestartRequired'
   | 'notifications.content.settings.reconfiguringSoundLevel'
-  | 'notifications.content.settings.audioDeviceRestartRequired'
-  | 'notifications.content.settings.rebuildingExtendedCapture'
   | 'notifications.content.settings.reconfiguringAudioSources'
+  | 'notifications.content.settings.rebuildingExtendedCapture'
   | 'notifications.content.settings.extendedCaptureRestartRequired'
   | 'notifications.content.settings.equalizerUpdateFailed'
   | 'notifications.content.settings.equalizerUpdated'
@@ -471,6 +470,7 @@ export type TranslationKey =
   | 'dashboard.currentlyHearing.title'
   | 'dashboard.currentlyHearing.subtitle'
   | 'dashboard.currentlyHearing.empty'
+  | 'dashboard.currentlyHearing.viewGuide' // params: species
   | 'dashboard.rejected'
   | 'dashboard.dailySummary.title'
   | 'dashboard.dailySummary.subtitle'
@@ -526,6 +526,8 @@ export type TranslationKey =
   | 'dashboard.recentDetections.modals.deleteDetection' // params: species
   | 'dashboard.recentDetections.modals.deleteDetectionConfirm' // params: species
   | 'dashboard.recentDetections.actions.menuLabel' // params: species
+  | 'dashboard.recentDetections.actions.markCorrect'
+  | 'dashboard.recentDetections.actions.markFalsePositive'
   | 'dashboard.recentDetections.actions.review'
   | 'dashboard.recentDetections.actions.showSpecies'
   | 'dashboard.recentDetections.actions.ignoreSpecies'
@@ -610,6 +612,7 @@ export type TranslationKey =
   | 'detections.detail.observation'
   | 'detections.headers.dateTime'
   | 'detections.headers.weather'
+  | 'detections.headers.source'
   | 'detections.headers.species'
   | 'detections.headers.confidence'
   | 'detections.headers.thumbnail'
@@ -1188,6 +1191,13 @@ export type TranslationKey =
   | 'analytics.species.guide.title'
   | 'analytics.species.guide.loading'
   | 'analytics.species.guide.source'
+  | 'analytics.species.guide.description'
+  | 'analytics.species.guide.songs'
+  | 'analytics.species.guide.similar'
+  | 'analytics.species.guide.vs'
+  | 'analytics.species.guide.noDescription'
+  | 'analytics.species.guide.noSongs'
+  | 'analytics.species.guide.noSimilar'
   | 'analytics.species.guide.qualityFull'
   | 'analytics.species.guide.qualityIntroOnly'
   | 'analytics.species.guide.qualityStub'
@@ -1205,18 +1215,21 @@ export type TranslationKey =
   | 'analytics.species.guide.season.dry2'
   | 'analytics.species.notes.title'
   | 'analytics.species.notes.placeholder'
+  | 'analytics.species.notes.editLabel'
   | 'analytics.species.notes.save'
   | 'analytics.species.notes.empty'
   | 'analytics.species.notes.deleteConfirm'
   | 'analytics.species.notes.saving'
   | 'analytics.species.notes.deleteFailed'
   | 'analytics.species.notes.saveFailed'
+  | 'analytics.species.notes.tooLong' // params: max
   | 'analytics.species.similar.title'
   | 'analytics.species.similar.compare'
   | 'analytics.species.similar.loading'
   | 'analytics.species.similar.empty'
   | 'analytics.species.similar.sameGenus'
   | 'analytics.species.similar.sameFamily'
+  | 'analytics.species.similar.similar'
   | 'analytics.advanced.title'
   | 'analytics.advanced.chartControls'
   | 'analytics.advanced.dateRange'
@@ -2527,6 +2540,7 @@ export type TranslationKey =
   | 'settings.species.customConfiguration.emptyState.description'
   | 'settings.species.synonyms.tabLabel'
   | 'settings.species.synonyms.description'
+  | 'settings.species.synonyms.helpText'
   | 'settings.species.synonyms.birdnetName'
   | 'settings.species.synonyms.updatedName'
   | 'settings.species.synonyms.addButton'
@@ -3322,6 +3336,7 @@ export type TranslationParams = {
   'search.detailsPanel.viewDetails': { species: string | number };
   'search.errors.searchFailed': { error: string | number };
   'search.pagination.page': { current: string | number; total: string | number };
+  'dashboard.currentlyHearing.viewGuide': { species: string | number };
   'dashboard.dailySummary.daylight.sunrise': { time: string | number };
   'dashboard.dailySummary.daylight.sunset': { time: string | number };
   'dashboard.dailySummary.tooltips.viewHourly': { hour: string | number };
@@ -3425,6 +3440,7 @@ export type TranslationParams = {
   };
   'system.database.migration.prerequisites.criticalCount': { count: string | number };
   'system.database.migration.prerequisites.warningCount': { count: string | number };
+  'analytics.species.notes.tooLong': { max: string | number };
   'analytics.advanced.speciesSelection': { count: string | number; max: string | number };
   'analytics.advanced.detections': { count: string | number };
   'settings.notFound.message': { section: string | number };

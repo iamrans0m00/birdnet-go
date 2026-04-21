@@ -1571,6 +1571,7 @@
       "notes": {
         "title": "Notas de Especie",
         "placeholder": "Agregar una nota sobre esta especie...",
+        "editLabel": "Editar nota de especie",
         "save": "Guardar Nota",
         "empty": "Sin notas aún. Agregue sus observaciones sobre esta especie.",
         "deleteConfirm": "¿Eliminar esta nota?",

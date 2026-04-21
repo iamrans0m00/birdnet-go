@@ -1571,6 +1571,7 @@
       "notes": {
         "title": "Artnotizen",
         "placeholder": "Notiz zu dieser Art hinzufügen...",
+        "editLabel": "Artnotiz bearbeiten",
         "save": "Notiz speichern",
         "empty": "Noch keine Notizen. Fügen Sie Ihre Beobachtungen zu dieser Art hinzu.",
         "deleteConfirm": "Diese Notiz löschen?",
