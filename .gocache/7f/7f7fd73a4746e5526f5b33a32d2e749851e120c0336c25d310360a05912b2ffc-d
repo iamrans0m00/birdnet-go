@@ -1,0 +1,8 @@
+./migration_telemetry.go
+./worker.go
+./worker_auxiliary.go
+./worker_related.go
+./migration_telemetry_test.go
+./worker_auxiliary_weather_test.go
+./worker_related_filter_test.go
+./worker_test.go

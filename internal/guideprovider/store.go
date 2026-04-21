@@ -55,14 +55,14 @@ func (s *GORMGuideStore) GetGuideCache(ctx context.Context, scientificName, prov
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			status = DBResultNotFound
-			s.recordDBMetric("get", status, start)
+			s.recordDBMetric(DBOperationQueryGuideCaches, status, start)
 			return nil, nil //nolint:nilnil // record not found is not an error; nil entry is the expected signal
 		}
 		status = DBResultError
-		s.recordDBMetric("get", status, start)
+		s.recordDBMetric(DBOperationQueryGuideCaches, status, start)
 		return nil, err
 	}
-	s.recordDBMetric("get", status, start)
+	s.recordDBMetric(DBOperationQueryGuideCaches, status, start)
 	return &entry, nil
 }
 
@@ -90,7 +90,7 @@ func (s *GORMGuideStore) SaveGuideCache(ctx context.Context, entry *GuideCacheEn
 	if err != nil {
 		status = DBResultError
 	}
-	s.recordDBMetric("save", status, start)
+	s.recordDBMetric(DBOperationInsertGuideCaches, status, start)
 	return err
 }
 
@@ -114,7 +114,7 @@ func (s *GORMGuideStore) GetAllGuideCaches(ctx context.Context, providerName str
 			logger.String("provider", providerName),
 			logger.Any("error", err))
 	}
-	s.recordDBMetric("get_all", status, start)
+	s.recordDBMetric(DBOperationQueryGuideCaches, status, start)
 	return entries, err
 }
 
@@ -133,6 +133,6 @@ func (s *GORMGuideStore) DeleteStaleGuideCaches(ctx context.Context, providerNam
 			logger.String("provider", providerName),
 			logger.Any("error", result.Error))
 	}
-	s.recordDBMetric("delete", status, start)
+	s.recordDBMetric(DBOperationDeleteGuideCaches, status, start)
 	return result.RowsAffected, result.Error
 }

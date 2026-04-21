@@ -54,11 +54,13 @@
   // Species guide state
   let guideData = $state<SpeciesGuideData | null>(null);
   let guideLoading = $state(false);
+  let guideRequestId = 0;
 
   // Species notes state
   let speciesNotes = $state<SpeciesNoteData[]>([]);
   let isLoadingNotes = $state(false);
   let isSavingNote = $state(false);
+  let notesRequestId = 0;
   let newNoteText = $state('');
   let showComparison = $state(false);
 
@@ -101,7 +103,16 @@
   // Use cached data for rendering, fall back to current prop
   let displaySpecies = $derived(species ?? cachedSpecies);
 
+  function isCurrentGuideRequest(requestId: number, signal?: AbortSignal): boolean {
+    return !signal?.aborted && requestId === guideRequestId;
+  }
+
+  function isCurrentNotesRequest(requestId: number, signal?: AbortSignal): boolean {
+    return !signal?.aborted && requestId === notesRequestId;
+  }
+
   async function fetchGuideData(scientificName: string, signal?: AbortSignal) {
+    const requestId = ++guideRequestId;
     guideLoading = true;
     guideData = null;
 
@@ -113,9 +124,10 @@
         buildAppUrl(`/api/v2/species/${encodedName}/guide${localeParam}`),
         { signal }
       );
-      if (signal?.aborted) return;
+      if (!isCurrentGuideRequest(requestId, signal)) return;
       if (!response.ok) {
         if (response.status === 404) {
+          if (!isCurrentGuideRequest(requestId, signal)) return;
           // Species has no guide, but notes are still available
           guideData = {
             scientific_name: scientificName,
@@ -142,38 +154,48 @@
         }
         return;
       }
-      guideData = await response.json();
-      if (guideData) {
+      const data = await response.json();
+      if (!isCurrentGuideRequest(requestId, signal)) return;
+      guideData = data;
+      if (data) {
         trackEvent(AnalyticsEvents.SPECIES_GUIDE_VIEWED, {
           species: scientificName,
-          guide_quality: guideData.quality || 'unknown',
-          provider: guideData.source?.provider || 'unknown',
+          guide_quality: data.quality || 'unknown',
+          provider: data.source?.provider || 'unknown',
         });
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       logger.debug('Guide fetch error', { species: scientificName, error: err });
     } finally {
-      guideLoading = false;
+      if (isCurrentGuideRequest(requestId, signal)) {
+        guideLoading = false;
+      }
     }
   }
 
   async function fetchSpeciesNotes(scientificName: string, signal?: AbortSignal) {
+    const requestId = ++notesRequestId;
     isLoadingNotes = true;
+    speciesNotes = [];
     try {
       const response = await fetch(
         buildAppUrl(`/api/v2/species/${encodeURIComponent(scientificName)}/notes`),
         { signal }
       );
-      if (signal?.aborted) return;
+      if (!isCurrentNotesRequest(requestId, signal)) return;
       if (response.ok) {
-        speciesNotes = await response.json();
+        const notes = await response.json();
+        if (!isCurrentNotesRequest(requestId, signal)) return;
+        speciesNotes = notes;
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       // Non-critical
     } finally {
-      isLoadingNotes = false;
+      if (isCurrentNotesRequest(requestId, signal)) {
+        isLoadingNotes = false;
+      }
     }
   }
 
@@ -202,6 +224,11 @@
     } catch (err) {
       logger.error('Error deleting species note', { error: err });
     }
+  }
+
+  function confirmDeleteSpeciesNote(noteId: number) {
+    if (!window.confirm(t('analytics.species.notes.deleteConfirm'))) return;
+    void deleteSpeciesNote(noteId);
   }
 
   function startEditNote(note: SpeciesNoteData) {
@@ -411,7 +438,7 @@
       {/if}
 
       <!-- Species Notes -->
-      {#if guideData?.features?.notes !== false}
+      {#if guideData?.features?.notes === true}
         <div class="mt-3">
           <div class="flex items-center gap-1.5 mb-2">
             <BookOpen class="h-3.5 w-3.5 opacity-60" />
@@ -437,14 +464,14 @@
                     <div class="flex gap-2 justify-end">
                       <button
                         class="p-1 rounded text-green-500 hover:bg-green-500 hover:text-white transition-all"
-                        aria-label="Save"
+                        aria-label={t('common.save')}
                         onclick={() => saveEditNote(note.id)}
                       >
                         <Check class="h-3 w-3" />
                       </button>
                       <button
                         class="p-1 rounded text-gray-500 hover:bg-gray-500 hover:text-white transition-all"
-                        aria-label="Cancel"
+                        aria-label={t('common.cancel')}
                         onclick={cancelEditNote}
                       >
                         <X class="h-3 w-3" />
@@ -457,7 +484,7 @@
                     <div class="flex gap-2 justify-end">
                       <button
                         class="p-1 rounded text-blue-500 hover:bg-blue-500 hover:text-white transition-all"
-                        aria-label="Edit"
+                        aria-label={t('common.edit')}
                         onclick={() => startEditNote(note)}
                       >
                         <Pencil class="h-3 w-3" />
@@ -465,7 +492,7 @@
                       <button
                         class="p-1 rounded text-red-500 hover:bg-red-500 hover:text-white transition-all"
                         aria-label={t('analytics.species.notes.deleteConfirm')}
-                        onclick={() => deleteSpeciesNote(note.id)}
+                        onclick={() => confirmDeleteSpeciesNote(note.id)}
                       >
                         <Trash2 class="h-3 w-3" />
                       </button>

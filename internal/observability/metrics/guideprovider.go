@@ -8,9 +8,9 @@ type GuideProviderMetrics struct {
 	registry *prometheus.Registry
 
 	// Cache metrics
-	cacheHitsTotal      *prometheus.CounterVec
-	cacheMissesTotal    *prometheus.CounterVec
-	cachePositiveRatio  prometheus.Gauge
+	cacheHitsTotal     *prometheus.CounterVec
+	cacheMissesTotal   *prometheus.CounterVec
+	cachePositiveRatio prometheus.Gauge
 
 	// Wikipedia API metrics
 	wikipediaAPILatency       *prometheus.HistogramVec
@@ -108,7 +108,7 @@ func (m *GuideProviderMetrics) initMetrics() error {
 			Help:    "Time taken for guide cache DB operations",
 			Buckets: prometheus.ExponentialBuckets(BucketStart1ms, BucketFactor2, BucketCount12), // 1ms to ~4s
 		},
-		[]string{"operation"}, // operation: get, save, get_all
+		[]string{"operation"}, // operation: db_query:guide_caches, db_insert:guide_caches, db_delete:guide_caches
 	)
 
 	// Database operation counter
@@ -117,7 +117,7 @@ func (m *GuideProviderMetrics) initMetrics() error {
 			Name: "guidecache_db_operations_total",
 			Help: "Total number of guide cache DB operations",
 		},
-		[]string{"operation", "status"}, // operation: get, save, get_all; status: success, error
+		[]string{"operation", "status"}, // operation: db_query:guide_caches, db_insert:guide_caches, db_delete:guide_caches
 	)
 
 	// Initialize collectors slice
@@ -172,9 +172,25 @@ func (m *GuideProviderMetrics) RecordEBirdAPICall(endpoint, result string, durat
 	m.ebirdAPIRequestsTotal.WithLabelValues(endpoint, result).Inc()
 }
 
+// RecordOperation implements the Recorder interface for guide-provider DB work.
+func (m *GuideProviderMetrics) RecordOperation(operation, status string) {
+	m.dbOperationsTotal.WithLabelValues(operation, status).Inc()
+}
+
+// RecordDuration implements the Recorder interface for guide-provider DB work.
+func (m *GuideProviderMetrics) RecordDuration(operation string, seconds float64) {
+	m.dbOperationDuration.WithLabelValues(operation).Observe(seconds)
+}
+
+// RecordError implements the Recorder interface for guide-provider DB work.
+func (m *GuideProviderMetrics) RecordError(operation, errorType string) {
+	_ = errorType
+	m.dbOperationsTotal.WithLabelValues(operation, "error").Inc()
+}
+
 // RecordDBOperation records a database operation with duration and status.
 func (m *GuideProviderMetrics) RecordDBOperation(operation, status string, duration float64) {
-	m.dbOperationsTotal.WithLabelValues(operation, status).Inc()
+	m.RecordOperation(operation, status)
 	m.dbOperationDuration.WithLabelValues(operation).Observe(duration)
 }
 

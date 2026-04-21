@@ -1,0 +1,7 @@
+./consolidation.go
+./manager.go
+./mode.go
+./mysql_manager.go
+./paths.go
+./startup.go
+./state_manager.go

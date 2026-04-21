@@ -1,0 +1,7 @@
+./bbox.go
+./feature.go
+./feature_collection.go
+./geometry.go
+./json.go
+./properties.go
+./types.go

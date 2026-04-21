@@ -1,0 +1,5 @@
+./doc.go
+./fourier.go
+./quarter.go
+./radix24.go
+./sincos.go

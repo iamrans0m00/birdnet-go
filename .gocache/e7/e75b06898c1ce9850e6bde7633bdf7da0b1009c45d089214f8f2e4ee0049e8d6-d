@@ -1,0 +1,8 @@
+./assertions.go
+./builders.go
+./doc.go
+./legacy_seeder.go
+./setup.go
+./assertions_test.go
+./builders_test.go
+./legacy_seeder_test.go

@@ -346,11 +346,17 @@ func (m *MockDatastore) DeleteExpiredNotificationHistory(before time.Time) (int6
 }
 
 // Species notes methods
-func (m *MockDatastore) GetSpeciesNotes(_ string) ([]datastore.SpeciesNote, error) { return nil, nil }
-func (m *MockDatastore) SaveSpeciesNote(_ *datastore.SpeciesNote) error            { return nil }
-func (m *MockDatastore) DeleteSpeciesNote(_ string) error                          { return nil }
-func (m *MockDatastore) UpdateSpeciesNote(_, _ string) error                       { return nil }
-func (m *MockDatastore) GetSpeciesNoteByID(_ uint) (*datastore.SpeciesNote, error) {
+func (m *MockDatastore) GetSpeciesNotes(_ context.Context, _ string) ([]datastore.SpeciesNote, error) {
+	return nil, nil
+}
+func (m *MockDatastore) SaveSpeciesNote(_ context.Context, _ *datastore.SpeciesNote) error {
+	return nil
+}
+func (m *MockDatastore) DeleteSpeciesNote(_ context.Context, _ string) error { return nil }
+func (m *MockDatastore) UpdateSpeciesNote(_ context.Context, _, _ string) error {
+	return nil
+}
+func (m *MockDatastore) GetSpeciesNoteByID(_ context.Context, _ uint) (*datastore.SpeciesNote, error) {
 	return nil, nil //nolint:nilnil // stub implementation
 }
 

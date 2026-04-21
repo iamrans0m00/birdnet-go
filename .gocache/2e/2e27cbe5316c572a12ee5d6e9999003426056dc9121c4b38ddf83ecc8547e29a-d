@@ -1,0 +1,8 @@
+./datastore.go
+./fresh_install.go
+./inspector.go
+./datastore_test.go
+./detection_to_record_test.go
+./extract_scientific_name_test.go
+./fresh_install_test.go
+./parse_hour_test.go

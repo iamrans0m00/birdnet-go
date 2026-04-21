@@ -1,0 +1,6 @@
+./discord_config.go
+./discord_errors.go
+./discord_json.go
+./discord_sender.go
+./discord_service.go
+./doc.go

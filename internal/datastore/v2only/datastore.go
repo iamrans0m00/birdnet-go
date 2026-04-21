@@ -3051,9 +3051,13 @@ func (ds *Datastore) DeleteExpiredNotificationHistory(before time.Time) (int64, 
 }
 
 // GetSpeciesNotes retrieves all notes for a species by scientific name.
-func (ds *Datastore) GetSpeciesNotes(scientificName string) ([]datastore.SpeciesNote, error) {
+func (ds *Datastore) GetSpeciesNotes(ctx context.Context, scientificName string) ([]datastore.SpeciesNote, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var notes []datastore.SpeciesNote
-	if err := ds.manager.DB().Where("scientific_name = ?", scientificName).
+	if err := ds.manager.DB().WithContext(ctx).
+		Where("scientific_name = ?", scientificName).
 		Order("created_at DESC").
 		Find(&notes).Error; err != nil {
 		return nil, fmt.Errorf("get species notes: %w", err)
@@ -3062,20 +3066,31 @@ func (ds *Datastore) GetSpeciesNotes(scientificName string) ([]datastore.Species
 }
 
 // SaveSpeciesNote saves a new species note.
-func (ds *Datastore) SaveSpeciesNote(note *datastore.SpeciesNote) error {
+func (ds *Datastore) SaveSpeciesNote(ctx context.Context, note *datastore.SpeciesNote) error {
 	if note == nil {
 		return fmt.Errorf("species note cannot be nil")
 	}
-	return ds.manager.DB().Create(note).Error
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	normalizedEntry, err := datastore.NormalizeSpeciesNoteEntry(note.Entry)
+	if err != nil {
+		return err
+	}
+	note.Entry = normalizedEntry
+	return ds.manager.DB().WithContext(ctx).Create(note).Error
 }
 
 // DeleteSpeciesNote deletes a species note by ID.
-func (ds *Datastore) DeleteSpeciesNote(noteID string) error {
+func (ds *Datastore) DeleteSpeciesNote(ctx context.Context, noteID string) error {
 	id, err := parseID(noteID)
 	if err != nil {
 		return err
 	}
-	result := ds.manager.DB().Delete(&datastore.SpeciesNote{}, id)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	result := ds.manager.DB().WithContext(ctx).Delete(&datastore.SpeciesNote{}, id)
 	if result.Error != nil {
 		return fmt.Errorf("delete species note: %w", result.Error)
 	}
@@ -3086,16 +3101,19 @@ func (ds *Datastore) DeleteSpeciesNote(noteID string) error {
 }
 
 // UpdateSpeciesNote updates an existing species note's entry.
-func (ds *Datastore) UpdateSpeciesNote(noteID, entry string) error {
-	if entry == "" {
-		return fmt.Errorf("note entry cannot be empty")
-	}
+func (ds *Datastore) UpdateSpeciesNote(ctx context.Context, noteID, entry string) error {
 	id, err := parseID(noteID)
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
-	result := ds.manager.DB().WithContext(ctx).Model(&datastore.SpeciesNote{}).Where("id = ?", id).Update("entry", entry)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	normalizedEntry, err := datastore.NormalizeSpeciesNoteEntry(entry)
+	if err != nil {
+		return err
+	}
+	result := ds.manager.DB().WithContext(ctx).Model(&datastore.SpeciesNote{}).Where("id = ?", id).Update("entry", normalizedEntry)
 	if result.Error != nil {
 		return fmt.Errorf("update species note: %w", result.Error)
 	}
@@ -3112,9 +3130,12 @@ func (ds *Datastore) UpdateSpeciesNote(noteID, entry string) error {
 }
 
 // GetSpeciesNoteByID retrieves a single species note by its primary key.
-func (ds *Datastore) GetSpeciesNoteByID(id uint) (*datastore.SpeciesNote, error) {
+func (ds *Datastore) GetSpeciesNoteByID(ctx context.Context, id uint) (*datastore.SpeciesNote, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	var note datastore.SpeciesNote
-	if err := ds.manager.DB().First(&note, id).Error; err != nil {
+	if err := ds.manager.DB().WithContext(ctx).First(&note, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, datastore.ErrSpeciesNoteNotFound
 		}

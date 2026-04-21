@@ -44,9 +44,6 @@ const (
 	RarityThresholdRare       = 0.05
 )
 
-// maxNoteEntryLength is the maximum allowed length for a species note entry.
-const maxNoteEntryLength = 10_000
-
 // errInvalidScientificNameEncoding and errMissingScientificName are sentinel errors
 // returned by parseScientificNameParam so callers can produce distinct HTTP messages.
 var (
@@ -1185,7 +1182,8 @@ func (c *Controller) GetSpeciesNotes(ctx echo.Context) error {
 		return c.handleScientificNameError(ctx, err)
 	}
 
-	notes, err := c.DS.GetSpeciesNotes(scientificName)
+	requestCtx := ctx.Request().Context()
+	notes, err := c.DS.GetSpeciesNotes(requestCtx, scientificName)
 	if err != nil {
 		return c.HandleError(ctx, err, "Failed to retrieve species notes", http.StatusInternalServerError)
 	}
@@ -1248,8 +1246,8 @@ func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
 			Component("api-species").
 			Build(), "Note entry is required", http.StatusBadRequest)
 	}
-	if len(entry) > maxNoteEntryLength {
-		return c.HandleError(ctx, errors.Newf("note entry exceeds maximum length of %d bytes", maxNoteEntryLength).
+	if len(entry) > datastore.SpeciesNoteMaxLength {
+		return c.HandleError(ctx, errors.Newf("note entry exceeds maximum length of %d bytes", datastore.SpeciesNoteMaxLength).
 			Category(errors.CategoryValidation).
 			Component("api-species").
 			Build(), "Note entry too long", http.StatusBadRequest)
@@ -1260,7 +1258,7 @@ func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
 		Entry:          entry,
 	}
 
-	if err := c.DS.SaveSpeciesNote(note); err != nil {
+	if err := c.DS.SaveSpeciesNote(ctx.Request().Context(), note); err != nil {
 		return c.HandleError(ctx, err, "Failed to save species note", http.StatusInternalServerError)
 	}
 
@@ -1302,7 +1300,7 @@ func (c *Controller) DeleteSpeciesNote(ctx echo.Context) error {
 			Build(), "Missing note ID", http.StatusBadRequest)
 	}
 
-	if err := c.DS.DeleteSpeciesNote(noteID); err != nil {
+	if err := c.DS.DeleteSpeciesNote(ctx.Request().Context(), noteID); err != nil {
 		if errors.Is(err, datastore.ErrSpeciesNoteNotFound) {
 			return c.HandleError(ctx, err, "Species note not found", http.StatusNotFound)
 		}
@@ -1360,8 +1358,8 @@ func (c *Controller) UpdateSpeciesNote(ctx echo.Context) error {
 			Build(), "Note entry is required", http.StatusBadRequest)
 	}
 
-	if len(entry) > maxNoteEntryLength {
-		return c.HandleError(ctx, errors.Newf("note entry exceeds maximum length of %d bytes", maxNoteEntryLength).
+	if len(entry) > datastore.SpeciesNoteMaxLength {
+		return c.HandleError(ctx, errors.Newf("note entry exceeds maximum length of %d bytes", datastore.SpeciesNoteMaxLength).
 			Category(errors.CategoryValidation).
 			Component("api-species").
 			Build(), "Note entry too long", http.StatusBadRequest)
@@ -1376,14 +1374,15 @@ func (c *Controller) UpdateSpeciesNote(ctx echo.Context) error {
 			Build(), "Invalid note ID", http.StatusBadRequest)
 	}
 
-	if err := c.DS.UpdateSpeciesNote(noteID, entry); err != nil {
+	requestCtx := ctx.Request().Context()
+	if err := c.DS.UpdateSpeciesNote(requestCtx, noteID, entry); err != nil {
 		if errors.Is(err, datastore.ErrSpeciesNoteNotFound) {
 			return c.HandleError(ctx, err, "Species note not found", http.StatusNotFound)
 		}
 		return c.HandleError(ctx, err, "Failed to update species note", http.StatusInternalServerError)
 	}
 
-	updated, err := c.DS.GetSpeciesNoteByID(uint(id))
+	updated, err := c.DS.GetSpeciesNoteByID(requestCtx, uint(id))
 	if err != nil {
 		return c.HandleError(ctx, err, "Failed to retrieve updated species note", http.StatusInternalServerError)
 	}

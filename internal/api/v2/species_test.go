@@ -423,16 +423,9 @@ func TestTaxonomyInfoJSONSerialization(t *testing.T) {
 
 // TestGetSpeciesGuide tests the GetSpeciesGuide endpoint.
 func TestGetSpeciesGuide(t *testing.T) {
-	t.Parallel()
 	t.Attr("component", "species")
 	t.Attr("type", "unit")
 	t.Attr("feature", "species-guide")
-
-	// Save original settings and restore after test
-	origSettings := conf.GetSettings()
-	t.Cleanup(func() {
-		conf.SetTestSettings(origSettings)
-	})
 
 	tests := []struct {
 		name           string
@@ -447,7 +440,6 @@ func TestGetSpeciesGuide(t *testing.T) {
 			setupCtrl: func(c *Controller) {
 				settings := conf.GetTestSettings()
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = false
-				conf.SetTestSettings(settings)
 				c.Settings = settings
 			},
 			expectedStatus: http.StatusServiceUnavailable,
@@ -459,7 +451,6 @@ func TestGetSpeciesGuide(t *testing.T) {
 			setupCtrl: func(c *Controller) {
 				settings := conf.GetTestSettings()
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
-				conf.SetTestSettings(settings)
 				c.Settings = settings
 				c.GuideCache = nil
 			},
@@ -472,7 +463,6 @@ func TestGetSpeciesGuide(t *testing.T) {
 			setupCtrl: func(c *Controller) {
 				settings := conf.GetTestSettings()
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
-				conf.SetTestSettings(settings)
 				c.Settings = settings
 				c.GuideCache = guideprovider.NewGuideCache(nil, nil)
 			},
@@ -487,7 +477,6 @@ func TestGetSpeciesGuide(t *testing.T) {
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
 				settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
-				conf.SetTestSettings(settings)
 				c.Settings = settings
 				cache := guideprovider.NewGuideCache(nil, nil)
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
@@ -506,7 +495,6 @@ func TestGetSpeciesGuide(t *testing.T) {
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
 				settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
-				conf.SetTestSettings(settings)
 				c.Settings = settings
 				cache := guideprovider.NewGuideCache(nil, nil)
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
@@ -534,7 +522,6 @@ func TestGetSpeciesGuide(t *testing.T) {
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
 				settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
-				conf.SetTestSettings(settings)
 				c.Settings = settings
 				cache := guideprovider.NewGuideCache(nil, nil)
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{

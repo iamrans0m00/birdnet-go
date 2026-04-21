@@ -1,0 +1,4 @@
+./douglas_peucker.go
+./helpers.go
+./radial.go
+./visvalingam.go

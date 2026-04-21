@@ -82,6 +82,10 @@ const (
 	DBResultSuccess  = "success"
 	DBResultNotFound = "not_found"
 	DBResultError    = "error"
+
+	DBOperationQueryGuideCaches  = "db_query:guide_caches"
+	DBOperationInsertGuideCaches = "db_insert:guide_caches"
+	DBOperationDeleteGuideCaches = "db_delete:guide_caches"
 )
 
 // defaultProviderName is the provider used when settings are unavailable.

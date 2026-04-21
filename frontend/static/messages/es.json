@@ -1558,10 +1558,10 @@
           "summer": "Verano",
           "fall": "Otoño",
           "winter": "Invierno",
-          "wet1": "Primera Temporada Húmeda",
-          "dry1": "Primera Temporada Seca",
-          "wet2": "Segunda Temporada Húmeda",
-          "dry2": "Segunda Temporada Seca"
+          "wet1": "Temporada húmeda 1",
+          "dry1": "Temporada seca 1",
+          "wet2": "Temporada húmeda 2",
+          "dry2": "Temporada seca 2"
         },
         "vs": "vs",
         "noDescription": "Sin descripción disponible",
@@ -1569,10 +1569,10 @@
         "noSimilar": "No se listaron especies similares"
       },
       "notes": {
-        "title": "Notas de Especie",
+        "title": "Notas de especie",
         "placeholder": "Agregar una nota sobre esta especie...",
         "editLabel": "Editar nota de especie",
-        "save": "Guardar Nota",
+        "save": "Guardar nota",
         "empty": "Sin notas aún. Agregue sus observaciones sobre esta especie.",
         "deleteConfirm": "¿Eliminar esta nota?",
         "saving": "Guardando...",

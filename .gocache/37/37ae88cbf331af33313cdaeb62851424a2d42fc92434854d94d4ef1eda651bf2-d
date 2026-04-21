@@ -1,0 +1,5 @@
+./adapter.go
+./deduplicator.go
+./detection_event.go
+./eventbus.go
+./types.go

@@ -1,0 +1,5 @@
+./mock_DBCountersProvider.go
+./mock_DatabaseInspector.go
+./mock_DetectionRepository.go
+./mock_Interface.go
+./mock_StoreInterface.go

@@ -1633,24 +1633,26 @@ func validateDashboardSettings(settings *Dashboard) error {
 	// reach here via explicit YAML edit or raw API payload (the UI dropdown and
 	// viper SetDefault in defaults.go:157 both populate a real value). Catching
 	// it here turns silent runtime degradation into an actionable error.
+	validProviders := GetSpeciesGuideValidProviders()
+	validFallbackPolicies := GetSpeciesGuideValidFallbackPolicies()
 	if settings.SpeciesGuide.Enabled && settings.SpeciesGuide.Provider == "" {
 		return errors.Newf("SpeciesGuide.Provider is required when species guide is enabled (valid: %s)",
-			strings.Join(SpeciesGuideValidProviders, ", ")).
+			strings.Join(validProviders, ", ")).
 			Category(errors.CategoryValidation).
 			Context("validation_type", "species-guide-provider-missing").
 			Build()
 	}
-	if settings.SpeciesGuide.Provider != "" && !slices.Contains(SpeciesGuideValidProviders, settings.SpeciesGuide.Provider) {
+	if settings.SpeciesGuide.Provider != "" && !slices.Contains(validProviders, settings.SpeciesGuide.Provider) {
 		return errors.Newf("SpeciesGuide.Provider %q is invalid (valid: %s)",
-			settings.SpeciesGuide.Provider, strings.Join(SpeciesGuideValidProviders, ", ")).
+			settings.SpeciesGuide.Provider, strings.Join(validProviders, ", ")).
 			Category(errors.CategoryValidation).
 			Context("validation_type", "species-guide-provider").
 			Build()
 	}
 	if settings.SpeciesGuide.FallbackPolicy != "" &&
-		!slices.Contains(SpeciesGuideValidFallbackPolicies, settings.SpeciesGuide.FallbackPolicy) {
+		!slices.Contains(validFallbackPolicies, settings.SpeciesGuide.FallbackPolicy) {
 		return errors.Newf("SpeciesGuide.FallbackPolicy %q is invalid (valid: %s)",
-			settings.SpeciesGuide.FallbackPolicy, strings.Join(SpeciesGuideValidFallbackPolicies, ", ")).
+			settings.SpeciesGuide.FallbackPolicy, strings.Join(validFallbackPolicies, ", ")).
 			Category(errors.CategoryValidation).
 			Context("validation_type", "species-guide-fallback-policy").
 			Build()

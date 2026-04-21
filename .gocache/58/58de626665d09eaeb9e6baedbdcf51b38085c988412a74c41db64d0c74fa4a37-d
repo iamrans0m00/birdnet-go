@@ -1,0 +1,4 @@
+./f32.go
+./f32_amd64.go
+./f32_go.go
+./f32_amd64.s

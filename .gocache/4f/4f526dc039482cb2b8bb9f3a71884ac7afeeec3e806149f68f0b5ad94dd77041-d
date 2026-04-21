@@ -1,0 +1,8 @@
+./icon_codes.go
+./icons.go
+./provider_common.go
+./provider_openweather.go
+./provider_wunderground.go
+./provider_yrno.go
+./providers.go
+./weather.go

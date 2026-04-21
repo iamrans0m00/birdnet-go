@@ -1,0 +1,17 @@
+./attachments.go
+./deferred_init.go
+./error_integration.go
+./eventbus_integration.go
+./health.go
+./init_coordinator.go
+./init_manager.go
+./logging.go
+./mock_transport.go
+./notification_reporter.go
+./optimized_capture.go
+./resource_snapshot.go
+./sentry.go
+./system_init_manager.go
+./systemid.go
+./test_helpers.go
+./worker.go

@@ -1,0 +1,8 @@
+./ebird.go
+./guideprovider.go
+./store.go
+./wikipedia.go
+./ebird_test.go
+./guideprovider_errors_test.go
+./guideprovider_test.go
+./wikipedia_test.go
