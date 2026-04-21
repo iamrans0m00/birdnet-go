@@ -16,6 +16,10 @@ type GuideProviderMetrics struct {
 	wikipediaAPILatency       *prometheus.HistogramVec
 	wikipediaAPIRequestsTotal *prometheus.CounterVec
 
+	// eBird API metrics
+	ebirdAPILatency       *prometheus.HistogramVec
+	ebirdAPIRequestsTotal *prometheus.CounterVec
+
 	// Database operation metrics
 	dbOperationDuration *prometheus.HistogramVec
 	dbOperationsTotal   *prometheus.CounterVec
@@ -78,6 +82,25 @@ func (m *GuideProviderMetrics) initMetrics() error {
 		[]string{"endpoint", "result"},
 	)
 
+	// eBird API latency histogram
+	m.ebirdAPILatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "guidecache_ebird_duration_seconds",
+			Help:    "Time taken for eBird API requests",
+			Buckets: prometheus.ExponentialBuckets(BucketStart100ms, BucketFactor2, BucketCount12), // 100ms to ~400s
+		},
+		[]string{"endpoint", "result"}, // endpoint: taxonomy; result: success, not_found, error
+	)
+
+	// eBird API request counter
+	m.ebirdAPIRequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "guidecache_ebird_requests_total",
+			Help: "Total number of eBird API requests",
+		},
+		[]string{"endpoint", "result"},
+	)
+
 	// Database operation duration
 	m.dbOperationDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -104,6 +127,8 @@ func (m *GuideProviderMetrics) initMetrics() error {
 		m.cachePositiveRatio,
 		m.wikipediaAPILatency,
 		m.wikipediaAPIRequestsTotal,
+		m.ebirdAPILatency,
+		m.ebirdAPIRequestsTotal,
 		m.dbOperationDuration,
 		m.dbOperationsTotal,
 	}
@@ -139,6 +164,12 @@ func (m *GuideProviderMetrics) RecordCacheMiss(provider string) {
 func (m *GuideProviderMetrics) RecordWikipediaAPICall(endpoint, result string, duration float64) {
 	m.wikipediaAPILatency.WithLabelValues(endpoint, result).Observe(duration)
 	m.wikipediaAPIRequestsTotal.WithLabelValues(endpoint, result).Inc()
+}
+
+// RecordEBirdAPICall records an eBird API call with latency and result status.
+func (m *GuideProviderMetrics) RecordEBirdAPICall(endpoint, result string, duration float64) {
+	m.ebirdAPILatency.WithLabelValues(endpoint, result).Observe(duration)
+	m.ebirdAPIRequestsTotal.WithLabelValues(endpoint, result).Inc()
 }
 
 // RecordDBOperation records a database operation with duration and status.
