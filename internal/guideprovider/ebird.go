@@ -42,7 +42,7 @@ func (p *EBirdGuideProvider) Fetch(ctx context.Context, scientificName string, _
 
 	defer func() {
 		if p.metrics != nil {
-			p.metrics.RecordWikipediaAPICall("taxonomy", result, time.Since(start).Seconds())
+			p.metrics.RecordEBirdAPICall("taxonomy", result, time.Since(start).Seconds())
 		}
 	}()
 

@@ -19,6 +19,7 @@ type GuideCacheMetrics interface {
 	RecordCacheHit(provider, quality string)
 	RecordCacheMiss(provider string)
 	RecordWikipediaAPICall(endpoint, result string, duration float64)
+	RecordEBirdAPICall(endpoint, result string, duration float64)
 	RecordDBOperation(operation, status string, duration float64)
 	// UpdateCachePopulationRatio records the fraction of stored cache entries that
 	// contain real guide data (positive) vs not-found markers (negative).
