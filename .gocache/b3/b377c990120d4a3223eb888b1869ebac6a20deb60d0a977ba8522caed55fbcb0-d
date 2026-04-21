@@ -1,8 +1,0 @@
-./database.go
-./maintenance.go
-./season.go
-./species_tracker.go
-./status.go
-./test_helpers.go
-./testing.go
-./update.go

@@ -1,7 +1,0 @@
-./disk_usage.go
-./disk_usage_windows.go
-./file_utils.go
-./policy_age.go
-./policy_common.go
-./policy_usage.go
-./pools.go

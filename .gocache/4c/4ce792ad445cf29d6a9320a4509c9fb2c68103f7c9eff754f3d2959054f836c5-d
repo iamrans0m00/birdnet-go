@@ -1,4 +1,0 @@
-./migration_telemetry.go
-./worker.go
-./worker_auxiliary.go
-./worker_related.go

@@ -1,5 +1,0 @@
-./doc.go
-./errors.go
-./pagerduty.go
-./pagerduty_config.go
-./pagerduty_json.go

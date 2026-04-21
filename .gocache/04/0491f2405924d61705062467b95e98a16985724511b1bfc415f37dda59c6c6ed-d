@@ -1,5 +1,0 @@
-./doc.go
-./mattermost.go
-./mattermost_config.go
-./mattermost_errors.go
-./mattermost_json.go

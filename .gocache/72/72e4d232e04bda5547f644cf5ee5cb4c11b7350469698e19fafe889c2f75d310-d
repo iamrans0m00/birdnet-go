@@ -1,6 +1,0 @@
-./compression.go
-./csrf.go
-./csrf_token.go
-./head.go
-./logging.go
-./security.go

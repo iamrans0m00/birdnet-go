@@ -1,6 +1,0 @@
-./doc.go
-./matrix_api.go
-./matrix_client.go
-./matrix_config.go
-./matrix_errors.go
-./matrix_service.go

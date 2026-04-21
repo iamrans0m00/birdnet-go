@@ -1,5 +1,0 @@
-./cache.go
-./errors.go
-./fifo.go
-./fifo_windows.go
-./securefs.go

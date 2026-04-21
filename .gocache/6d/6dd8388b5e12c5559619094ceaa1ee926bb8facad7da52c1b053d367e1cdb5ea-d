@@ -1,9 +1,0 @@
-./array_no_bounds_checks.go
-./cfft.go
-./cosq.go
-./cost.go
-./doc.go
-./helpers.go
-./rfft.go
-./sinq.go
-./sint.go
