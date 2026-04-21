@@ -1587,7 +1587,8 @@
         "empty": "Geen vergelijkbare soorten gevonden binnen hetzelfde geslacht of familie.",
         "sameGenus": "Zelfde geslacht",
         "sameFamily": "Zelfde familie",
-        "similar": "Vergelijkbaar"
+        "similar": "Vergelijkbaar",
+        "hideComparison": "Vergelijkingspaneel verbergen"
       }
     },
     "advanced": {

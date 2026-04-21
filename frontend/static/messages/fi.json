@@ -1587,7 +1587,8 @@
         "empty": "Samankaltaisia lajeja ei löytynyt tästä suvusta.",
         "sameGenus": "Sama suku",
         "sameFamily": "Sama heimo",
-        "similar": "Samankaltainen"
+        "similar": "Samankaltainen",
+        "hideComparison": "Piilota vertailupaneeli"
       }
     },
     "advanced": {

@@ -203,11 +203,17 @@
   {:else}
     <!-- Single row of species cards -->
     <div class="species-row">
-      <!-- Focal species card -->
-      <div class="species-card focal">
+      <!-- Focal species card — clicking hides the comparison panel while keeping the row visible. -->
+      <button
+        class="species-card focal"
+        onclick={() => {
+          selectedSimilarIndex = -1;
+        }}
+        aria-label={t('analytics.species.similar.hideComparison')}
+      >
         <span class="species-common">{commonName}</span>
         <span class="species-scientific">{scientificName}</span>
-      </div>
+      </button>
 
       <!-- Divider -->
       <div class="vs-divider">

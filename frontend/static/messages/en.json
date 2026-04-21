@@ -1611,7 +1611,8 @@
         "empty": "No similar species found in this genus.",
         "sameGenus": "Same genus",
         "sameFamily": "Same family",
-        "similar": "Similar"
+        "similar": "Similar",
+        "hideComparison": "Hide comparison panel"
       }
     },
     "advanced": {

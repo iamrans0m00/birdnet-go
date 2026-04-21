@@ -1587,7 +1587,8 @@
         "empty": "Aucune espèce similaire trouvée dans ce genre.",
         "sameGenus": "Même genre",
         "sameFamily": "Même famille",
-        "similar": "Similaire"
+        "similar": "Similaire",
+        "hideComparison": "Masquer le panneau de comparaison"
       }
     },
     "advanced": {
