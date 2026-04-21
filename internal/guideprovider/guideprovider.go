@@ -322,7 +322,7 @@ func (c *GuideCache) Get(ctx context.Context, scientificName string, opts FetchO
 // resolveProviderName returns the configured provider name, falling back to the default.
 func (c *GuideCache) resolveProviderName() string {
 	settings := conf.GetSettings()
-	if settings != nil {
+	if settings != nil && settings.Realtime.Dashboard.SpeciesGuide.Provider != "" {
 		return settings.Realtime.Dashboard.SpeciesGuide.Provider
 	}
 	return defaultProviderName
@@ -429,8 +429,12 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 	primaryProvider := defaultProviderName
 	fallbackPolicy := FallbackPolicyAll
 	if settings != nil {
-		primaryProvider = settings.Realtime.Dashboard.SpeciesGuide.Provider
-		fallbackPolicy = settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy
+		if p := settings.Realtime.Dashboard.SpeciesGuide.Provider; p != "" {
+			primaryProvider = p
+		}
+		if fp := settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy; fp != "" {
+			fallbackPolicy = fp
+		}
 	}
 
 	c.mu.RLock()
@@ -646,7 +650,7 @@ func (c *GuideCache) loadFromDB() {
 
 	settings := conf.GetSettings()
 	providerName := defaultProviderName
-	if settings != nil {
+	if settings != nil && settings.Realtime.Dashboard.SpeciesGuide.Provider != "" {
 		providerName = settings.Realtime.Dashboard.SpeciesGuide.Provider
 	}
 
@@ -708,7 +712,7 @@ func (c *GuideCache) refreshStaleEntries() {
 	log := getLogger()
 	settings := conf.GetSettings()
 	providerName := defaultProviderName
-	if settings != nil {
+	if settings != nil && settings.Realtime.Dashboard.SpeciesGuide.Provider != "" {
 		providerName = settings.Realtime.Dashboard.SpeciesGuide.Provider
 	}
 
