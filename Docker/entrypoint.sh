@@ -194,9 +194,12 @@ if [ "$DATA_SPACE_MB" -lt "$REQUIRED_SPACE_MB" ]; then
     echo "Available: ${DATA_SPACE_MB}MB" >&2
     echo "" >&2
     echo "💡 To resolve:" >&2
-    echo "  1. Increase volume size for /data mount" >&2
-    echo "  2. Free up space: docker exec birdnet-go rm -rf /data/clips/*" >&2
+    echo "  1. Free space by removing old clips (keeps last 7 days):" >&2
+    echo "     docker exec birdnet-go find /data/clips -type f -mtime +7 -delete" >&2
+    echo "  2. Increase volume size for /data mount" >&2
     echo "  3. Check host mount: df -h" >&2
+    echo "  4. Last resort (deletes ALL recordings):" >&2
+    echo "     docker exec birdnet-go rm -rf /data/clips/*" >&2
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
     echo "" >&2
     STARTUP_FAIL_DELAY="${BIRDNET_STARTUP_FAIL_DELAY:-10}"

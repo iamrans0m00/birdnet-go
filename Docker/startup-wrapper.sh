@@ -76,8 +76,10 @@ if [ $EXIT_CODE -ne 0 ]; then
         echo ""
         echo "💡 Quick fixes:"
         echo "  • Check available space: df -h"
-        echo "  • Clean old clips: rm -rf /data/clips/*"
+        echo "  • Clean old clips (keeps last 7 days):"
+        echo "    find /data/clips -type f -mtime +7 -delete"
         echo "  • Increase volume size"
+        echo "  • Last resort (deletes ALL recordings): rm -rf /data/clips/*"
     elif grep -qiE "permission denied|cannot write|config directory not writable" "$STARTUP_LOG"; then
         echo "⚠️  PERMISSION ERROR DETECTED"
         echo ""
