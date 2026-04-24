@@ -1135,7 +1135,7 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 					similar[idx].GuideSummary = summary
 					similar[idx].Sections = sections
 					mu.Unlock()
-				}(idx)
+				}(i)
 			}
 			wg.Wait()
 			return nil
