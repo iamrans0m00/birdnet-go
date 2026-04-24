@@ -281,22 +281,44 @@ func (p *WikipediaGuideProvider) Fetch(ctx context.Context, scientificName strin
 	// Step 1: Get the summary (intro + metadata like article URL).
 	summary, err := p.fetchSummary(ctx, scientificName, locale)
 	if err != nil {
-		// If non-English locale failed, try falling back to English.
-		if locale != defaultLocale {
-			log.Debug("Localized Wikipedia lookup failed, falling back to English",
+		// Distinguish between definitive not-found and transient/provider errors.
+		isNotFound := errors.Is(err, ErrGuideNotFound)
+
+		// If non-English locale failed and it's a definitive not-found, try falling back to English.
+		if locale != defaultLocale && isNotFound {
+			log.Debug("Species not found in localized Wikipedia, trying English",
 				logger.String("locale", locale),
 				logger.String("species", scientificName))
 			summary, err = p.fetchSummary(ctx, scientificName, defaultLocale)
 			if err != nil {
-				return SpeciesGuide{}, ErrGuideNotFound
+				// Check if English fallback also returned not-found or transient error
+				if errors.Is(err, ErrGuideNotFound) {
+					return SpeciesGuide{}, ErrGuideNotFound
+				}
+				// Transient error on English fallback - propagate with context
+				log.Debug("English Wikipedia lookup failed (transient)",
+					logger.String("locale", defaultLocale),
+					logger.String("species", scientificName),
+					logger.Any("error", err))
+				return SpeciesGuide{}, err
 			}
 			// Reset locale to English since we fell back
 			locale = defaultLocale
-		} else {
-			log.Debug("Wikipedia scientific name lookup failed",
+		} else if locale != defaultLocale && !isNotFound {
+			// Transient error on non-English locale - propagate instead of trying fallback
+			log.Debug("Transient error on localized Wikipedia lookup",
+				logger.String("locale", locale),
 				logger.String("species", scientificName),
 				logger.Any("error", err))
-			return SpeciesGuide{}, ErrGuideNotFound
+			return SpeciesGuide{}, err
+		} else {
+			// English locale (or already tried fallback) with any error
+			if !isNotFound {
+				log.Debug("Transient error on English Wikipedia lookup",
+					logger.String("species", scientificName),
+					logger.Any("error", err))
+			}
+			return SpeciesGuide{}, err
 		}
 	}
 
