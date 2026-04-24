@@ -130,9 +130,15 @@ func (s *APIServerService) Start(_ context.Context) error {
 	s.proc = processor.New(s.settings, dataStore, bn, s.metrics, s.birdImageCache, GetLogger())
 	s.proc.SetSunCalc(s.sunCalc)
 
-	// Wire up guide pre-fetch if enabled.
-	if s.guideCache != nil && s.settings.Realtime.Dashboard.SpeciesGuide.PreFetchEnabled {
-		s.proc.SetGuidePreFetch(s.guideCache.PreFetch)
+	// Wire up guide pre-fetch when a cache is present. The enabled flag is
+	// checked at invocation time so UI toggles hot-reload without restart.
+	if s.guideCache != nil {
+		s.proc.SetGuidePreFetch(func(ctx context.Context, scientificName string) {
+			if !s.settings.Realtime.Dashboard.SpeciesGuide.PreFetchEnabled {
+				return
+			}
+			s.guideCache.PreFetch(ctx, scientificName)
+		})
 	}
 
 	// Initialize backup system (optional — failure is non-fatal).

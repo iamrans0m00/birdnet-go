@@ -21,8 +21,9 @@ type GuideProviderMetrics struct {
 	ebirdAPIRequestsTotal *prometheus.CounterVec
 
 	// Database operation metrics
-	dbOperationDuration *prometheus.HistogramVec
-	dbOperationsTotal   *prometheus.CounterVec
+	dbOperationDuration    *prometheus.HistogramVec
+	dbOperationsTotal      *prometheus.CounterVec
+	dbOperationErrorsTotal *prometheus.CounterVec
 
 	collectors []prometheus.Collector
 }
@@ -117,7 +118,16 @@ func (m *GuideProviderMetrics) initMetrics() error {
 			Name: "guidecache_db_operations_total",
 			Help: "Total number of guide cache DB operations",
 		},
-		[]string{"operation", "status"}, // operation: db_query:guide_caches, db_insert:guide_caches, db_delete:guide_caches
+		[]string{"operation", "status"}, // operation: db_query:guide_caches, db_insert:guide_caches, db_delete:guide_caches; status: success, not_found, error
+	)
+
+	// Database operation error counter (categorized by error_type)
+	m.dbOperationErrorsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "guidecache_db_operation_errors_total",
+			Help: "Total number of guide cache DB operation errors categorized by error type",
+		},
+		[]string{"operation", "error_type"}, // error_type: validation, network, etc.
 	)
 
 	// Initialize collectors slice
@@ -131,6 +141,7 @@ func (m *GuideProviderMetrics) initMetrics() error {
 		m.ebirdAPIRequestsTotal,
 		m.dbOperationDuration,
 		m.dbOperationsTotal,
+		m.dbOperationErrorsTotal,
 	}
 
 	return nil
@@ -183,8 +194,12 @@ func (m *GuideProviderMetrics) RecordDuration(operation string, seconds float64)
 }
 
 // RecordError implements the Recorder interface for guide-provider DB work.
+// Errors are tallied in two metrics: the main operations counter with
+// status="error" (so status-based dashboards stay correct), and a dedicated
+// errors counter labelled by error_type for categorized breakdowns.
 func (m *GuideProviderMetrics) RecordError(operation, errorType string) {
-	m.dbOperationsTotal.WithLabelValues(operation, errorType).Inc()
+	m.dbOperationsTotal.WithLabelValues(operation, "error").Inc()
+	m.dbOperationErrorsTotal.WithLabelValues(operation, errorType).Inc()
 }
 
 // RecordDBOperation records a database operation with duration and status.
@@ -196,7 +211,10 @@ func (m *GuideProviderMetrics) RecordDBOperation(operation, status string, durat
 // UpdateCachePopulationRatio updates the gauge tracking what fraction of stored
 // cache entries contain real guide data (positive) vs not-found markers (negative).
 func (m *GuideProviderMetrics) UpdateCachePopulationRatio(positive, negative float64) {
-	if positive+negative > 0 {
-		m.cachePositiveRatio.Set(positive / (positive + negative))
+	total := positive + negative
+	if total > 0 {
+		m.cachePositiveRatio.Set(positive / total)
+		return
 	}
+	m.cachePositiveRatio.Set(0)
 }
