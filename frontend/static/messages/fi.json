@@ -1584,7 +1584,7 @@
         "title": "Samankaltaiset lajit",
         "compare": "Vertaa samankaltaisiin",
         "loading": "Ladataan samankaltaisia lajeja...",
-        "empty": "Samankaltaisia lajeja ei löytynyt tästä suvusta.",
+        "empty": "Samankaltaisia lajeja ei löytynyt tästä suvusta tai heimosta.",
         "sameGenus": "Sama suku",
         "sameFamily": "Sama heimo",
         "similar": "Samankaltainen",
