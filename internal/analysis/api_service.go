@@ -132,12 +132,16 @@ func (s *APIServerService) Start(_ context.Context) error {
 
 	// Wire up guide pre-fetch when a cache is present. The enabled flag is
 	// checked at invocation time so UI toggles hot-reload without restart.
+	// Capture the cache pointer locally: the flusher goroutine is not
+	// waited on during Stop(), so s.guideCache may be nil'd concurrently
+	// with an in-flight pre-fetch. PreFetch on a closed cache is a no-op.
 	if s.guideCache != nil {
+		cache := s.guideCache
 		s.proc.SetGuidePreFetch(func(ctx context.Context, scientificName string) {
 			if !s.settings.Realtime.Dashboard.SpeciesGuide.PreFetchEnabled {
 				return
 			}
-			s.guideCache.PreFetch(ctx, scientificName)
+			cache.PreFetch(ctx, scientificName)
 		})
 	}
 
