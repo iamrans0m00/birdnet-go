@@ -541,7 +541,16 @@
                   class="{index % 2 === 0
                     ? 'bg-[var(--color-base-100)]'
                     : 'bg-[var(--color-base-200)]'} cursor-pointer hover:bg-[var(--color-base-300)] transition-colors"
+                  tabindex="0"
+                  role="button"
+                  aria-label={`View ${species.common_name} details`}
                   onclick={() => handleSpeciesClick(species)}
+                  onkeydown={(e: KeyboardEvent) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSpeciesClick(species);
+                    }
+                  }}
                 >
                   <td>
                     <div class="flex items-center gap-3">
