@@ -285,7 +285,8 @@ func (p *WikipediaGuideProvider) Fetch(ctx context.Context, scientificName strin
 		isNotFound := errors.Is(err, ErrGuideNotFound)
 
 		// If non-English locale failed and it's a definitive not-found, try falling back to English.
-		if locale != defaultLocale && isNotFound {
+		switch {
+		case locale != defaultLocale && isNotFound:
 			log.Debug("Species not found in localized Wikipedia, trying English",
 				logger.String("locale", locale),
 				logger.String("species", scientificName))
@@ -304,14 +305,14 @@ func (p *WikipediaGuideProvider) Fetch(ctx context.Context, scientificName strin
 			}
 			// Reset locale to English since we fell back
 			locale = defaultLocale
-		} else if locale != defaultLocale && !isNotFound {
+		case locale != defaultLocale && !isNotFound:
 			// Transient error on non-English locale - propagate instead of trying fallback
 			log.Debug("Transient error on localized Wikipedia lookup",
 				logger.String("locale", locale),
 				logger.String("species", scientificName),
 				logger.Any("error", err))
 			return SpeciesGuide{}, err
-		} else {
+		default:
 			// English locale (or already tried fallback) with any error
 			if !isNotFound {
 				log.Debug("Transient error on English Wikipedia lookup",

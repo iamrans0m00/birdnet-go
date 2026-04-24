@@ -1511,8 +1511,8 @@ func (p *Processor) flushPendingDetections(minDetections int) (pendingCount, flu
 
 	// Process approved detections outside the lock to allow prefetch callbacks to run without blocking.
 	ctx := context.Background()
-	for _, approved := range approvedItems {
-		p.processApprovedDetection(ctx, &approved.item, approved.speciesName)
+	for i := range approvedItems {
+		p.processApprovedDetection(ctx, &approvedItems[i].item, approvedItems[i].speciesName)
 	}
 
 	// Broadcast outside the lock to avoid blocking processDetections.
