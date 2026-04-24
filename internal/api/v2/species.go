@@ -1315,6 +1315,14 @@ func (c *Controller) DeleteSpeciesNote(ctx echo.Context) error {
 			Build(), "Missing note ID", http.StatusBadRequest)
 	}
 
+	// Validate ID is numeric before calling datastore
+	if _, parseErr := strconv.ParseUint(noteID, 10, 32); parseErr != nil {
+		return c.HandleError(ctx, errors.Newf("invalid note ID").
+			Category(errors.CategoryValidation).
+			Component("api-species").
+			Build(), "Invalid note ID", http.StatusBadRequest)
+	}
+
 	if err := c.DS.DeleteSpeciesNote(ctx.Request().Context(), noteID); err != nil {
 		if errors.Is(err, datastore.ErrSpeciesNoteNotFound) {
 			return c.HandleError(ctx, err, "Species note not found", http.StatusNotFound)

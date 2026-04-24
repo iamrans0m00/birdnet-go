@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-BirdNET-Go: Go implementation of BirdNET for real-time bird sound identification aimed for non serious birders and home users. Open source project for fun.
+BirdNET-Go: Go implementation of BirdNET for real-time bird sound identification aimed for non-serious birders and home users. Open-source project for fun.
 
 ## Quick Navigation
 
@@ -95,7 +95,7 @@ ast-grep --pattern "export let $PROP" --rewrite "let { $PROP } = \$props()" --la
 1. Run linters: `golangci-lint run -v` / `npm run check:all`
 2. Run tests: `go test -race -v` / `npm test`
 3. Check open PRs to avoid conflicts
-4. Format markdown with prettier
+4. Format Markdown with prettier
 5. Document all exports
 
 ## PR Review Workflow

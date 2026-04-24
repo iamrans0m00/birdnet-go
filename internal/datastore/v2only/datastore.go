@@ -3070,6 +3070,13 @@ func (ds *Datastore) SaveSpeciesNote(ctx context.Context, note *datastore.Specie
 	if note == nil {
 		return fmt.Errorf("species note cannot be nil")
 	}
+
+	// Validate and normalize scientific name
+	note.ScientificName = strings.TrimSpace(note.ScientificName)
+	if note.ScientificName == "" {
+		return fmt.Errorf("species scientific name cannot be empty")
+	}
+
 	if ctx == nil {
 		ctx = context.Background()
 	}
