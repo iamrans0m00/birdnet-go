@@ -60,7 +60,7 @@ func (s *GORMGuideStore) GetGuideCache(ctx context.Context, scientificName, prov
 		}
 		status = DBResultError
 		s.recordDBMetric(DBOperationQueryGuideCaches, status, start)
-		return nil, errors.Newf("GetGuideCache provider=%s species=%s locale=%s: %w", scientificName, providerName, locale, err).
+		return nil, errors.Newf("GetGuideCache provider=%s species=%s locale=%s: %w", providerName, scientificName, locale, err).
 			Component("guideprovider").
 			Category(errors.CategoryDatabase).
 			Build()
