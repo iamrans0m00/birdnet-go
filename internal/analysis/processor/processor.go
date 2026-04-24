@@ -1420,14 +1420,15 @@ func (p *Processor) flushPendingDetections(minDetections int) (pendingCount, flu
 
 	var terminalNotifs []SSEPendingDetection
 	var broadcastSnapshot []SSEPendingDetection
-	var approvedItems []struct {
-		item        PendingDetection
-		speciesName string
-	}
 
 	p.pendingMutex.Lock()
 
 	pendingCount = len(p.pendingDetections)
+
+	approvedItems := make([]struct {
+		item        PendingDetection
+		speciesName string
+	}, 0, pendingCount)
 
 	for mapKey := range p.pendingDetections {
 		item := p.pendingDetections[mapKey]
