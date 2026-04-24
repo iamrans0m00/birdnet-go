@@ -184,8 +184,7 @@ func (m *GuideProviderMetrics) RecordDuration(operation string, seconds float64)
 
 // RecordError implements the Recorder interface for guide-provider DB work.
 func (m *GuideProviderMetrics) RecordError(operation, errorType string) {
-	_ = errorType
-	m.dbOperationsTotal.WithLabelValues(operation, "error").Inc()
+	m.dbOperationsTotal.WithLabelValues(operation, errorType).Inc()
 }
 
 // RecordDBOperation records a database operation with duration and status.
