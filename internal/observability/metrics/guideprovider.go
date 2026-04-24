@@ -203,9 +203,22 @@ func (m *GuideProviderMetrics) RecordError(operation, errorType string) {
 }
 
 // RecordDBOperation records a database operation with duration and status.
+// For error paths, callers should use RecordDBError instead so the
+// error_type-labeled counter is incremented.
 func (m *GuideProviderMetrics) RecordDBOperation(operation, status string, duration float64) {
 	m.RecordOperation(operation, status)
 	m.dbOperationDuration.WithLabelValues(operation).Observe(duration)
+}
+
+// RecordDBError records a failed database operation: observes the duration,
+// bumps the operations counter with status="error", and bumps the dedicated
+// errors counter labelled by error_type. This is the error-path counterpart
+// to RecordDBOperation and ensures dbOperationErrorsTotal is reachable from
+// guide cache code paths.
+func (m *GuideProviderMetrics) RecordDBError(operation, errorType string, duration float64) {
+	m.dbOperationDuration.WithLabelValues(operation).Observe(duration)
+	m.dbOperationsTotal.WithLabelValues(operation, "error").Inc()
+	m.dbOperationErrorsTotal.WithLabelValues(operation, errorType).Inc()
 }
 
 // UpdateCachePopulationRatio updates the gauge tracking what fraction of stored

@@ -21,6 +21,11 @@ type GuideCacheMetrics interface {
 	RecordWikipediaAPICall(endpoint, result string, duration float64)
 	RecordEBirdAPICall(endpoint, result string, duration float64)
 	RecordDBOperation(operation, status string, duration float64)
+	// RecordDBError records a failed DB operation: observes the duration,
+	// bumps the operations counter with status="error", and bumps a dedicated
+	// error counter labelled by error_type. Callers should use this instead of
+	// RecordDBOperation(op, "error", duration) on error paths.
+	RecordDBError(operation, errorType string, duration float64)
 	// UpdateCachePopulationRatio records the fraction of stored cache entries that
 	// contain real guide data (positive) vs not-found markers (negative).
 	// This is distinct from a request-level hit ratio.
@@ -93,6 +98,11 @@ const (
 	DBOperationQueryGuideCaches  = "db_query:guide_caches"
 	DBOperationInsertGuideCaches = "db_insert:guide_caches"
 	DBOperationDeleteGuideCaches = "db_delete:guide_caches"
+
+	// DB error_type label values for RecordDBError.
+	DBErrorTypeCanceled = "context_canceled"
+	DBErrorTypeDeadline = "context_deadline"
+	DBErrorTypeDatabase = "database"
 )
 
 // defaultProviderName is the provider used when settings are unavailable.
