@@ -254,7 +254,7 @@ describe('SpeciesComparison', () => {
           json: () => Promise.resolve({ similar: mockSimilarSpecies }),
         });
       }
-      if (url.includes('guide') && url.includes('Turdus migratorius')) {
+      if (url.includes('guide') && url.includes('Turdus%20migratorius')) {
         return Promise.resolve({
           ok: true,
           json: () => Promise.resolve({ description: 'Focal description' }),

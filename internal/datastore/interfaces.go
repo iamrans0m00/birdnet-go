@@ -1656,6 +1656,9 @@ func withSpeciesNoteContext(ctx context.Context) context.Context {
 
 // GetSpeciesNotes retrieves all notes for a species by scientific name.
 func (ds *DataStore) GetSpeciesNotes(ctx context.Context, scientificName string) ([]SpeciesNote, error) {
+	// Normalize scientific name for consistent lookup
+	scientificName = strings.TrimSpace(scientificName)
+
 	ctx = withSpeciesNoteContext(ctx)
 	var notes []SpeciesNote
 	if err := ds.DB.WithContext(ctx).
@@ -1695,9 +1698,13 @@ func (ds *DataStore) SaveSpeciesNote(ctx context.Context, note *SpeciesNote) err
 	if note == nil {
 		return validationError("note cannot be nil", "note", nil)
 	}
+
+	// Normalize scientific name for consistent storage
+	note.ScientificName = strings.TrimSpace(note.ScientificName)
 	if note.ScientificName == "" {
 		return validationError("scientific name cannot be empty", "scientific_name", "")
 	}
+
 	normalizedEntry, err := NormalizeSpeciesNoteEntry(note.Entry)
 	if err != nil {
 		return err

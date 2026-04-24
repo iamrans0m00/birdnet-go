@@ -51,8 +51,8 @@ type Controller struct {
 	Repo                datastore.DetectionRepository // New: Preferred for detection CRUD operations
 	Settings            *conf.Settings
 	BirdImageCache      *imageprovider.BirdImageCache
-	GuideCache          *guideprovider.GuideCache
-	guideCacheMu        sync.RWMutex // protects GuideCache for hot-reload
+	guideCache          *guideprovider.GuideCache
+	guideCacheMu        sync.RWMutex // protects guideCache for hot-reload
 	SunCalc             *suncalc.SunCalc
 	Processor           *processor.Processor
 	EBirdClient         *ebird.Client
@@ -162,25 +162,38 @@ func WithMetricsStore(store observability.MetricsStore) Option {
 // WithGuideCache sets the species guide cache for the controller.
 func WithGuideCache(gc *guideprovider.GuideCache) Option {
 	return func(c *Controller) {
-		c.GuideCache = gc
+		c.guideCache = gc
 	}
 }
 
-// GetGuideCache returns the current guide cache pointer (thread-safe).
-func (c *Controller) GetGuideCache() *guideprovider.GuideCache {
+// WithGuideCache executes a callback with the current guide cache.
+// The pointer is snapshotted under the read lock and the lock is released before
+// invoking the callback. This keeps SetGuideCache (rare config hot-reload) from
+// blocking for the duration of long-running network I/O inside the callback.
+//
+// GuideCache is safe to use after Close(): Close() only cancels the root context
+// and closes the quit channel. Memory- and DB-cache hits still succeed; only
+// network fetches that fall back to rootCtx will return a cancelled-context
+// error. Callbacks that arrive exactly during a swap may see that degraded
+// behavior, which is acceptable since hot-reload is user-initiated and rare.
+func (c *Controller) WithGuideCache(fn func(*guideprovider.GuideCache) error) error {
 	c.guideCacheMu.RLock()
-	defer c.guideCacheMu.RUnlock()
-	return c.GuideCache
+	gc := c.guideCache
+	c.guideCacheMu.RUnlock()
+	return fn(gc)
 }
 
 // SetGuideCache replaces the guide cache (thread-safe). The old cache is closed if non-nil.
+// Close() is called outside the lock so it does not block concurrent WithGuideCache readers.
 func (c *Controller) SetGuideCache(gc *guideprovider.GuideCache) {
 	c.guideCacheMu.Lock()
-	defer c.guideCacheMu.Unlock()
-	if c.GuideCache != nil {
-		c.GuideCache.Close()
+	oldCache := c.guideCache
+	c.guideCache = gc
+	c.guideCacheMu.Unlock()
+
+	if oldCache != nil {
+		oldCache.Close()
 	}
-	c.GuideCache = gc
 }
 
 // WithV2Manager sets the v2 database manager for the controller.

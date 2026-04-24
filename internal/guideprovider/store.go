@@ -60,7 +60,10 @@ func (s *GORMGuideStore) GetGuideCache(ctx context.Context, scientificName, prov
 		}
 		status = DBResultError
 		s.recordDBMetric(DBOperationQueryGuideCaches, status, start)
-		return nil, err
+		return nil, errors.Newf("GetGuideCache provider=%s species=%s locale=%s: %w", providerName, scientificName, locale, err).
+			Component("guideprovider").
+			Category(errors.CategoryDatabase).
+			Build()
 	}
 	s.recordDBMetric(DBOperationQueryGuideCaches, status, start)
 	return &entry, nil
@@ -89,9 +92,14 @@ func (s *GORMGuideStore) SaveGuideCache(ctx context.Context, entry *GuideCacheEn
 	status := DBResultSuccess
 	if err != nil {
 		status = DBResultError
+		s.recordDBMetric(DBOperationInsertGuideCaches, status, start)
+		return errors.Newf("SaveGuideCache provider=%s species=%s locale=%s: %w", entry.ProviderName, entry.ScientificName, entry.Locale, err).
+			Component("guideprovider").
+			Category(errors.CategoryDatabase).
+			Build()
 	}
 	s.recordDBMetric(DBOperationInsertGuideCaches, status, start)
-	return err
+	return nil
 }
 
 // GetAllGuideCaches retrieves guide cache entries for a specific provider,
@@ -110,12 +118,17 @@ func (s *GORMGuideStore) GetAllGuideCaches(ctx context.Context, providerName str
 	status := DBResultSuccess
 	if err != nil {
 		status = DBResultError
+		s.recordDBMetric(DBOperationQueryGuideCaches, status, start)
 		getLogger().Warn("Failed to query guide caches",
 			logger.String("provider", providerName),
 			logger.Any("error", err))
+		return nil, errors.Newf("GetAllGuideCaches provider=%s: %w", providerName, err).
+			Component("guideprovider").
+			Category(errors.CategoryDatabase).
+			Build()
 	}
 	s.recordDBMetric(DBOperationQueryGuideCaches, status, start)
-	return entries, err
+	return entries, nil
 }
 
 // DeleteStaleGuideCaches deletes cache entries older than the specified time.
@@ -129,10 +142,15 @@ func (s *GORMGuideStore) DeleteStaleGuideCaches(ctx context.Context, providerNam
 	status := DBResultSuccess
 	if result.Error != nil {
 		status = DBResultError
+		s.recordDBMetric(DBOperationDeleteGuideCaches, status, start)
 		getLogger().Warn("Failed to delete stale guide caches",
 			logger.String("provider", providerName),
 			logger.Any("error", result.Error))
+		return 0, errors.Newf("DeleteStaleGuideCaches provider=%s: %w", providerName, result.Error).
+			Component("guideprovider").
+			Category(errors.CategoryDatabase).
+			Build()
 	}
 	s.recordDBMetric(DBOperationDeleteGuideCaches, status, start)
-	return result.RowsAffected, result.Error
+	return result.RowsAffected, nil
 }

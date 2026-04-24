@@ -27,14 +27,47 @@
   const songsSectionId = `species-songs-${uid}`;
   const similarSectionId = `species-similar-${uid}`;
 
+  // Canonical section identifiers for mapping localized headings
+  const GUIDE_SECTION_SONGS = 'songs_and_calls';
+  const GUIDE_SECTION_SIMILAR = 'similar_species';
+
+  // Map of localized section headings to canonical IDs
+  // These are the known section titles in different languages from Wikipedia
+  const sectionHeadingMap: Record<string, string> = {
+    'songs and calls': GUIDE_SECTION_SONGS,
+    'song and calls': GUIDE_SECTION_SONGS,
+    vocalisation: GUIDE_SECTION_SONGS,
+    vocalization: GUIDE_SECTION_SONGS,
+    voice: GUIDE_SECTION_SONGS,
+    stimme: GUIDE_SECTION_SONGS, // German
+    'chant et cris': GUIDE_SECTION_SONGS, // French
+    voix: GUIDE_SECTION_SONGS, // French
+    voz: GUIDE_SECTION_SONGS, // Spanish
+    canto: GUIDE_SECTION_SONGS, // Spanish/Italian
+    głos: GUIDE_SECTION_SONGS, // Polish
+    ääntelyt: GUIDE_SECTION_SONGS, // Finnish
+    läte: GUIDE_SECTION_SONGS, // Estonian
+    'similar species': GUIDE_SECTION_SIMILAR,
+    'ähnliche arten': GUIDE_SECTION_SIMILAR, // German
+    'espèces similaires': GUIDE_SECTION_SIMILAR, // French
+    'especies similares': GUIDE_SECTION_SIMILAR, // Spanish
+    'specie simili': GUIDE_SECTION_SIMILAR, // Italian
+    'podobné druhy': GUIDE_SECTION_SIMILAR, // Czech
+    'pokrewne gatunki': GUIDE_SECTION_SIMILAR, // Polish
+  };
+
   let similarSpecies = $state<SimilarSpeciesEntry[]>([]);
-  let isLoading = $state(true);
   let focalGuide = $state<SpeciesGuideData | null>(null);
   let focalSections = $state<ReturnType<typeof parseGuideDescription>>([]);
   let selectedSimilarIndex = $state<number>(0);
   let isLoadingSimilarGuide = $state(false);
   let similarGuideSections = $state<ReturnType<typeof parseGuideDescription>>([]);
   let currentRequestId = 0;
+
+  // Track completion of individual async requests to manage overall loading state
+  let isLoadingFocalGuide = $state(false);
+  let isLoadingSimilarList = $state(false);
+  let isLoading = $derived(isLoadingFocalGuide || isLoadingSimilarList);
   let selectedSimilarEntry = $derived(
     selectedSimilarIndex >= 0 && selectedSimilarIndex < similarSpecies.length
       ? // eslint-disable-next-line security/detect-object-injection -- bounds-checked by the condition above
@@ -55,6 +88,7 @@
   }
 
   async function fetchFocalSpeciesGuide(requestId: number, signal?: AbortSignal) {
+    isLoadingFocalGuide = true;
     focalGuide = null;
     focalSections = [];
 
@@ -74,11 +108,15 @@
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
       logger.error('Failed to fetch focal species guide', err);
+    } finally {
+      if (isCurrentRequest(requestId, signal)) {
+        isLoadingFocalGuide = false;
+      }
     }
   }
 
   async function fetchSimilarSpecies(requestId: number, signal?: AbortSignal) {
-    isLoading = true;
+    isLoadingSimilarList = true;
     similarSpecies = [];
     try {
       const locale = getLocale();
@@ -101,7 +139,7 @@
       logger.error('Failed to fetch similar species', err);
     } finally {
       if (isCurrentRequest(requestId, signal)) {
-        isLoading = false;
+        isLoadingSimilarList = false;
       }
     }
     // Auto-select first species after list-loading state clears.
@@ -163,7 +201,8 @@
     focalSections = [];
     selectedSimilarIndex = 0;
     similarGuideSections = [];
-    isLoading = true;
+    isLoadingFocalGuide = true;
+    isLoadingSimilarList = true;
     isLoadingSimilarGuide = false;
 
     void Promise.all([
@@ -177,13 +216,21 @@
     };
   });
 
-  // Helper to extract specific section from focal guide by heading name.
-  function getSectionContent(
+  // Get section content by canonical ID, matching against all known localized headings
+  function getSectionContentByCanonical(
     sections: ReturnType<typeof parseGuideDescription>,
-    heading: string
+    canonicalId: string
   ): string {
-    const section = sections.find(s => s.heading?.toLowerCase() === heading.toLowerCase());
-    return section?.body ?? '';
+    // First, try to find a section whose heading maps to this canonical ID
+    for (const section of sections) {
+      if (section.heading) {
+        const normalizedHeading = section.heading.toLowerCase();
+        if (sectionHeadingMap[normalizedHeading] === canonicalId) {
+          return section.body ?? '';
+        }
+      }
+    }
+    return '';
   }
 
   // Helper to get the first section with content, regardless of locale-specific heading.
@@ -358,18 +405,7 @@
               <div class="comparison-side focal">
                 <span class="side-label">{commonName}</span>
                 <p class="side-content">
-                  {getSectionContent(focalSections, 'Songs and calls') ||
-                    getSectionContent(focalSections, 'Song and calls') ||
-                    getSectionContent(focalSections, 'Vocalisation') ||
-                    getSectionContent(focalSections, 'Voice') ||
-                    getSectionContent(focalSections, 'Stimme') ||
-                    getSectionContent(focalSections, 'Chant et cris') ||
-                    getSectionContent(focalSections, 'Voix') ||
-                    getSectionContent(focalSections, 'Voz') ||
-                    getSectionContent(focalSections, 'Canto') ||
-                    getSectionContent(focalSections, 'Głos') ||
-                    getSectionContent(focalSections, 'Ääntelyt') ||
-                    getSectionContent(focalSections, 'Läte') ||
+                  {getSectionContentByCanonical(focalSections, GUIDE_SECTION_SONGS) ||
                     t('analytics.species.guide.noSongs')}
                 </p>
               </div>
@@ -405,11 +441,7 @@
                 <span class="side-label">{commonName}</span>
                 <p class="side-content">
                   {#if focalSections.length > 0}
-                    {getSectionContent(focalSections, 'Similar species') ||
-                      getSectionContent(focalSections, 'Ähnliche Arten') ||
-                      getSectionContent(focalSections, 'Espèces similaires') ||
-                      getSectionContent(focalSections, 'Especies similares') ||
-                      getSectionContent(focalSections, 'Verwechslungsmöglichkeiten') ||
+                    {getSectionContentByCanonical(focalSections, GUIDE_SECTION_SIMILAR) ||
                       t('analytics.species.guide.noSimilar')}
                   {:else}
                     {t('analytics.species.guide.noSimilar')}

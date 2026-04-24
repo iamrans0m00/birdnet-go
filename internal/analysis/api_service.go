@@ -76,6 +76,10 @@ func (s *APIServerService) Start(_ context.Context) error {
 	defer func() {
 		if !startSucceeded {
 			// Best-effort cleanup of partially initialized resources.
+			if s.guideCache != nil {
+				s.guideCache.Close()
+				s.guideCache = nil
+			}
 			if s.systemMonitor != nil {
 				s.systemMonitor.Stop()
 				s.systemMonitor = nil

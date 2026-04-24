@@ -28,23 +28,43 @@ const ANALYTICS_CATEGORY = 'analytics';
 
 /** Sensitive key patterns to redact from event labels */
 const SENSITIVE_KEYS =
-  /(token|password|secret|apikey|api_key|authorization|cookie|session|sessionid|email|ip_address)/i;
+  /(token|password|secret|apikey|api_key|authorization|cookie|session|sessionid|email|\bip\b|ip_address)/i;
 
 /**
- * Redact sensitive keys from an object to prevent PII leakage
+ * Redact sensitive keys from an object to prevent PII leakage.
+ * Recursively handles nested objects and arrays.
  */
-function redactSensitive(data: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(data).map(([key, value]) => {
-      if (SENSITIVE_KEYS.test(key)) {
-        return [key, '[redacted]'];
-      }
-      if (typeof value === 'string' && value.length > 500) {
-        return [key, value.slice(0, 500) + '...[truncated]'];
-      }
-      return [key, value];
-    })
-  );
+function redactSensitive(data: unknown): unknown {
+  if (data === null || data === undefined) {
+    return data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.map(item => redactSensitive(item));
+  }
+
+  if (typeof data === 'object') {
+    return Object.fromEntries(
+      Object.entries(data as Record<string, unknown>).map(([key, value]) => {
+        if (SENSITIVE_KEYS.test(key)) {
+          return [key, '[redacted]'];
+        }
+        if (typeof value === 'string' && value.length > 500) {
+          return [key, value.slice(0, 500) + '...[truncated]'];
+        }
+        if (typeof value === 'object') {
+          return [key, redactSensitive(value)];
+        }
+        return [key, value];
+      })
+    );
+  }
+
+  if (typeof data === 'string' && data.length > 500) {
+    return data.slice(0, 500) + '...[truncated]';
+  }
+
+  return data;
 }
 
 /**
@@ -55,7 +75,7 @@ function redactSensitive(data: Record<string, unknown>): Record<string, unknown>
  */
 export function trackEvent(eventName: string, labels?: Record<string, unknown>): void {
   const timestamp = getLocalDateString();
-  const safeLabels = labels ? redactSensitive(labels) : {};
+  const safeLabels = labels ? (redactSensitive(labels) as Record<string, unknown>) : {};
 
   // Log to console in development
   if (import.meta.env.DEV) {
