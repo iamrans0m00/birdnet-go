@@ -423,16 +423,9 @@ func TestTaxonomyInfoJSONSerialization(t *testing.T) {
 
 // TestGetSpeciesGuide tests the GetSpeciesGuide endpoint.
 func TestGetSpeciesGuide(t *testing.T) {
-	t.Parallel()
 	t.Attr("component", "species")
 	t.Attr("type", "unit")
 	t.Attr("feature", "species-guide")
-
-	// Save original settings and restore after test
-	origSettings := conf.GetSettings()
-	t.Cleanup(func() {
-		conf.SetTestSettings(origSettings)
-	})
 
 	tests := []struct {
 		name           string
@@ -447,7 +440,6 @@ func TestGetSpeciesGuide(t *testing.T) {
 			setupCtrl: func(c *Controller) {
 				settings := conf.GetTestSettings()
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = false
-				conf.SetTestSettings(settings)
 				c.Settings = settings
 			},
 			expectedStatus: http.StatusServiceUnavailable,
@@ -459,7 +451,6 @@ func TestGetSpeciesGuide(t *testing.T) {
 			setupCtrl: func(c *Controller) {
 				settings := conf.GetTestSettings()
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
-				conf.SetTestSettings(settings)
 				c.Settings = settings
 				c.GuideCache = nil
 			},
@@ -472,7 +463,6 @@ func TestGetSpeciesGuide(t *testing.T) {
 			setupCtrl: func(c *Controller) {
 				settings := conf.GetTestSettings()
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
-				conf.SetTestSettings(settings)
 				c.Settings = settings
 				c.GuideCache = guideprovider.NewGuideCache(nil, nil)
 			},
@@ -487,7 +477,6 @@ func TestGetSpeciesGuide(t *testing.T) {
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
 				settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
-				conf.SetTestSettings(settings)
 				c.Settings = settings
 				cache := guideprovider.NewGuideCache(nil, nil)
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
@@ -506,7 +495,6 @@ func TestGetSpeciesGuide(t *testing.T) {
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
 				settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
-				conf.SetTestSettings(settings)
 				c.Settings = settings
 				cache := guideprovider.NewGuideCache(nil, nil)
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
@@ -534,7 +522,6 @@ func TestGetSpeciesGuide(t *testing.T) {
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
 				settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
-				conf.SetTestSettings(settings)
 				c.Settings = settings
 				cache := guideprovider.NewGuideCache(nil, nil)
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
@@ -766,7 +753,7 @@ func TestGetSpeciesNotes(t *testing.T) {
 		e := echo.New()
 		mockDS := mocks.NewMockInterface(t)
 		mockDS.EXPECT().
-			GetSpeciesNotes("Turdus merula").
+			GetSpeciesNotes(mock.Anything, "Turdus merula").
 			Return([]datastore.SpeciesNote{
 				{ID: 1, ScientificName: "Turdus merula", Entry: "Seen in garden"},
 				{ID: 2, ScientificName: "Turdus merula", Entry: "Singing at dawn"},
@@ -839,8 +826,8 @@ func TestCreateSpeciesNote(t *testing.T) {
 		e := echo.New()
 		mockDS := mocks.NewMockInterface(t)
 		mockDS.EXPECT().
-			SaveSpeciesNote(mock.AnythingOfType("*datastore.SpeciesNote")).
-			Run(func(note *datastore.SpeciesNote) {
+			SaveSpeciesNote(mock.Anything, mock.AnythingOfType("*datastore.SpeciesNote")).
+			Run(func(ctx context.Context, note *datastore.SpeciesNote) {
 				assert.Equal(t, "Turdus merula", note.ScientificName)
 				assert.Equal(t, "Beautiful singer", note.Entry)
 			}).
@@ -905,7 +892,7 @@ func TestDeleteSpeciesNote(t *testing.T) {
 		e := echo.New()
 		mockDS := mocks.NewMockInterface(t)
 		mockDS.EXPECT().
-			DeleteSpeciesNote("42").
+			DeleteSpeciesNote(mock.Anything, "42").
 			Return(nil)
 
 		req := httptest.NewRequest(http.MethodDelete, "/api/v2/species/notes/42", http.NoBody)
@@ -952,10 +939,10 @@ func TestUpdateSpeciesNote(t *testing.T) {
 		e := echo.New()
 		mockDS := mocks.NewMockInterface(t)
 		mockDS.EXPECT().
-			UpdateSpeciesNote("42", "updated entry").
+			UpdateSpeciesNote(mock.Anything, "42", "updated entry").
 			Return(nil)
 		mockDS.EXPECT().
-			GetSpeciesNoteByID(uint(42)).
+			GetSpeciesNoteByID(mock.Anything, uint(42)).
 			Return(&datastore.SpeciesNote{
 				ID:             42,
 				ScientificName: "Turdus merula",

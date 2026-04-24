@@ -53,6 +53,9 @@ func (p *EBirdGuideProvider) Fetch(ctx context.Context, scientificName string, _
 			logger.String("species", scientificName),
 			logger.Any("error", err))
 		result = "error"
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return SpeciesGuide{}, err
+		}
 		return SpeciesGuide{}, errors.Newf("eBird taxonomy lookup: %w", err).
 			Component("guideprovider").
 			Category(errors.CategoryNetwork).

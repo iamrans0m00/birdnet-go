@@ -154,17 +154,17 @@ Lightweight connectivity check. Returns a minimal response with no database quer
 
 ### Notifications (`notifications.go`)
 
-| Method | Route                              | Handler                            | Auth | Description                                                                                                                                                   |
-| ------ | ---------------------------------- | ---------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/notifications/stream`            | `StreamNotifications`              | ❌⚡ | SSE notification & toast stream (public read-only, rate-limited). Used by dashboard NotificationBell.                                                         |
-| GET    | `/notifications`                   | `GetNotifications`                 | ❌   | List notifications (public read-only). Used by dashboard NotificationBell.                                                                                    |
-| GET    | `/notifications/:id`               | `GetNotification`                  | ✅   | Get specific notification                                                                                                                                     |
-| PUT    | `/notifications/:id/read`          | `MarkNotificationRead`             | ✅   | Mark notification as read                                                                                                                                     |
-| PUT    | `/notifications/:id/acknowledge`   | `MarkNotificationAcknowledged`     | ✅   | Acknowledge notification                                                                                                                                      |
-| DELETE | `/notifications/:id`               | `DeleteNotification`               | ✅   | Delete notification                                                                                                                                           |
-| GET    | `/notifications/unread/count`      | `GetUnreadCount`                   | ❌   | Count unread notifications (public read-only). Used by dashboard NotificationBell.                                                                            |
-| POST   | `/notifications/test/new-species`  | `CreateTestNewSpeciesNotification` | ✅   | Create test new-species notification                                                                                                                          |
-| GET    | `/notifications/check-ntfy-server` | `CheckNtfyServer`                  | ✅   | Probe NTFY host for HTTPS/HTTP connectivity (authenticated to prevent SSRF relay). Query: `host=<hostname[:port]>`.                                           |
+| Method | Route                              | Handler                            | Auth | Description                                                                                                         |
+| ------ | ---------------------------------- | ---------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/notifications/stream`            | `StreamNotifications`              | ❌⚡ | SSE notification & toast stream (public read-only, rate-limited). Used by dashboard NotificationBell.               |
+| GET    | `/notifications`                   | `GetNotifications`                 | ❌   | List notifications (public read-only). Used by dashboard NotificationBell.                                          |
+| GET    | `/notifications/:id`               | `GetNotification`                  | ✅   | Get specific notification                                                                                           |
+| PUT    | `/notifications/:id/read`          | `MarkNotificationRead`             | ✅   | Mark notification as read                                                                                           |
+| PUT    | `/notifications/:id/acknowledge`   | `MarkNotificationAcknowledged`     | ✅   | Acknowledge notification                                                                                            |
+| DELETE | `/notifications/:id`               | `DeleteNotification`               | ✅   | Delete notification                                                                                                 |
+| GET    | `/notifications/unread/count`      | `GetUnreadCount`                   | ❌   | Count unread notifications (public read-only). Used by dashboard NotificationBell.                                  |
+| POST   | `/notifications/test/new-species`  | `CreateTestNewSpeciesNotification` | ✅   | Create test new-species notification                                                                                |
+| GET    | `/notifications/check-ntfy-server` | `CheckNtfyServer`                  | ✅   | Probe NTFY host for HTTPS/HTTP connectivity (authenticated to prevent SSRF relay). Query: `host=<hostname[:port]>`. |
 
 ### Range Filter (`range.go`)
 
@@ -184,15 +184,15 @@ Lightweight connectivity check. Returns a minimal response with no database quer
 
 ### Settings (`settings.go`)
 
-| Method | Route                      | Handler                 | Auth | Description                                                    |
-| ------ | -------------------------- | ----------------------- | ---- | -------------------------------------------------------------- |
-| GET    | `/settings`                | `GetAllSettings`        | ✅   | Get all configuration settings                                 |
-| GET    | `/settings/locales`        | `GetLocales`            | ✅   | Get available locales                                          |
-| GET    | `/settings/imageproviders` | `GetImageProviders`     | ✅   | Get image provider options                                     |
-| GET    | `/settings/systemid`       | `GetSystemID`           | ✅   | Get system identifier                                          |
-| GET    | `/settings/dashboard`      | `GetDashboardSettings`  | ❌   | Get dashboard display preferences (public, non-sensitive)      |
-| GET    | `/settings/:section`       | `GetSectionSettings`    | ✅   | Get specific settings section (other sections remain protected) |
-| PUT    | `/settings`                | `UpdateSettings`        | ✅   | Update all settings                                            |
+| Method | Route                      | Handler                 | Auth | Description                                                         |
+| ------ | -------------------------- | ----------------------- | ---- | ------------------------------------------------------------------- |
+| GET    | `/settings`                | `GetAllSettings`        | ✅   | Get all configuration settings                                      |
+| GET    | `/settings/locales`        | `GetLocales`            | ✅   | Get available locales                                               |
+| GET    | `/settings/imageproviders` | `GetImageProviders`     | ✅   | Get image provider options                                          |
+| GET    | `/settings/systemid`       | `GetSystemID`           | ✅   | Get system identifier                                               |
+| GET    | `/settings/dashboard`      | `GetDashboardSettings`  | ❌   | Get dashboard display preferences (public, non-sensitive)           |
+| GET    | `/settings/:section`       | `GetSectionSettings`    | ✅   | Get specific settings section (other sections remain protected)     |
+| PUT    | `/settings`                | `UpdateSettings`        | ✅   | Update all settings                                                 |
 | PATCH  | `/settings/:section`       | `UpdateSectionSettings` | ✅   | Update settings section (writes to `/dashboard` still require auth) |
 
 The `GET /settings/dashboard` endpoint is intentionally public so that unauthenticated guests can render the SPA dashboard (species summary limit, layout, locale, thumbnails). The Dashboard section contains no secrets, tokens, or PII, and the layout is already exposed via `/app/config`. All mutations (PATCH) on the dashboard section remain auth-protected.
@@ -273,7 +273,7 @@ Returns species guide information from Wikipedia (or configured provider) with t
 
 **Expectedness values:** `expected`, `uncommon`, `rare`, `unexpected`. Derived from BirdNET's probable species scores for the current date and location.
 
-**Error responses:** `400` invalid or missing scientific name, `404` species guide not found, `503` guide feature disabled / cache not available / all providers unavailable, `500` unexpected server error.
+**Error responses:** `400` invalid or missing scientific name, `404` species guide not found, `429` too many requests, `503` guide feature disabled / cache not available / all providers unavailable, `500` unexpected server error.
 
 #### GET /api/v2/species/:scientific_name/similar
 
@@ -296,11 +296,24 @@ Returns up to 5 species in the same genus from BirdNET's label list, with option
       "scientific_name": "Turdus philomelos",
       "common_name": "Song Thrush",
       "relationship": "same_genus",
-      "guide_summary": "The song thrush is a thrush..."
+      "guide_summary": "The song thrush is a thrush...",
+      "sections": {
+        "description": "Brown above with dark spots below.",
+        "songs_and_calls": "A repeated, flute-like song built from short phrases.",
+        "similar_species": ["Turdus iliacus", "Turdus viscivorus"]
+      }
     }
   ]
 }
 ```
+
+Each `similar` entry may include a `sections` object with:
+
+- `description`: truncated comparison-friendly description text
+- `songs_and_calls`: truncated vocalization notes
+- `similar_species`: list of related scientific names parsed from the guide
+
+**Error responses:** `400` invalid or missing scientific name, `404` species guide not found, `429` too many requests, `503` species guide or similar-species feature disabled.
 
 #### GET /api/v2/species/:scientific_name/notes
 
@@ -483,17 +496,17 @@ HLS playlist and segment routes use token-based authentication instead of standa
 
 ### Stream Health Monitoring (`streams_health.go`)
 
-| Method | Route                    | Handler                   | Auth | Description                                               |
-| ------ | ------------------------ | ------------------------- | ---- | --------------------------------------------------------- |
-| GET    | `/streams/health`        | `GetAllStreamsHealth`     | ✅   | Get detailed health status of all RTSP streams (settings-only; URLs sanitized)        |
-| GET    | `/streams/health/:url`   | `GetStreamHealth`         | ✅   | Get detailed health status of a specific RTSP stream (settings-only; URLs sanitized)  |
-| GET    | `/streams/status`        | `GetStreamsStatusSummary` | ✅   | Get high-level summary of all stream statuses with counts (settings-only)             |
-| GET    | `/streams/health/stream` | `StreamHealthUpdates`     | ✅⚡ | Real-time stream health updates via SSE (settings page, not dashboard)                |
+| Method | Route                    | Handler                   | Auth | Description                                                                          |
+| ------ | ------------------------ | ------------------------- | ---- | ------------------------------------------------------------------------------------ |
+| GET    | `/streams/health`        | `GetAllStreamsHealth`     | ✅   | Get detailed health status of all RTSP streams (settings-only; URLs sanitized)       |
+| GET    | `/streams/health/:url`   | `GetStreamHealth`         | ✅   | Get detailed health status of a specific RTSP stream (settings-only; URLs sanitized) |
+| GET    | `/streams/status`        | `GetStreamsStatusSummary` | ✅   | Get high-level summary of all stream statuses with counts (settings-only)            |
+| GET    | `/streams/health/stream` | `StreamHealthUpdates`     | ✅⚡ | Real-time stream health updates via SSE (settings page, not dashboard)               |
 
 ### Quiet Hours Status (`quiet_hours.go`)
 
-| Method | Route                         | Handler               | Auth | Description                                               |
-| ------ | ----------------------------- | --------------------- | ---- | --------------------------------------------------------- |
+| Method | Route                         | Handler               | Auth | Description                                                                                                             |
+| ------ | ----------------------------- | --------------------- | ---- | ----------------------------------------------------------------------------------------------------------------------- |
 | GET    | `/streams/quiet-hours/status` | `GetQuietHoursStatus` | ❌   | Get current quiet hours suppression state for all sources (URLs sanitized). Used by dashboard "Currently Hearing" card. |
 
 **Response Format:**
@@ -604,9 +617,9 @@ Requires enhanced (v2) database. Returns 409 Conflict if not available.
 
 ### Models (`models.go`)
 
-| Method | Route     | Handler      | Auth | Description                         |
-| ------ | --------- | ------------ | ---- | ----------------------------------- |
-| GET    | `/models` | `ListModels` | ❌   | List available classifier models    |
+| Method | Route     | Handler      | Auth | Description                      |
+| ------ | --------- | ------------ | ---- | -------------------------------- |
+| GET    | `/models` | `ListModels` | ❌   | List available classifier models |
 
 **GET /api/v2/models** — Returns all classifier models registered in the model registry. Each entry includes a config alias (used in audio source configuration) and a human-readable display name.
 
@@ -1068,7 +1081,6 @@ Updates are sent only when changes are detected, reducing bandwidth compared to 
 ### Integration Tips
 
 1. **Choose the Right Endpoint** (all require authentication — settings page only):
-
    - Use SSE (`/streams/health/stream`) for real-time settings-page monitoring
    - Use REST polling (`/streams/status`) for periodic background checks on the settings page
    - Use REST (`/streams/health/:url`) for on-demand detailed diagnostics

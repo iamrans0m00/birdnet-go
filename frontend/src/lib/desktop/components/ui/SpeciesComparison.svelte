@@ -34,6 +34,7 @@
   let selectedSimilarIndex = $state<number>(0);
   let isLoadingSimilarGuide = $state(false);
   let similarGuideSections = $state<ReturnType<typeof parseGuideDescription>>([]);
+  let currentRequestId = 0;
   let selectedSimilarEntry = $derived(
     selectedSimilarIndex >= 0 && selectedSimilarIndex < similarSpecies.length
       ? // eslint-disable-next-line security/detect-object-injection -- bounds-checked by the condition above
@@ -49,21 +50,26 @@
   let songsOpen = $state(false);
   let similarOpen = $state(false);
 
-  async function fetchFocalSpeciesGuide(signal?: AbortSignal) {
+  function isCurrentRequest(requestId: number, signal?: AbortSignal): boolean {
+    return !signal?.aborted && requestId === currentRequestId;
+  }
+
+  async function fetchFocalSpeciesGuide(requestId: number, signal?: AbortSignal) {
+    focalGuide = null;
+    focalSections = [];
+
     try {
       const locale = getLocale();
       const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
       const encodedName = encodeURIComponent(scientificName);
       const url = buildAppUrl(`/api/v2/species/${encodedName}/guide${localeParam}`);
       const response = await fetch(url, { signal });
-      if (signal?.aborted) return;
+      if (!isCurrentRequest(requestId, signal)) return;
       if (response.ok) {
         const data = await response.json();
-        if (signal?.aborted) return;
+        if (!isCurrentRequest(requestId, signal)) return;
         focalGuide = data;
-        if (focalGuide?.description) {
-          focalSections = parseGuideDescription(focalGuide.description);
-        }
+        focalSections = data.description ? parseGuideDescription(data.description) : [];
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') return;
@@ -71,18 +77,19 @@
     }
   }
 
-  async function fetchSimilarSpecies(signal?: AbortSignal) {
+  async function fetchSimilarSpecies(requestId: number, signal?: AbortSignal) {
     isLoading = true;
+    similarSpecies = [];
     try {
       const locale = getLocale();
       const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
       const encodedName = encodeURIComponent(scientificName);
       const url = buildAppUrl(`/api/v2/species/${encodedName}/similar${localeParam}`);
       const response = await fetch(url, { signal });
-      if (signal?.aborted) return;
+      if (!isCurrentRequest(requestId, signal)) return;
       if (response.ok) {
         const data = await response.json();
-        if (signal?.aborted) return;
+        if (!isCurrentRequest(requestId, signal)) return;
         similarSpecies = data.similar ?? [];
         trackEvent(AnalyticsEvents.SPECIES_COMPARISON_OPENED, {
           focal_species: scientificName,
@@ -93,11 +100,13 @@
       if (err instanceof Error && err.name === 'AbortError') return;
       logger.error('Failed to fetch similar species', err);
     } finally {
-      isLoading = false;
+      if (isCurrentRequest(requestId, signal)) {
+        isLoading = false;
+      }
     }
     // Auto-select first species after list-loading state clears.
     // Fire-and-forget: isLoadingSimilarGuide tracks the guide fetch independently.
-    if (similarSpecies.length > 0) {
+    if (isCurrentRequest(requestId, signal) && similarSpecies.length > 0) {
       void selectSimilar(0);
     }
   }
@@ -145,9 +154,21 @@
 
   $effect(() => {
     const controller = new AbortController();
+    const requestId = ++currentRequestId;
+
+    similarGuideController?.abort();
+    similarGuideController = null;
+    similarSpecies = [];
+    focalGuide = null;
+    focalSections = [];
+    selectedSimilarIndex = 0;
+    similarGuideSections = [];
+    isLoading = true;
+    isLoadingSimilarGuide = false;
+
     void Promise.all([
-      fetchSimilarSpecies(controller.signal),
-      fetchFocalSpeciesGuide(controller.signal),
+      fetchSimilarSpecies(requestId, controller.signal),
+      fetchFocalSpeciesGuide(requestId, controller.signal),
     ]);
     return () => {
       controller.abort();

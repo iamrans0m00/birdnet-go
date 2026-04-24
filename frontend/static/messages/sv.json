@@ -1605,7 +1605,8 @@
         "empty": "Inga liknande arter hittades i detta släkte.",
         "sameGenus": "Samma släkte",
         "sameFamily": "Samma familj",
-        "similar": "Liknande"
+        "similar": "Liknande",
+        "hideComparison": "Dölj jämförelse"
       }
     },
     "advanced": {

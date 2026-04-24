@@ -2333,11 +2333,7 @@ func webserverSettingsChanged(oldSettings, currentSettings *conf.Settings) bool 
 func speciesGuideSettingsChanged(oldSettings, currentSettings *conf.Settings) bool {
 	old := oldSettings.Realtime.Dashboard.SpeciesGuide
 	cur := currentSettings.Realtime.Dashboard.SpeciesGuide
-	return old.Enabled != cur.Enabled ||
-		old.Provider != cur.Provider ||
-		old.FallbackPolicy != cur.FallbackPolicy ||
-		old.WarmTopN != cur.WarmTopN ||
-		old.PreFetchEnabled != cur.PreFetchEnabled
+	return !reflect.DeepEqual(old, cur)
 }
 
 // LocaleData represents a locale with its code and full name

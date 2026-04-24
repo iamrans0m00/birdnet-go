@@ -1577,10 +1577,10 @@
           "summer": "Sommer",
           "fall": "Efterår",
           "winter": "Vinter",
-          "wet1": "Første Regntid",
-          "dry1": "Første Tørtid",
-          "wet2": "Anden Regntid",
-          "dry2": "Anden Tørtid"
+          "wet1": "Første regntid",
+          "dry1": "Første tørtid",
+          "wet2": "Anden regntid",
+          "dry2": "Anden tørtid"
         },
         "vs": "vs",
         "noDescription": "Ingen beskrivelse tilgængelig",

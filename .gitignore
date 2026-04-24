@@ -47,6 +47,7 @@ REFACTOR_CHANGELOG.md
 .leann/
 .gstack/
 .claude/worktrees/
+.gocache/
 *.bak
 *.legacy-bak
 Docker/config/

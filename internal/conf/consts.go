@@ -1,6 +1,8 @@
 // conf/consts.go hard coded constants
 package conf
 
+import "slices"
+
 // Species guide provider and fallback-policy constants.
 //
 // These are defined here rather than in the guideprovider package so that the
@@ -16,21 +18,31 @@ const (
 	SpeciesGuideFallbackNone = "none" // No fallback; fail if primary provider fails
 )
 
-// SpeciesGuideValidProviders enumerates every recognized value for
+// speciesGuideValidProviders enumerates every recognized value for
 // SpeciesGuideConfig.Provider. Defined as a package-level slice so validation
 // avoids reallocating the list on every call. Treat as read-only.
-var SpeciesGuideValidProviders = []string{
+var speciesGuideValidProviders = []string{
 	SpeciesGuideProviderWikipedia,
 	SpeciesGuideProviderEBird,
 	SpeciesGuideProviderAuto,
 }
 
-// SpeciesGuideValidFallbackPolicies enumerates every recognized value for
+// GetSpeciesGuideValidProviders returns a defensive copy of the valid provider list.
+func GetSpeciesGuideValidProviders() []string {
+	return slices.Clone(speciesGuideValidProviders)
+}
+
+// speciesGuideValidFallbackPolicies enumerates every recognized value for
 // SpeciesGuideConfig.FallbackPolicy. Defined as a package-level slice so
 // validation avoids reallocating the list on every call. Treat as read-only.
-var SpeciesGuideValidFallbackPolicies = []string{
+var speciesGuideValidFallbackPolicies = []string{
 	SpeciesGuideFallbackAll,
 	SpeciesGuideFallbackNone,
+}
+
+// GetSpeciesGuideValidFallbackPolicies returns a defensive copy of the valid fallback-policy list.
+func GetSpeciesGuideValidFallbackPolicies() []string {
+	return slices.Clone(speciesGuideValidFallbackPolicies)
 }
 
 const (
