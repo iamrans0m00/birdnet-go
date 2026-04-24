@@ -55,6 +55,13 @@ var (
 					Category(errors.CategoryNetwork).
 					Context("error_type", "all_unavailable").
 					Build()
+
+	// ErrGuideCacheNotAvailable indicates the guide cache is not initialized.
+	ErrGuideCacheNotAvailable = errors.Newf("species guide not available").
+					Component("guideprovider").
+					Category(errors.CategoryConfiguration).
+					Context("error_type", "cache_unavailable").
+					Build()
 )
 
 const (

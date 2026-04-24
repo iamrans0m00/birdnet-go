@@ -924,8 +924,8 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 	// Check if guide feature is enabled
 	if !c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
 		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
-			Category(errors.CategoryConfiguration).
 			Component("api-species").
+			Category(errors.CategoryConfiguration).
 			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
 	}
 
@@ -938,14 +938,11 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 	// Parse optional locale query parameter for Wikipedia language selection
 	locale := strings.TrimSpace(ctx.QueryParam("locale"))
 
-	// Fetch guide from cache within the read lock to ensure cache is not swapped mid-operation
+	// Fetch guide from cache
 	var guide *guideprovider.SpeciesGuide
 	if err := c.WithGuideCache(func(gc *guideprovider.GuideCache) error {
 		if gc == nil {
-			return errors.Newf("species guide not available").
-				Category(errors.CategoryConfiguration).
-				Component("api-species").
-				Build()
+			return guideprovider.ErrGuideCacheNotAvailable
 		}
 		var fetchErr error
 		guide, fetchErr = gc.Get(ctx.Request().Context(), scientificName, guideprovider.FetchOptions{Locale: locale})
@@ -957,8 +954,7 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 		if errors.Is(err, guideprovider.ErrAllProvidersUnavailable) {
 			return c.HandleError(ctx, err, "Guide service temporarily unavailable", http.StatusServiceUnavailable)
 		}
-		// Check if it's our "guide not available" error
-		if strings.Contains(err.Error(), "species guide not available") {
+		if errors.Is(err, guideprovider.ErrGuideCacheNotAvailable) {
 			return c.HandleError(ctx, err, "Species guide service not available", http.StatusServiceUnavailable)
 		}
 		return c.HandleError(ctx, err, "Failed to retrieve species guide", http.StatusInternalServerError)
@@ -1066,8 +1062,8 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 	// Check if similar species UI component is enabled
 	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowSimilarSpecies() {
 		return c.HandleError(ctx, errors.Newf("similar species feature is disabled").
-			Category(errors.CategoryConfiguration).
 			Component("api-species").
+			Category(errors.CategoryConfiguration).
 			Build(), "Similar species feature is disabled", http.StatusServiceUnavailable)
 	}
 

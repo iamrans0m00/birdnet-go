@@ -57,7 +57,6 @@
   };
 
   let similarSpecies = $state<SimilarSpeciesEntry[]>([]);
-  let isLoading = $state(true);
   let focalGuide = $state<SpeciesGuideData | null>(null);
   let focalSections = $state<ReturnType<typeof parseGuideDescription>>([]);
   let selectedSimilarIndex = $state<number>(0);
@@ -68,6 +67,7 @@
   // Track completion of individual async requests to manage overall loading state
   let isLoadingFocalGuide = $state(false);
   let isLoadingSimilarList = $state(false);
+  let isLoading = $derived(isLoadingFocalGuide || isLoadingSimilarList);
   let selectedSimilarEntry = $derived(
     selectedSimilarIndex >= 0 && selectedSimilarIndex < similarSpecies.length
       ? // eslint-disable-next-line security/detect-object-injection -- bounds-checked by the condition above
@@ -189,12 +189,6 @@
       }
     }
   }
-
-  // Derived state: loading is complete only when both focal guide and similar list are loaded
-  let isLoading_derived = $derived(isLoadingFocalGuide || isLoadingSimilarList);
-  $effect(() => {
-    isLoading = isLoading_derived;
-  });
 
   $effect(() => {
     const controller = new AbortController();

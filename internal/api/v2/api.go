@@ -166,12 +166,14 @@ func WithGuideCache(gc *guideprovider.GuideCache) Option {
 	}
 }
 
-// WithGuideCache executes a callback with the current guide cache while holding the read lock.
-// This ensures the cache is not closed/swapped while the callback is running.
+// WithGuideCache executes a callback with the current guide cache.
+// Snapshots the cache reference and releases the lock before callback execution
+// to avoid blocking SetGuideCache during long-running network operations.
 func (c *Controller) WithGuideCache(fn func(*guideprovider.GuideCache) error) error {
 	c.guideCacheMu.RLock()
-	defer c.guideCacheMu.RUnlock()
-	return fn(c.guideCache)
+	gc := c.guideCache
+	c.guideCacheMu.RUnlock()
+	return fn(gc)
 }
 
 // SetGuideCache replaces the guide cache (thread-safe). The old cache is closed if non-nil.
