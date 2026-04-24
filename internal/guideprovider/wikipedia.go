@@ -637,6 +637,13 @@ func (p *WikipediaGuideProvider) handleHTTPError(resp *http.Response) error {
 			Component("guideprovider").
 			Category(errors.CategoryNetwork).
 			Build()
+	case resp.StatusCode >= 500 && resp.StatusCode < 600:
+		// Any 5xx status is a transient server error that should trip the breaker
+		p.tripCircuitBreaker(cbUnavailDuration, fmt.Sprintf("server error %d", resp.StatusCode))
+		return errors.Newf("Wikipedia server error: status %d", resp.StatusCode).
+			Component("guideprovider").
+			Category(errors.CategoryNetwork).
+			Build()
 	case resp.StatusCode != http.StatusOK:
 		return errors.Newf("Wikipedia returned status %d", resp.StatusCode).
 			Component("guideprovider").
