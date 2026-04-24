@@ -347,6 +347,7 @@ func TestGuideCache_WarmForSpecies(t *testing.T) {
 	t.Attr("feature", "cache-warming")
 
 	synctest.Test(t, func(t *testing.T) {
+		t.Helper()
 		store := newMockGuideStore()
 		cache := NewGuideCache(store, nil)
 
@@ -387,6 +388,7 @@ func TestGuideCache_WarmForSpecies_SkipsExisting(t *testing.T) {
 	t.Attr("feature", "cache-warming")
 
 	synctest.Test(t, func(t *testing.T) {
+		t.Helper()
 		store := newMockGuideStore()
 		cache := NewGuideCache(store, nil)
 
@@ -427,6 +429,7 @@ func TestGuideCache_PreFetch(t *testing.T) {
 	t.Attr("feature", "prefetch")
 
 	synctest.Test(t, func(t *testing.T) {
+		t.Helper()
 		store := newMockGuideStore()
 		cache := NewGuideCache(store, nil)
 
@@ -463,6 +466,7 @@ func TestGuideCache_PreFetch_SkipsExisting(t *testing.T) {
 	t.Attr("feature", "prefetch")
 
 	synctest.Test(t, func(t *testing.T) {
+		t.Helper()
 		store := newMockGuideStore()
 		cache := NewGuideCache(store, nil)
 
@@ -538,6 +542,7 @@ func TestGuideCache_StartCacheRefresh_StopsOnClose(t *testing.T) {
 	t.Attr("feature", "cache-refresh")
 
 	synctest.Test(t, func(t *testing.T) {
+		t.Helper()
 		store := newMockGuideStore()
 		cache := NewGuideCache(store, nil)
 		cache.startCacheRefresh()
