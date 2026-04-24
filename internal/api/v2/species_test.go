@@ -452,7 +452,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 				settings := conf.GetTestSettings()
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				c.Settings = settings
-				c.GuideCache = nil
+				c.SetGuideCache(nil)
 			},
 			expectedStatus: http.StatusServiceUnavailable,
 			expectedBody:   "Species guide service not available",
@@ -464,7 +464,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 				settings := conf.GetTestSettings()
 				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
 				c.Settings = settings
-				c.GuideCache = guideprovider.NewGuideCache(nil, nil)
+				c.SetGuideCache(guideprovider.NewGuideCache(nil, nil))
 			},
 			expectedStatus: http.StatusBadRequest,
 			expectedBody:   "Missing required parameter",
@@ -482,7 +482,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
 					err: guideprovider.ErrGuideNotFound,
 				})
-				c.GuideCache = cache
+				c.SetGuideCache(cache)
 			},
 			expectedStatus: http.StatusNotFound,
 			expectedBody:   "Species guide not found",
@@ -509,7 +509,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 						Partial:        true,
 					},
 				})
-				c.GuideCache = cache
+				c.SetGuideCache(cache)
 			},
 			expectedStatus: http.StatusOK,
 			expectedBody:   `"quality":"stub"`,
@@ -532,7 +532,7 @@ func TestGetSpeciesGuide(t *testing.T) {
 						SourceProvider: guideprovider.WikipediaProviderName,
 					},
 				})
-				c.GuideCache = cache
+				c.SetGuideCache(cache)
 			},
 			expectedStatus: http.StatusOK,
 			expectedBody:   `"quality":"full"`,

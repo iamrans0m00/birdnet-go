@@ -51,8 +51,8 @@ type Controller struct {
 	Repo                datastore.DetectionRepository // New: Preferred for detection CRUD operations
 	Settings            *conf.Settings
 	BirdImageCache      *imageprovider.BirdImageCache
-	GuideCache          *guideprovider.GuideCache
-	guideCacheMu        sync.RWMutex // protects GuideCache for hot-reload
+	guideCache          *guideprovider.GuideCache
+	guideCacheMu        sync.RWMutex // protects guideCache for hot-reload
 	SunCalc             *suncalc.SunCalc
 	Processor           *processor.Processor
 	EBirdClient         *ebird.Client
@@ -162,25 +162,31 @@ func WithMetricsStore(store observability.MetricsStore) Option {
 // WithGuideCache sets the species guide cache for the controller.
 func WithGuideCache(gc *guideprovider.GuideCache) Option {
 	return func(c *Controller) {
-		c.GuideCache = gc
+		c.guideCache = gc
 	}
 }
 
-// GetGuideCache returns the current guide cache pointer (thread-safe).
-func (c *Controller) GetGuideCache() *guideprovider.GuideCache {
+// WithGuideCache executes a callback with the current guide cache while holding the read lock.
+// This ensures the cache is not closed/swapped while the callback is running.
+func (c *Controller) WithGuideCache(fn func(*guideprovider.GuideCache) error) error {
 	c.guideCacheMu.RLock()
 	defer c.guideCacheMu.RUnlock()
-	return c.GuideCache
+	return fn(c.guideCache)
 }
 
 // SetGuideCache replaces the guide cache (thread-safe). The old cache is closed if non-nil.
+// The lock is released before calling Close() to avoid deadlocks with in-flight operations.
 func (c *Controller) SetGuideCache(gc *guideprovider.GuideCache) {
+	var oldCache *guideprovider.GuideCache
 	c.guideCacheMu.Lock()
-	defer c.guideCacheMu.Unlock()
-	if c.GuideCache != nil {
-		c.GuideCache.Close()
+	oldCache = c.guideCache
+	c.guideCache = gc
+	c.guideCacheMu.Unlock()
+
+	// Close the old cache outside the lock to avoid deadlock and use-after-close races
+	if oldCache != nil {
+		oldCache.Close()
 	}
-	c.GuideCache = gc
 }
 
 // WithV2Manager sets the v2 database manager for the controller.

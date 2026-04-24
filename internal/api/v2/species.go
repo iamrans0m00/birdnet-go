@@ -929,15 +929,6 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
 	}
 
-	// Check if guide cache is available (read under lock for hot-reload safety).
-	gc := c.GetGuideCache()
-	if gc == nil {
-		return c.HandleError(ctx, errors.Newf("species guide not available").
-			Category(errors.CategoryConfiguration).
-			Component("api-species").
-			Build(), "Species guide service not available", http.StatusServiceUnavailable)
-	}
-
 	// Get and validate scientific name from path parameter
 	scientificName, err := c.parseScientificNameParam(ctx)
 	if err != nil {
@@ -947,17 +938,33 @@ func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
 	// Parse optional locale query parameter for Wikipedia language selection
 	locale := strings.TrimSpace(ctx.QueryParam("locale"))
 
-	// Fetch guide from cache (memory → DB → providers)
-	guide, err := gc.Get(ctx.Request().Context(), scientificName, guideprovider.FetchOptions{Locale: locale})
-	if err != nil {
+	// Fetch guide from cache within the read lock to ensure cache is not swapped mid-operation
+	var guide *guideprovider.SpeciesGuide
+	if err := c.WithGuideCache(func(gc *guideprovider.GuideCache) error {
+		if gc == nil {
+			return errors.Newf("species guide not available").
+				Category(errors.CategoryConfiguration).
+				Component("api-species").
+				Build()
+		}
+		var fetchErr error
+		guide, fetchErr = gc.Get(ctx.Request().Context(), scientificName, guideprovider.FetchOptions{Locale: locale})
+		return fetchErr
+	}); err != nil {
 		if errors.Is(err, guideprovider.ErrGuideNotFound) {
 			return c.HandleError(ctx, err, "Species guide not found", http.StatusNotFound)
 		}
 		if errors.Is(err, guideprovider.ErrAllProvidersUnavailable) {
 			return c.HandleError(ctx, err, "Guide service temporarily unavailable", http.StatusServiceUnavailable)
 		}
+		// Check if it's our "guide not available" error
+		if strings.Contains(err.Error(), "species guide not available") {
+			return c.HandleError(ctx, err, "Species guide service not available", http.StatusServiceUnavailable)
+		}
 		return c.HandleError(ctx, err, "Failed to retrieve species guide", http.StatusInternalServerError)
 	}
+
+	// After callback returns, guide is safely set and the lock is released
 
 	response := SpeciesGuideResponse{
 		ScientificName:     guide.ScientificName,
@@ -1099,32 +1106,40 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 		}
 	}
 
-	// Optionally fetch short guide summaries for each similar species concurrently.
+	// Optionally fetch short guide summaries for each similar species.
+	// Do this within WithGuideCache to ensure the cache is not swapped while fetching.
 	locale := strings.TrimSpace(ctx.QueryParam("locale"))
-	if gc := c.GetGuideCache(); gc != nil && len(similar) > 0 {
-		var mu sync.Mutex
-		var wg sync.WaitGroup
+	if len(similar) > 0 {
 		reqCtx := ctx.Request().Context()
-		fetchOpts := guideprovider.FetchOptions{Locale: locale}
+		_ = c.WithGuideCache(func(gc *guideprovider.GuideCache) error {
+			if gc == nil {
+				return nil // Cache not available, skip enrichment
+			}
 
-		for i := range similar {
-			wg.Add(1)
-			go func(idx int) {
-				defer wg.Done()
-				guide, guideErr := gc.Get(reqCtx, similar[idx].ScientificName, fetchOpts)
-				if guideErr != nil || guide.Description == "" {
-					return
-				}
-				// Truncate to a short summary for the similar species list.
-				summary := truncateUTF8(guide.Description, maxGuideSummaryLen, "…")
-				sections := extractSections(guide.Description, guide.SimilarSpecies, locale)
-				mu.Lock()
-				similar[idx].GuideSummary = summary
-				similar[idx].Sections = sections
-				mu.Unlock()
-			}(i)
-		}
-		wg.Wait()
+			fetchOpts := guideprovider.FetchOptions{Locale: locale}
+			var mu sync.Mutex
+			var wg sync.WaitGroup
+
+			for i := range similar {
+				wg.Add(1)
+				go func(idx int) {
+					defer wg.Done()
+					guide, guideErr := gc.Get(reqCtx, similar[idx].ScientificName, fetchOpts)
+					if guideErr != nil || guide.Description == "" {
+						return
+					}
+					// Truncate to a short summary for the similar species list.
+					summary := truncateUTF8(guide.Description, maxGuideSummaryLen, "…")
+					sections := extractSections(guide.Description, guide.SimilarSpecies, locale)
+					mu.Lock()
+					similar[idx].GuideSummary = summary
+					similar[idx].Sections = sections
+					mu.Unlock()
+				}(idx)
+			}
+			wg.Wait()
+			return nil
+		})
 	}
 
 	response := SimilarSpeciesResponse{
