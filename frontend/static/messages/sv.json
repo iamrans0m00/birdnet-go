@@ -1577,10 +1577,10 @@
           "summer": "Sommar",
           "fall": "Höst",
           "winter": "Vinter",
-          "wet1": "Första Regnperiod",
-          "dry1": "Första Torrperiod",
-          "wet2": "Andra Regnperiod",
-          "dry2": "Andra Torrperiod"
+          "wet1": "Regnperiod 1",
+          "dry1": "Torrperiod 1",
+          "wet2": "Regnperiod 2",
+          "dry2": "Torrperiod 2"
         },
         "vs": "vs",
         "noDescription": "Ingen beskrivning tillgänglig",
