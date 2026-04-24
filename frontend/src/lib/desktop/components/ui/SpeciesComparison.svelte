@@ -36,17 +36,17 @@
   const sectionHeadingMap: Record<string, string> = {
     'songs and calls': GUIDE_SECTION_SONGS,
     'song and calls': GUIDE_SECTION_SONGS,
-    'vocalisation': GUIDE_SECTION_SONGS,
-    'vocalization': GUIDE_SECTION_SONGS,
-    'voice': GUIDE_SECTION_SONGS,
-    'stimme': GUIDE_SECTION_SONGS, // German
+    vocalisation: GUIDE_SECTION_SONGS,
+    vocalization: GUIDE_SECTION_SONGS,
+    voice: GUIDE_SECTION_SONGS,
+    stimme: GUIDE_SECTION_SONGS, // German
     'chant et cris': GUIDE_SECTION_SONGS, // French
-    'voix': GUIDE_SECTION_SONGS, // French
-    'voz': GUIDE_SECTION_SONGS, // Spanish
-    'canto': GUIDE_SECTION_SONGS, // Spanish/Italian
-    'głos': GUIDE_SECTION_SONGS, // Polish
-    'ääntelyt': GUIDE_SECTION_SONGS, // Finnish
-    'läte': GUIDE_SECTION_SONGS, // Estonian
+    voix: GUIDE_SECTION_SONGS, // French
+    voz: GUIDE_SECTION_SONGS, // Spanish
+    canto: GUIDE_SECTION_SONGS, // Spanish/Italian
+    głos: GUIDE_SECTION_SONGS, // Polish
+    ääntelyt: GUIDE_SECTION_SONGS, // Finnish
+    läte: GUIDE_SECTION_SONGS, // Estonian
     'similar species': GUIDE_SECTION_SIMILAR,
     'ähnliche arten': GUIDE_SECTION_SIMILAR, // German
     'espèces similaires': GUIDE_SECTION_SIMILAR, // French
