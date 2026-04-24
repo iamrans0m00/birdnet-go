@@ -24,6 +24,8 @@ func TestErrGuideCacheNotAvailable_IsWithWrapping(t *testing.T) {
 		{"unrelated error", errors.Newf("different error").Build(), false},
 	}
 
+	// Go 1.22+ scopes range variables per-iteration, so no `tc := tc` capture is needed
+	// for parallel subtests. See https://go.dev/blog/loopvar-preview.
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
