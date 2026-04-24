@@ -216,15 +216,6 @@
     };
   });
 
-  // Helper to extract specific section from focal guide by heading name.
-  function getSectionContent(
-    sections: ReturnType<typeof parseGuideDescription>,
-    heading: string
-  ): string {
-    const section = sections.find(s => s.heading?.toLowerCase() === heading.toLowerCase());
-    return section?.body ?? '';
-  }
-
   // Get section content by canonical ID, matching against all known localized headings
   function getSectionContentByCanonical(
     sections: ReturnType<typeof parseGuideDescription>,
