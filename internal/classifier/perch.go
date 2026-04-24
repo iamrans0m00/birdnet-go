@@ -17,7 +17,7 @@ const perchDatasetMarker = "inat2024_fsd50k"
 // Empty lines are skipped. Returns the list of scientific names.
 func ParsePerchLabels(data []byte) ([]string, error) {
 	scanner := bufio.NewScanner(bytes.NewReader(data))
-	var labels []string
+	labels := make([]string, 0, bytes.Count(data, []byte("\n")))
 	firstLine := true
 
 	for scanner.Scan() {
