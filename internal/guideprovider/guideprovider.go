@@ -257,16 +257,16 @@ func (c *GuideCache) WarmForSpecies(speciesNames []string) {
 
 // PreFetch triggers an async guide fetch for a species if not already cached.
 // This is a non-blocking call intended for use in the detection pipeline.
-func (c *GuideCache) PreFetch(scientificName string) {
+func (c *GuideCache) PreFetch(ctx context.Context, scientificName string) {
 	// Skip if already in memory cache
 	if _, ok := c.dataMap.Load(scientificName); ok {
 		return
 	}
 
 	go func() {
-		ctx, cancel := context.WithTimeout(c.rootCtx, providerTimeout*2)
+		prefetchCtx, cancel := context.WithTimeout(ctx, providerTimeout*2)
 		defer cancel()
-		_, _ = c.Get(ctx, scientificName, FetchOptions{})
+		_, _ = c.Get(prefetchCtx, scientificName, FetchOptions{})
 	}()
 }
 

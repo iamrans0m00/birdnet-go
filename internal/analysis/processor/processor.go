@@ -168,7 +168,7 @@ type Processor struct {
 	invalidCommandPaths sync.Map
 
 	// Guide pre-fetch callback (optional, injected by api_service)
-	guidePreFetch   func(scientificName string)
+	guidePreFetch   func(ctx context.Context, scientificName string)
 	guidePreFetchMu sync.RWMutex
 }
 
@@ -1254,7 +1254,7 @@ func (p *Processor) shouldDiscardDetection(item *PendingDetection, minDetections
 }
 
 // processApprovedDetection handles an approved detection by sending it to the worker queue
-func (p *Processor) processApprovedDetection(item *PendingDetection, speciesName string) {
+func (p *Processor) processApprovedDetection(ctx context.Context, item *PendingDetection, speciesName string) {
 	// Use item.Confidence directly - it's the correct confidence for THIS species,
 	// not Results[0].Confidence which could be a different (higher confidence) species
 	confidence := float32(item.Confidence)
@@ -1306,7 +1306,7 @@ func (p *Processor) processApprovedDetection(item *PendingDetection, speciesName
 	preFetch := p.guidePreFetch
 	p.guidePreFetchMu.RUnlock()
 	if preFetch != nil {
-		preFetch(item.Detection.Result.Species.ScientificName)
+		preFetch(ctx, item.Detection.Result.Species.ScientificName)
 	}
 }
 
@@ -1420,6 +1420,10 @@ func (p *Processor) flushPendingDetections(minDetections int) (pendingCount, flu
 
 	var terminalNotifs []SSEPendingDetection
 	var broadcastSnapshot []SSEPendingDetection
+	var approvedItems []struct {
+		item        PendingDetection
+		speciesName string
+	}
 
 	p.pendingMutex.Lock()
 
@@ -1462,7 +1466,10 @@ func (p *Processor) flushPendingDetections(minDetections int) (pendingCount, flu
 			logger.Int("required", minDetections),
 			logger.String("operation", "flush_detection"))
 
-		p.processApprovedDetection(&item, speciesName)
+		approvedItems = append(approvedItems, struct {
+			item        PendingDetection
+			speciesName string
+		}{item, speciesName})
 		delete(p.pendingDetections, mapKey)
 		flushedCount++
 
@@ -1501,6 +1508,12 @@ func (p *Processor) flushPendingDetections(minDetections int) (pendingCount, flu
 	}
 
 	p.pendingMutex.Unlock()
+
+	// Process approved detections outside the lock to allow prefetch callbacks to run without blocking.
+	ctx := context.Background()
+	for _, approved := range approvedItems {
+		p.processApprovedDetection(ctx, &approved.item, approved.speciesName)
+	}
 
 	// Broadcast outside the lock to avoid blocking processDetections.
 	if broadcastSnapshot != nil {
@@ -2103,7 +2116,7 @@ func (p *Processor) SetPendingBroadcaster(broadcaster func(snapshot []SSEPending
 }
 
 // SetGuidePreFetch sets a callback to pre-fetch species guide data for new detections.
-func (p *Processor) SetGuidePreFetch(fn func(scientificName string)) {
+func (p *Processor) SetGuidePreFetch(fn func(ctx context.Context, scientificName string)) {
 	p.guidePreFetchMu.Lock()
 	defer p.guidePreFetchMu.Unlock()
 	p.guidePreFetch = fn

@@ -445,7 +445,7 @@ func TestGuideCache_PreFetch(t *testing.T) {
 		defer cache.Close()
 
 		// PreFetch should be non-blocking
-		cache.PreFetch(testSpeciesMerula)
+		cache.PreFetch(context.Background(), testSpeciesMerula)
 
 		// Wait for prefetch goroutine to complete (refresh goroutine blocks on fake ticker).
 		synctest.Wait()
@@ -484,7 +484,7 @@ func TestGuideCache_PreFetch_SkipsExisting(t *testing.T) {
 		cache.dataMap.Store(testSpeciesMerula, &SpeciesGuide{ScientificName: testSpeciesMerula})
 
 		// PreFetch returns immediately without spawning a goroutine when already cached.
-		cache.PreFetch(testSpeciesMerula)
+		cache.PreFetch(context.Background(), testSpeciesMerula)
 		synctest.Wait()
 
 		assert.Equal(t, 0, fetchCount, "should not fetch already-cached species")
