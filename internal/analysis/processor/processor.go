@@ -1511,9 +1511,9 @@ func (p *Processor) flushPendingDetections(minDetections int) (pendingCount, flu
 	p.pendingMutex.Unlock()
 
 	// Process approved detections outside the lock to allow prefetch callbacks to run without blocking.
-	ctx := context.Background()
+	// Use flusherCtx so pre-fetch network calls cancel promptly on processor shutdown.
 	for i := range approvedItems {
-		p.processApprovedDetection(ctx, &approvedItems[i].item, approvedItems[i].speciesName)
+		p.processApprovedDetection(p.flusherCtx, &approvedItems[i].item, approvedItems[i].speciesName)
 	}
 
 	// Broadcast outside the lock to avoid blocking processDetections.
