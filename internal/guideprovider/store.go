@@ -58,8 +58,7 @@ func (s *GORMGuideStore) GetGuideCache(ctx context.Context, scientificName, prov
 			s.recordDBMetric(DBOperationQueryGuideCaches, status, start)
 			return nil, nil //nolint:nilnil // record not found is not an error; nil entry is the expected signal
 		}
-		status = DBResultError
-		s.recordDBMetric(DBOperationQueryGuideCaches, status, start)
+		s.recordDBError(DBOperationQueryGuideCaches, err, start)
 		return nil, errors.Newf("GetGuideCache provider=%s species=%s locale=%s: %w", providerName, scientificName, locale, err).
 			Component("guideprovider").
 			Category(errors.CategoryDatabase).
@@ -72,6 +71,27 @@ func (s *GORMGuideStore) GetGuideCache(ctx context.Context, scientificName, prov
 func (s *GORMGuideStore) recordDBMetric(operation, status string, start time.Time) {
 	if s.metrics != nil {
 		s.metrics.RecordDBOperation(operation, status, time.Since(start).Seconds())
+	}
+}
+
+// recordDBError records an error-path DB operation metric using the
+// error_type-labelled counter via RecordDBError, classifying the underlying
+// error so dashboards can distinguish cancellations/timeouts from real DB faults.
+func (s *GORMGuideStore) recordDBError(operation string, err error, start time.Time) {
+	if s.metrics != nil {
+		s.metrics.RecordDBError(operation, classifyDBError(err), time.Since(start).Seconds())
+	}
+}
+
+// classifyDBError maps a raw DB error to a low-cardinality error_type label.
+func classifyDBError(err error) string {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return DBErrorTypeCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return DBErrorTypeDeadline
+	default:
+		return DBErrorTypeDatabase
 	}
 }
 
@@ -91,8 +111,7 @@ func (s *GORMGuideStore) SaveGuideCache(ctx context.Context, entry *GuideCacheEn
 
 	status := DBResultSuccess
 	if err != nil {
-		status = DBResultError
-		s.recordDBMetric(DBOperationInsertGuideCaches, status, start)
+		s.recordDBError(DBOperationInsertGuideCaches, err, start)
 		return errors.Newf("SaveGuideCache provider=%s species=%s locale=%s: %w", entry.ProviderName, entry.ScientificName, entry.Locale, err).
 			Component("guideprovider").
 			Category(errors.CategoryDatabase).
@@ -117,8 +136,7 @@ func (s *GORMGuideStore) GetAllGuideCaches(ctx context.Context, providerName str
 
 	status := DBResultSuccess
 	if err != nil {
-		status = DBResultError
-		s.recordDBMetric(DBOperationQueryGuideCaches, status, start)
+		s.recordDBError(DBOperationQueryGuideCaches, err, start)
 		getLogger().Warn("Failed to query guide caches",
 			logger.String("provider", providerName),
 			logger.Any("error", err))
@@ -141,8 +159,7 @@ func (s *GORMGuideStore) DeleteStaleGuideCaches(ctx context.Context, providerNam
 
 	status := DBResultSuccess
 	if result.Error != nil {
-		status = DBResultError
-		s.recordDBMetric(DBOperationDeleteGuideCaches, status, start)
+		s.recordDBError(DBOperationDeleteGuideCaches, result.Error, start)
 		getLogger().Warn("Failed to delete stale guide caches",
 			logger.String("provider", providerName),
 			logger.Any("error", result.Error))
