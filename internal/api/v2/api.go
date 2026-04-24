@@ -167,23 +167,30 @@ func WithGuideCache(gc *guideprovider.GuideCache) Option {
 }
 
 // WithGuideCache executes a callback with the current guide cache.
-// The read lock is held for the duration of the callback so that SetGuideCache
-// cannot swap and Close() the cache while a fetch is in-flight. Readers do not
-// block each other; only SetGuideCache (a rare config hot-reload) waits.
+// The pointer is snapshotted under the read lock and the lock is released before
+// invoking the callback. This keeps SetGuideCache (rare config hot-reload) from
+// blocking for the duration of long-running network I/O inside the callback.
+//
+// GuideCache is safe to use after Close(): Close() only cancels the root context
+// and closes the quit channel. Memory- and DB-cache hits still succeed; only
+// network fetches that fall back to rootCtx will return a cancelled-context
+// error. Callbacks that arrive exactly during a swap may see that degraded
+// behavior, which is acceptable since hot-reload is user-initiated and rare.
 func (c *Controller) WithGuideCache(fn func(*guideprovider.GuideCache) error) error {
 	c.guideCacheMu.RLock()
-	defer c.guideCacheMu.RUnlock()
-	return fn(c.guideCache)
+	gc := c.guideCache
+	c.guideCacheMu.RUnlock()
+	return fn(gc)
 }
 
 // SetGuideCache replaces the guide cache (thread-safe). The old cache is closed if non-nil.
-// The write lock is held across Close() to ensure no WithGuideCache callback is
-// still executing against the old cache when Close() cancels its root context.
+// Close() is called outside the lock so it does not block concurrent WithGuideCache readers.
 func (c *Controller) SetGuideCache(gc *guideprovider.GuideCache) {
 	c.guideCacheMu.Lock()
-	defer c.guideCacheMu.Unlock()
 	oldCache := c.guideCache
 	c.guideCache = gc
+	c.guideCacheMu.Unlock()
+
 	if oldCache != nil {
 		oldCache.Close()
 	}
