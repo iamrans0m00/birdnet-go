@@ -574,7 +574,8 @@
     "currentlyHearing": {
       "title": "Kuunnellaan nyt",
       "subtitle": "Lajeja tunnistetaan reaaliajassa",
-      "empty": "Kaikki hiljaista — lintuja ei havaittu juuri nyt"
+      "empty": "Kaikki hiljaista — lintuja ei havaittu juuri nyt",
+      "viewGuide": "Näytä opas lajille {species}"
     },
     "rejected": "Hylätty",
     "dailySummary": {
@@ -1535,6 +1536,59 @@
         "detections": "Havainnot:",
         "confidence": "Luottamus:",
         "first": "Ensimmäinen:"
+      },
+      "guide": {
+        "title": "Lajiopas",
+        "loading": "Ladataan lajitietoja...",
+        "source": "Lähde:",
+        "description": "Kuvaus",
+        "songs": "Laulut ja äänet",
+        "similar": "Samanlaiset lajit",
+        "qualityFull": "Yksityiskohtainen",
+        "qualityIntroOnly": "Lyhyt",
+        "qualityStub": "Luonnos",
+        "expectedness": {
+          "expected": "Odotettu",
+          "uncommon": "Melko harvinainen",
+          "rare": "Harvinainen",
+          "unexpected": "Odottamaton"
+        },
+        "season": {
+          "spring": "Kevät",
+          "summer": "Kesä",
+          "fall": "Syksy",
+          "winter": "Talvi",
+          "wet1": "1. Sadekausi",
+          "dry1": "1. Kuivakausi",
+          "wet2": "2. Sadekausi",
+          "dry2": "2. Kuivakausi"
+        },
+        "vs": "vs",
+        "noDescription": "Kuvaus ei saatavilla",
+        "noSongs": "Ääntelytietoja ei saatavilla",
+        "noSimilar": "Ei samankaltaisia lajeja"
+      },
+      "notes": {
+        "title": "Lajimuistiinpanot",
+        "placeholder": "Lisää muistiinpano tästä lajista...",
+        "editLabel": "Muokkaa lajimuistiinpanoa",
+        "save": "Tallenna muistiinpano",
+        "empty": "Ei muistiinpanoja vielä. Lisää havaintosi tästä lajista.",
+        "deleteConfirm": "Poista tämä muistiinpano?",
+        "saving": "Tallennetaan...",
+        "deleteFailed": "Muistiinpanon poistaminen epäonnistui",
+        "saveFailed": "Muistiinpanon tallentaminen epäonnistui",
+        "tooLong": "Muistiinpano on liian pitkä. Lyhennä se enintään {max} tavuun."
+      },
+      "similar": {
+        "title": "Samankaltaiset lajit",
+        "compare": "Vertaa samankaltaisiin",
+        "loading": "Ladataan samankaltaisia lajeja...",
+        "empty": "Samankaltaisia lajeja ei löytynyt tästä suvusta tai heimosta.",
+        "sameGenus": "Sama suku",
+        "sameFamily": "Sama heimo",
+        "similar": "Samankaltainen",
+        "hideComparison": "Piilota vertailupaneeli"
       }
     },
     "advanced": {
@@ -3880,7 +3934,8 @@
         "appearance": "Appearance",
         "language": "Language & Regional",
         "visualContent": "Visual Content",
-        "audioPlayback": "Äänentoisto"
+        "audioPlayback": "Äänentoisto",
+        "speciesGuide": "Lajiopas"
       },
       "appearance": {
         "title": "Appearance",
@@ -3900,6 +3955,56 @@
         "defaultGain": "Oletusäänenvahvistus",
         "defaultGainHelpText": "Alkuvahvistus äänitteiden toistossa. Lintujen äänet ovat usein hiljaisia, joten 6-12 dB:n vahvistus on suositeltavaa.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Lajiopas",
+        "description": "Määritä lajiopas havainnon yksityiskohtiin.",
+        "enabled": {
+          "label": "Ota lajiopas käyttöön",
+          "helpText": "Näytä tunnistusopas valitulta palveluntarjoajalta (esim. Wikipedia tai eBird) havainnon tai lajin katselussa."
+        },
+        "provider": {
+          "label": "Oppaan lähde",
+          "helpText": "Mitä tietolähdettä käytetään lajioppaisiin.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Varavaihtoehto",
+          "helpText": "Mitä tehdä, kun ensisijainen lähde ei pysty toimittamaan opasta.",
+          "options": {
+            "all": "Kokeile kaikkia lähteitä",
+            "none": "Ei varavaihtoehtoa"
+          }
+        },
+        "sections": {
+          "title": "Oppaan osiot"
+        },
+        "showEnrichments": {
+          "label": "Näytä rikasteet",
+          "helpText": "Näytä kausitieto, levinneisyysmerkinnät ja linkit."
+        },
+        "showSimilarSpecies": {
+          "label": "Näytä samankaltaiset lajit",
+          "helpText": "Vertailupaneeli saman suvun lajeista."
+        },
+        "showNotes": {
+          "label": "Näytä lajimuistiinpanot",
+          "helpText": "Henkilökohtainen muistiinpanopaneeli."
+        },
+        "cache": {
+          "title": "Opasvälimuisti"
+        },
+        "preFetchEnabled": {
+          "label": "Esihae oppaat",
+          "helpText": "Hae oppaat automaattisesti taustalla."
+        },
+        "warmTopN": {
+          "label": "Lämmitä välimuisti käynnistyksessä",
+          "helpText": "Kuinka monen lajin oppaat esivalmistellaan. 0 = pois."
+        }
       }
     },
     "restartRequired": "Jotkin muutokset vaativat palvelimen uudelleenkäynnistyksen astuakseen voimaan. Käynnistä BirdNET-Go uudelleen."

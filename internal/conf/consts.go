@@ -1,6 +1,50 @@
 // conf/consts.go hard coded constants
 package conf
 
+import "slices"
+
+// Species guide provider and fallback-policy constants.
+//
+// These are defined here rather than in the guideprovider package so that the
+// conf package can validate SpeciesGuideConfig without importing guideprovider
+// (which would create a circular dependency: guideprovider already imports conf).
+// Any package that imports conf can use these constants directly.
+const (
+	SpeciesGuideProviderWikipedia = "wikipedia" // Wikipedia REST API provider
+	SpeciesGuideProviderEBird     = "ebird"     // eBird taxonomy enrichment provider
+	SpeciesGuideProviderAuto      = "auto"      // Auto-select provider based on availability
+
+	SpeciesGuideFallbackAll  = "all"  // Try all providers in order on failure
+	SpeciesGuideFallbackNone = "none" // No fallback; fail if primary provider fails
+)
+
+// speciesGuideValidProviders enumerates every recognized value for
+// SpeciesGuideConfig.Provider. Defined as a package-level slice so validation
+// avoids reallocating the list on every call. Treat as read-only.
+var speciesGuideValidProviders = []string{
+	SpeciesGuideProviderWikipedia,
+	SpeciesGuideProviderEBird,
+	SpeciesGuideProviderAuto,
+}
+
+// GetSpeciesGuideValidProviders returns a defensive copy of the valid provider list.
+func GetSpeciesGuideValidProviders() []string {
+	return slices.Clone(speciesGuideValidProviders)
+}
+
+// speciesGuideValidFallbackPolicies enumerates every recognized value for
+// SpeciesGuideConfig.FallbackPolicy. Defined as a package-level slice so
+// validation avoids reallocating the list on every call. Treat as read-only.
+var speciesGuideValidFallbackPolicies = []string{
+	SpeciesGuideFallbackAll,
+	SpeciesGuideFallbackNone,
+}
+
+// GetSpeciesGuideValidFallbackPolicies returns a defensive copy of the valid fallback-policy list.
+func GetSpeciesGuideValidFallbackPolicies() []string {
+	return slices.Clone(speciesGuideValidFallbackPolicies)
+}
+
 const (
 	SampleRate    = 48000 // Sample rate of the audio fed to BirdNET Analyzer
 	BitDepth      = 16    // Bit depth of the audio fed to BirdNET Analyzer

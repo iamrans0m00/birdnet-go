@@ -1531,6 +1531,57 @@
         "detections": "Detekcie:",
         "confidence": "Istota:",
         "first": "Prvýkrát:"
+      },
+      "guide": {
+        "title": "Sprievodca druhmi",
+        "loading": "Načítavanie informácií o druhu...",
+        "source": "Zdroj:",
+        "description": "Popis",
+        "songs": "Spevy a hlasy",
+        "similar": "Podobné druhy",
+        "qualityFull": "Podrobný",
+        "qualityIntroOnly": "Stručný",
+        "qualityStub": "Náčrt",
+        "expectedness": {
+          "expected": "Očakávaný",
+          "uncommon": "Nezvyčajný",
+          "rare": "Vzácny",
+          "unexpected": "Neočakávaný"
+        },
+        "season": {
+          "spring": "Jar",
+          "summer": "Leto",
+          "fall": "Jeseň",
+          "winter": "Zima",
+          "wet1": "1. Obdobie dažďov",
+          "dry1": "1. Suché obdobie",
+          "wet2": "2. Obdobie dažďov",
+          "dry2": "2. Suché obdobie"
+        },
+        "vs": "vs",
+        "noDescription": "Žiadny popis nie je k dispozícii",
+        "noSongs": "Nie sú k dispozícii informácie o speve/volaní",
+        "noSimilar": "Nie sú uvedené žiadne podobné druhy"
+      },
+      "notes": {
+        "title": "Poznámky o druhu",
+        "placeholder": "Pridať poznámku o tomto druhu...",
+        "save": "Uložiť poznámku",
+        "empty": "Zatiaľ žiadne poznámky. Pridajte svoje pozorovania o tomto druhu.",
+        "deleteConfirm": "Odstrániť túto poznámku?",
+        "saving": "Ukladanie...",
+        "deleteFailed": "Nepodarilo sa odstrániť poznámku",
+        "saveFailed": "Nepodarilo sa uložiť poznámku",
+        "tooLong": "Poznámka je príliš dlhá. Skráťte ju najviac na {max} bajtov."
+      },
+      "similar": {
+        "title": "Podobné druhy",
+        "compare": "Porovnať s podobnými",
+        "loading": "Načítavanie podobných druhov...",
+        "empty": "V tomto rode sa nenašli žiadne podobné druhy.",
+        "sameGenus": "Rovnaký rod",
+        "sameFamily": "Rovnaká čeľaď",
+        "similar": "Podobné"
       }
     },
     "advanced": {
@@ -3840,7 +3891,8 @@
         "appearance": "Vzhľad",
         "language": "Jazyk a regionálne",
         "visualContent": "Vizuálny obsah",
-        "audioPlayback": "Prehrávanie zvuku"
+        "audioPlayback": "Prehrávanie zvuku",
+        "speciesGuide": "Species Guide"
       },
       "appearance": {
         "title": "Vzhľad",
@@ -3860,6 +3912,56 @@
         "defaultGain": "Predvolené zosilnenie hlasitosti",
         "defaultGainHelpText": "Počiatočné zosilnenie pri prehrávaní nahrávok. Zvuky vtákov sú často tiché, preto sa odporúča zosilnenie 6-12 dB.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Species Guide",
+        "description": "Configure the species identification guide shown in detection details and species modals.",
+        "enabled": {
+          "label": "Enable Species Guide",
+          "helpText": "Show Wikipedia-powered identification guides when viewing a detection or species."
+        },
+        "provider": {
+          "label": "Guide Provider",
+          "helpText": "Which data source to use for species identification guides.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Fallback Policy",
+          "helpText": "What to do when the preferred provider cannot supply a guide.",
+          "options": {
+            "all": "Try all providers",
+            "none": "No fallback"
+          }
+        },
+        "sections": {
+          "title": "Guide Sections"
+        },
+        "showEnrichments": {
+          "label": "Show Enrichments",
+          "helpText": "Display seasonal context, range expectedness badges, and external links (AllAboutBirds, Xeno-canto)."
+        },
+        "showSimilarSpecies": {
+          "label": "Show Similar Species",
+          "helpText": "Show a comparison panel with same-genus species that are commonly confused."
+        },
+        "showNotes": {
+          "label": "Show Species Notes",
+          "helpText": "Show the personal notes panel where you can save observations about a species."
+        },
+        "cache": {
+          "title": "Guide Cache"
+        },
+        "preFetchEnabled": {
+          "label": "Pre-fetch Guides",
+          "helpText": "Automatically fetch guides in the background when a new species is detected, so they load instantly."
+        },
+        "warmTopN": {
+          "label": "Warm Cache on Startup",
+          "helpText": "Number of top detected species to pre-load guides for at startup. Set to 0 to disable."
+        }
       }
     },
     "restartRequired": "Niektoré zmeny vyžadujú reštart servera. Reštartujte BirdNET-Go."

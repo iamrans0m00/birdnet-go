@@ -682,6 +682,19 @@ func (s *testLegacyInterface) GetBatchHourlyOccurrences(_ string, _ []string, _ 
 func (s *testLegacyInterface) SpeciesDetections(_, _, _ string, _ int, _ bool, _, _ int) ([]datastore.Note, error) {
 	return nil, nil
 }
+func (s *testLegacyInterface) DeleteSpeciesNote(_ context.Context, _ string) error { return nil }
+func (s *testLegacyInterface) UpdateSpeciesNote(_ context.Context, _, _ string) error {
+	return nil
+}
+func (s *testLegacyInterface) GetSpeciesNotes(_ context.Context, _ string) ([]datastore.SpeciesNote, error) {
+	return nil, nil
+}
+func (s *testLegacyInterface) GetSpeciesNoteByID(_ context.Context, _ uint) (*datastore.SpeciesNote, error) {
+	return nil, nil //nolint:nilnil // stub
+}
+func (s *testLegacyInterface) SaveSpeciesNote(_ context.Context, _ *datastore.SpeciesNote) error {
+	return nil
+}
 func (s *testLegacyInterface) GetLastDetections(_ int) ([]datastore.Note, error) { return nil, nil }
 func (s *testLegacyInterface) GetAllDetectedSpecies() ([]datastore.Note, error)  { return nil, nil }
 func (s *testLegacyInterface) SearchNotes(_ string, _ bool, _, _ int) ([]datastore.Note, int64, error) {

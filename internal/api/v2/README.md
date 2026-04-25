@@ -125,17 +125,17 @@ Lightweight connectivity check. Returns a minimal response with no database quer
 
 ### Integrations (`integrations.go`)
 
-| Method | Route                                        | Handler                         | Auth | Description                           |
-| ------ | -------------------------------------------- | ------------------------------- | ---- | ------------------------------------- |
-| GET    | `/integrations/mqtt/status`                  | `GetMQTTStatus`                 | ✅   | MQTT connection status                |
-| POST   | `/integrations/mqtt/test`                    | `TestMQTTConnection`            | ✅   | Test MQTT connection                  |
-| POST   | `/integrations/mqtt/homeassistant/discovery` | `TriggerHomeAssistantDiscovery` | ✅   | Trigger Home Assistant MQTT discovery |
-| GET    | `/integrations/mqtt/tls/certificate`         | `GetMQTTTLSCertificate`         | ✅   | Get MQTT TLS certificate status       |
-| POST   | `/integrations/mqtt/tls/certificate`         | `UploadMQTTTLSCertificate`      | ✅   | Upload MQTT TLS certificates          |
-| DELETE | `/integrations/mqtt/tls/certificate`         | `DeleteMQTTTLSCertificate`      | ✅   | Remove MQTT TLS certificates          |
-| GET    | `/integrations/birdweather/status`           | `GetBirdWeatherStatus`          | ✅   | BirdWeather integration status        |
-| POST   | `/integrations/birdweather/test`             | `TestBirdWeatherConnection`     | ✅   | Test BirdWeather connection           |
-| POST   | `/integrations/weather/test`                 | `TestWeatherConnection`         | ✅   | Test weather provider connection      |
+| Method | Route                                        | Handler                         | Auth | Description                                    |
+| ------ | -------------------------------------------- | ------------------------------- | ---- | ---------------------------------------------- |
+| GET    | `/integrations/mqtt/status`                  | `GetMQTTStatus`                 | ✅   | MQTT connection status                         |
+| POST   | `/integrations/mqtt/test`                    | `TestMQTTConnection`            | ✅   | Test MQTT connection                           |
+| POST   | `/integrations/mqtt/homeassistant/discovery` | `TriggerHomeAssistantDiscovery` | ✅   | Trigger Home Assistant MQTT discovery          |
+| GET    | `/integrations/mqtt/tls/certificate`         | `GetMQTTTLSCertificate`         | ✅   | Get MQTT TLS certificate status                |
+| POST   | `/integrations/mqtt/tls/certificate`         | `UploadMQTTTLSCertificate`      | ✅   | Upload MQTT TLS certificates                   |
+| DELETE | `/integrations/mqtt/tls/certificate`         | `DeleteMQTTTLSCertificate`      | ✅   | Remove MQTT TLS certificates                   |
+| GET    | `/integrations/birdweather/status`           | `GetBirdWeatherStatus`          | ✅   | BirdWeather integration status                 |
+| POST   | `/integrations/birdweather/test`             | `TestBirdWeatherConnection`     | ✅   | Test BirdWeather connection                    |
+| POST   | `/integrations/weather/test`                 | `TestWeatherConnection`         | ✅   | Test weather provider connection               |
 | POST   | `/integrations/ebird/test`                   | `TestEBirdConnection`           | ✅   | Test eBird API connectivity and authentication |
 
 ### Media (`media.go`)
@@ -154,17 +154,17 @@ Lightweight connectivity check. Returns a minimal response with no database quer
 
 ### Notifications (`notifications.go`)
 
-| Method | Route                              | Handler                            | Auth | Description                                                                                                                                                   |
-| ------ | ---------------------------------- | ---------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| GET    | `/notifications/stream`            | `StreamNotifications`              | ❌⚡ | SSE notification & toast stream (public read-only, rate-limited). Used by dashboard NotificationBell.                                                         |
-| GET    | `/notifications`                   | `GetNotifications`                 | ❌   | List notifications (public read-only). Used by dashboard NotificationBell.                                                                                    |
-| GET    | `/notifications/:id`               | `GetNotification`                  | ✅   | Get specific notification                                                                                                                                     |
-| PUT    | `/notifications/:id/read`          | `MarkNotificationRead`             | ✅   | Mark notification as read                                                                                                                                     |
-| PUT    | `/notifications/:id/acknowledge`   | `MarkNotificationAcknowledged`     | ✅   | Acknowledge notification                                                                                                                                      |
-| DELETE | `/notifications/:id`               | `DeleteNotification`               | ✅   | Delete notification                                                                                                                                           |
-| GET    | `/notifications/unread/count`      | `GetUnreadCount`                   | ❌   | Count unread notifications (public read-only). Used by dashboard NotificationBell.                                                                            |
-| POST   | `/notifications/test/new-species`  | `CreateTestNewSpeciesNotification` | ✅   | Create test new-species notification                                                                                                                          |
-| GET    | `/notifications/check-ntfy-server` | `CheckNtfyServer`                  | ✅   | Probe NTFY host for HTTPS/HTTP connectivity (authenticated to prevent SSRF relay). Query: `host=<hostname[:port]>`.                                           |
+| Method | Route                              | Handler                            | Auth | Description                                                                                                         |
+| ------ | ---------------------------------- | ---------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/notifications/stream`            | `StreamNotifications`              | ❌⚡ | SSE notification & toast stream (public read-only, rate-limited). Used by dashboard NotificationBell.               |
+| GET    | `/notifications`                   | `GetNotifications`                 | ❌   | List notifications (public read-only). Used by dashboard NotificationBell.                                          |
+| GET    | `/notifications/:id`               | `GetNotification`                  | ✅   | Get specific notification                                                                                           |
+| PUT    | `/notifications/:id/read`          | `MarkNotificationRead`             | ✅   | Mark notification as read                                                                                           |
+| PUT    | `/notifications/:id/acknowledge`   | `MarkNotificationAcknowledged`     | ✅   | Acknowledge notification                                                                                            |
+| DELETE | `/notifications/:id`               | `DeleteNotification`               | ✅   | Delete notification                                                                                                 |
+| GET    | `/notifications/unread/count`      | `GetUnreadCount`                   | ❌   | Count unread notifications (public read-only). Used by dashboard NotificationBell.                                  |
+| POST   | `/notifications/test/new-species`  | `CreateTestNewSpeciesNotification` | ✅   | Create test new-species notification                                                                                |
+| GET    | `/notifications/check-ntfy-server` | `CheckNtfyServer`                  | ✅   | Probe NTFY host for HTTPS/HTTP connectivity (authenticated to prevent SSRF relay). Query: `host=<hostname[:port]>`. |
 
 ### Range Filter (`range.go`)
 
@@ -184,15 +184,15 @@ Lightweight connectivity check. Returns a minimal response with no database quer
 
 ### Settings (`settings.go`)
 
-| Method | Route                      | Handler                 | Auth | Description                                                    |
-| ------ | -------------------------- | ----------------------- | ---- | -------------------------------------------------------------- |
-| GET    | `/settings`                | `GetAllSettings`        | ✅   | Get all configuration settings                                 |
-| GET    | `/settings/locales`        | `GetLocales`            | ✅   | Get available locales                                          |
-| GET    | `/settings/imageproviders` | `GetImageProviders`     | ✅   | Get image provider options                                     |
-| GET    | `/settings/systemid`       | `GetSystemID`           | ✅   | Get system identifier                                          |
-| GET    | `/settings/dashboard`      | `GetDashboardSettings`  | ❌   | Get dashboard display preferences (public, non-sensitive)      |
-| GET    | `/settings/:section`       | `GetSectionSettings`    | ✅   | Get specific settings section (other sections remain protected) |
-| PUT    | `/settings`                | `UpdateSettings`        | ✅   | Update all settings                                            |
+| Method | Route                      | Handler                 | Auth | Description                                                         |
+| ------ | -------------------------- | ----------------------- | ---- | ------------------------------------------------------------------- |
+| GET    | `/settings`                | `GetAllSettings`        | ✅   | Get all configuration settings                                      |
+| GET    | `/settings/locales`        | `GetLocales`            | ✅   | Get available locales                                               |
+| GET    | `/settings/imageproviders` | `GetImageProviders`     | ✅   | Get image provider options                                          |
+| GET    | `/settings/systemid`       | `GetSystemID`           | ✅   | Get system identifier                                               |
+| GET    | `/settings/dashboard`      | `GetDashboardSettings`  | ❌   | Get dashboard display preferences (public, non-sensitive)           |
+| GET    | `/settings/:section`       | `GetSectionSettings`    | ✅   | Get specific settings section (other sections remain protected)     |
+| PUT    | `/settings`                | `UpdateSettings`        | ✅   | Update all settings                                                 |
 | PATCH  | `/settings/:section`       | `UpdateSectionSettings` | ✅   | Update settings section (writes to `/dashboard` still require auth) |
 
 The `GET /settings/dashboard` endpoint is intentionally public so that unauthenticated guests can render the SPA dashboard (species summary limit, layout, locale, thumbnails). The Dashboard section contains no secrets, tokens, or PII, and the layout is already exposed via `/app/config`. All mutations (PATCH) on the dashboard section remain auth-protected.
@@ -213,12 +213,171 @@ The `GET /settings/dashboard` endpoint is intentionally public so that unauthent
 
 ### Species (`species.go`)
 
-| Method | Route                      | Handler               | Auth | Description                                                       |
-| ------ | -------------------------- | --------------------- | ---- | ----------------------------------------------------------------- |
-| GET    | `/species`                 | `GetSpeciesInfo`      | ❌   | Get extended species information including rarity status          |
-| GET    | `/species/all`             | `GetAllSpecies`       | ❌   | Get all BirdNET species labels (not filtered by location)         |
-| GET    | `/species/taxonomy`        | `GetSpeciesTaxonomy`  | ❌   | Get detailed taxonomy data with subspecies and hierarchy          |
-| GET    | `/species/:code/thumbnail` | `GetSpeciesThumbnail` | ❌   | Get bird thumbnail image by species code (redirects to image URL) |
+| Method | Route                               | Handler               | Auth | Description                                                                                              |
+| ------ | ----------------------------------- | --------------------- | ---- | -------------------------------------------------------------------------------------------------------- |
+| GET    | `/species`                          | `GetSpeciesInfo`      | ❌   | Get extended species information including rarity status                                                 |
+| GET    | `/species/all`                      | `GetAllSpecies`       | ❌   | Get all BirdNET species labels (not filtered by location)                                                |
+| GET    | `/species/taxonomy`                 | `GetSpeciesTaxonomy`  | ❌   | Get detailed taxonomy data with subspecies and hierarchy                                                 |
+| GET    | `/species/:code/thumbnail`          | `GetSpeciesThumbnail` | ❌   | Get bird thumbnail image by species code (redirects to image URL)                                        |
+| GET    | `/species/:scientific_name/guide`   | `GetSpeciesGuide`     | ❌   | Get species guide text (description, conservation status, quality, expectedness, season, external links) |
+| GET    | `/species/:scientific_name/similar` | `GetSimilarSpecies`   | ❌   | Get similar species (same genus) with optional guide summaries                                           |
+| GET    | `/species/:scientific_name/notes`   | `GetSpeciesNotes`     | ❌   | Get user-authored notes for a species                                                                    |
+| POST   | `/species/:scientific_name/notes`   | `CreateSpeciesNote`   | ✅   | Create a new species note                                                                                |
+| PUT    | `/species/notes/:id`                | `UpdateSpeciesNote`   | ✅   | Update a species note by ID                                                                              |
+| DELETE | `/species/notes/:id`                | `DeleteSpeciesNote`   | ✅   | Delete a species note by ID                                                                              |
+
+#### GET /api/v2/species/:scientific_name/guide
+
+Returns species guide information from Wikipedia (or configured provider) with two-tier caching (memory + SQLite). Supports locale-specific Wikipedia editions.
+
+**Query Parameters:**
+
+| Param    | Type   | Required | Description                                              |
+| -------- | ------ | -------- | -------------------------------------------------------- |
+| `locale` | string | No       | Wikipedia language code (e.g. `de`, `fr`). Default: `en` |
+
+**Response:**
+
+```json
+{
+  "scientific_name": "Turdus merula",
+  "common_name": "Common blackbird",
+  "description": "The common blackbird is a species of true thrush.\n\n## Description\nThe adult male is...",
+  "conservation_status": "",
+  "quality": "full",
+  "expectedness": "expected",
+  "current_season": "spring",
+  "external_links": [
+    {
+      "name": "Wikipedia",
+      "url": "https://en.wikipedia.org/wiki/Common_blackbird"
+    }
+  ],
+  "features": {
+    "notes": true,
+    "enrichments": true,
+    "similar_species": true
+  },
+  "source": {
+    "provider": "wikipedia",
+    "url": "https://en.wikipedia.org/wiki/Common_blackbird",
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/"
+  },
+  "partial": false,
+  "cached_at": "2026-04-04T12:00:00Z"
+}
+```
+
+**Quality values:** `full` (has structured sections), `intro_only` (summary paragraph only), `stub` (metadata only).
+
+**Expectedness values:** `expected`, `uncommon`, `rare`, `unexpected`. Derived from BirdNET's probable species scores for the current date and location.
+
+**Error responses:** `400` invalid or missing scientific name, `404` species guide not found, `429` too many requests, `503` guide feature disabled / cache not available / all providers unavailable, `500` unexpected server error.
+
+#### GET /api/v2/species/:scientific_name/similar
+
+Returns up to 5 species in the same genus from BirdNET's label list, with optional guide summaries.
+
+**Query Parameters:**
+
+| Param    | Type   | Required | Description                                 |
+| -------- | ------ | -------- | ------------------------------------------- |
+| `locale` | string | No       | Wikipedia language code for guide summaries |
+
+**Response:**
+
+```json
+{
+  "scientific_name": "Turdus merula",
+  "genus": "Turdus",
+  "similar": [
+    {
+      "scientific_name": "Turdus philomelos",
+      "common_name": "Song Thrush",
+      "relationship": "same_genus",
+      "guide_summary": "The song thrush is a thrush...",
+      "sections": {
+        "description": "Brown above with dark spots below.",
+        "songs_and_calls": "A repeated, flute-like song built from short phrases.",
+        "similar_species": ["Turdus iliacus", "Turdus viscivorus"]
+      }
+    }
+  ]
+}
+```
+
+Each `similar` entry may include a `sections` object with:
+
+- `description`: truncated comparison-friendly description text
+- `songs_and_calls`: truncated vocalization notes
+- `similar_species`: list of related scientific names parsed from the guide
+
+**Error responses:** `400` invalid or missing scientific name, `404` species guide not found, `429` too many requests, `503` species guide or similar-species feature disabled.
+
+#### GET /api/v2/species/:scientific_name/notes
+
+Returns all user-authored notes for a species.
+
+**Response:**
+
+```json
+[
+  {
+    "id": 1,
+    "entry": "Heard singing from the oak tree at dawn",
+    "created_at": "2026-04-04T08:30:00Z",
+    "updated_at": "2026-04-04T08:30:00Z"
+  }
+]
+```
+
+#### POST /api/v2/species/:scientific_name/notes
+
+Creates a new species note. Requires authentication. Maximum note length: 10,000 bytes.
+
+**Request Body:**
+
+```json
+{
+  "entry": "Heard singing from the oak tree at dawn"
+}
+```
+
+**Response:** `201 Created` with the created `SpeciesNoteResponse`.
+
+#### DELETE /api/v2/species/notes/:id
+
+Deletes a species note by ID. Requires authentication.
+
+**Response:** `200 OK` with `{"message": "Note deleted successfully"}`.
+
+#### PUT /api/v2/species/notes/:id
+
+Updates an existing species note. Requires authentication.
+
+**Request Body:**
+
+```json
+{
+  "entry": "Updated observation text"
+}
+```
+
+**Validation:** `entry` must be non-empty and at most 10,000 bytes.
+
+**Response:** `200 OK` with the updated `SpeciesNoteResponse`:
+
+```json
+{
+  "id": 1,
+  "entry": "Updated observation text",
+  "created_at": "2026-04-04T08:30:00Z",
+  "updated_at": "2026-04-05T10:15:00Z"
+}
+```
+
+**Error responses:** `400` missing/invalid ID or entry validation failure, `404` note not found, `503` notes feature disabled, `500` unexpected server error.
 
 ### Server-Sent Events (`sse.go`)
 
@@ -260,14 +419,14 @@ The `GET /settings/dashboard` endpoint is intentionally public so that unauthent
 
 ### HLS Streaming (`audio_hls.go`)
 
-| Method | Route                                            | Handler            | Auth                 | Description                    |
-| ------ | ------------------------------------------------ | ------------------ | -------------------- | ------------------------------ |
-| POST   | `/streams/hls/:sourceID/start`                   | `StartHLSStream`   | ✅                   | Start HLS stream for source    |
-| POST   | `/streams/hls/:sourceID/stop`                    | `StopHLSStream`    | ✅                   | Stop HLS stream                |
-| POST   | `/streams/hls/heartbeat`                         | `HLSHeartbeat`     | ✅ publicLiveAudio   | Keep HLS stream alive          |
-| GET    | `/streams/hls/status`                            | `GetHLSStatus`     | ✅ publicLiveAudio   | Get status of all HLS streams  |
-| GET    | `/streams/hls/t/:streamToken/playlist.m3u8`      | `ServeHLSPlaylist` | 🔑 token             | Get HLS playlist via token     |
-| GET    | `/streams/hls/t/:streamToken/*`                  | `ServeHLSContent`  | 🔑 token             | Serve HLS segments via token   |
+| Method | Route                                       | Handler            | Auth               | Description                   |
+| ------ | ------------------------------------------- | ------------------ | ------------------ | ----------------------------- |
+| POST   | `/streams/hls/:sourceID/start`              | `StartHLSStream`   | ✅                 | Start HLS stream for source   |
+| POST   | `/streams/hls/:sourceID/stop`               | `StopHLSStream`    | ✅                 | Stop HLS stream               |
+| POST   | `/streams/hls/heartbeat`                    | `HLSHeartbeat`     | ✅ publicLiveAudio | Keep HLS stream alive         |
+| GET    | `/streams/hls/status`                       | `GetHLSStatus`     | ✅ publicLiveAudio | Get status of all HLS streams |
+| GET    | `/streams/hls/t/:streamToken/playlist.m3u8` | `ServeHLSPlaylist` | 🔑 token           | Get HLS playlist via token    |
+| GET    | `/streams/hls/t/:streamToken/*`             | `ServeHLSContent`  | 🔑 token           | Serve HLS segments via token  |
 
 **Token-Based Authentication:**
 
@@ -337,17 +496,17 @@ HLS playlist and segment routes use token-based authentication instead of standa
 
 ### Stream Health Monitoring (`streams_health.go`)
 
-| Method | Route                    | Handler                   | Auth | Description                                               |
-| ------ | ------------------------ | ------------------------- | ---- | --------------------------------------------------------- |
-| GET    | `/streams/health`        | `GetAllStreamsHealth`     | ✅   | Get detailed health status of all RTSP streams (settings-only; URLs sanitized)        |
-| GET    | `/streams/health/:url`   | `GetStreamHealth`         | ✅   | Get detailed health status of a specific RTSP stream (settings-only; URLs sanitized)  |
-| GET    | `/streams/status`        | `GetStreamsStatusSummary` | ✅   | Get high-level summary of all stream statuses with counts (settings-only)             |
-| GET    | `/streams/health/stream` | `StreamHealthUpdates`     | ✅⚡ | Real-time stream health updates via SSE (settings page, not dashboard)                |
+| Method | Route                    | Handler                   | Auth | Description                                                                          |
+| ------ | ------------------------ | ------------------------- | ---- | ------------------------------------------------------------------------------------ |
+| GET    | `/streams/health`        | `GetAllStreamsHealth`     | ✅   | Get detailed health status of all RTSP streams (settings-only; URLs sanitized)       |
+| GET    | `/streams/health/:url`   | `GetStreamHealth`         | ✅   | Get detailed health status of a specific RTSP stream (settings-only; URLs sanitized) |
+| GET    | `/streams/status`        | `GetStreamsStatusSummary` | ✅   | Get high-level summary of all stream statuses with counts (settings-only)            |
+| GET    | `/streams/health/stream` | `StreamHealthUpdates`     | ✅⚡ | Real-time stream health updates via SSE (settings page, not dashboard)               |
 
 ### Quiet Hours Status (`quiet_hours.go`)
 
-| Method | Route                         | Handler               | Auth | Description                                               |
-| ------ | ----------------------------- | --------------------- | ---- | --------------------------------------------------------- |
+| Method | Route                         | Handler               | Auth | Description                                                                                                             |
+| ------ | ----------------------------- | --------------------- | ---- | ----------------------------------------------------------------------------------------------------------------------- |
 | GET    | `/streams/quiet-hours/status` | `GetQuietHoursStatus` | ❌   | Get current quiet hours suppression state for all sources (URLs sanitized). Used by dashboard "Currently Hearing" card. |
 
 **Response Format:**
@@ -458,9 +617,9 @@ Requires enhanced (v2) database. Returns 409 Conflict if not available.
 
 ### Models (`models.go`)
 
-| Method | Route     | Handler      | Auth | Description                         |
-| ------ | --------- | ------------ | ---- | ----------------------------------- |
-| GET    | `/models` | `ListModels` | ❌   | List available classifier models    |
+| Method | Route     | Handler      | Auth | Description                      |
+| ------ | --------- | ------------ | ---- | -------------------------------- |
+| GET    | `/models` | `ListModels` | ❌   | List available classifier models |
 
 **GET /api/v2/models** — Returns all classifier models registered in the model registry. Each entry includes a config alias (used in audio source configuration) and a human-readable display name.
 
@@ -922,7 +1081,6 @@ Updates are sent only when changes are detected, reducing bandwidth compared to 
 ### Integration Tips
 
 1. **Choose the Right Endpoint** (all require authentication — settings page only):
-
    - Use SSE (`/streams/health/stream`) for real-time settings-page monitoring
    - Use REST polling (`/streams/status`) for periodic background checks on the settings page
    - Use REST (`/streams/health/:url`) for on-demand detailed diagnostics

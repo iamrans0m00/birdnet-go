@@ -379,6 +379,21 @@ func (m *ActionMockDatastore) CountResults() (int64, error) {
 	return 0, nil
 }
 
+// Species notes methods
+func (m *ActionMockDatastore) GetSpeciesNotes(_ context.Context, _ string) ([]datastore.SpeciesNote, error) {
+	return nil, nil
+}
+func (m *ActionMockDatastore) SaveSpeciesNote(_ context.Context, _ *datastore.SpeciesNote) error {
+	return nil
+}
+func (m *ActionMockDatastore) DeleteSpeciesNote(_ context.Context, _ string) error { return nil }
+func (m *ActionMockDatastore) UpdateSpeciesNote(_ context.Context, _, _ string) error {
+	return nil
+}
+func (m *ActionMockDatastore) GetSpeciesNoteByID(_ context.Context, _ uint) (*datastore.SpeciesNote, error) {
+	return nil, nil //nolint:nilnil // stub implementation
+}
+
 // Compile-time check that ActionMockDatastore implements datastore.Interface
 var _ datastore.Interface = (*ActionMockDatastore)(nil)
 

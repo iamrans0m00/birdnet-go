@@ -166,6 +166,10 @@ type Processor struct {
 	// hot-reload requirement in CLAUDE.md while still suppressing the
 	// per-detection Sentry spam between rechecks.
 	invalidCommandPaths sync.Map
+
+	// Guide pre-fetch callback (optional, injected by api_service)
+	guidePreFetch   func(ctx context.Context, scientificName string)
+	guidePreFetchMu sync.RWMutex
 }
 
 type Detections struct {
@@ -1250,7 +1254,7 @@ func (p *Processor) shouldDiscardDetection(item *PendingDetection, minDetections
 }
 
 // processApprovedDetection handles an approved detection by sending it to the worker queue
-func (p *Processor) processApprovedDetection(item *PendingDetection, speciesName string) {
+func (p *Processor) processApprovedDetection(ctx context.Context, item *PendingDetection, speciesName string) {
 	// Use item.Confidence directly - it's the correct confidence for THIS species,
 	// not Results[0].Confidence which could be a different (higher confidence) species
 	confidence := float32(item.Confidence)
@@ -1295,6 +1299,14 @@ func (p *Processor) processApprovedDetection(item *PendingDetection, speciesName
 	// Update BirdNET metrics detection counter if enabled
 	if p.Settings.Realtime.Telemetry.Enabled && p.Metrics != nil && p.Metrics.BirdNET != nil {
 		p.Metrics.BirdNET.IncrementDetectionCounter(item.Detection.Result.Species.CommonName)
+	}
+
+	// Pre-fetch species guide for this detection (non-blocking)
+	p.guidePreFetchMu.RLock()
+	preFetch := p.guidePreFetch
+	p.guidePreFetchMu.RUnlock()
+	if preFetch != nil {
+		preFetch(ctx, item.Detection.Result.Species.ScientificName)
 	}
 }
 
@@ -1413,6 +1425,11 @@ func (p *Processor) flushPendingDetections(minDetections int) (pendingCount, flu
 
 	pendingCount = len(p.pendingDetections)
 
+	approvedItems := make([]struct {
+		item        PendingDetection
+		speciesName string
+	}, 0, pendingCount)
+
 	for mapKey := range p.pendingDetections {
 		item := p.pendingDetections[mapKey]
 		if !now.After(item.FlushDeadline) {
@@ -1450,7 +1467,10 @@ func (p *Processor) flushPendingDetections(minDetections int) (pendingCount, flu
 			logger.Int("required", minDetections),
 			logger.String("operation", "flush_detection"))
 
-		p.processApprovedDetection(&item, speciesName)
+		approvedItems = append(approvedItems, struct {
+			item        PendingDetection
+			speciesName string
+		}{item, speciesName})
 		delete(p.pendingDetections, mapKey)
 		flushedCount++
 
@@ -1489,6 +1509,12 @@ func (p *Processor) flushPendingDetections(minDetections int) (pendingCount, flu
 	}
 
 	p.pendingMutex.Unlock()
+
+	// Process approved detections outside the lock to allow prefetch callbacks to run without blocking.
+	// Use flusherCtx so pre-fetch network calls cancel promptly on processor shutdown.
+	for i := range approvedItems {
+		p.processApprovedDetection(p.flusherCtx, &approvedItems[i].item, approvedItems[i].speciesName)
+	}
 
 	// Broadcast outside the lock to avoid blocking processDetections.
 	if broadcastSnapshot != nil {
@@ -2088,6 +2114,13 @@ func (p *Processor) SetPendingBroadcaster(broadcaster func(snapshot []SSEPending
 	p.pendingBroadcasterMu.Lock()
 	defer p.pendingBroadcasterMu.Unlock()
 	p.PendingBroadcaster = broadcaster
+}
+
+// SetGuidePreFetch sets a callback to pre-fetch species guide data for new detections.
+func (p *Processor) SetGuidePreFetch(fn func(ctx context.Context, scientificName string)) {
+	p.guidePreFetchMu.Lock()
+	defer p.guidePreFetchMu.Unlock()
+	p.guidePreFetch = fn
 }
 
 // SetBackupManager safely sets the backup manager

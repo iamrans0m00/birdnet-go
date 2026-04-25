@@ -27,6 +27,7 @@ import (
 	"github.com/tphakala/birdnet-go/internal/classifier"
 	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/datastore"
+	"github.com/tphakala/birdnet-go/internal/guideprovider"
 	datastoreV2 "github.com/tphakala/birdnet-go/internal/datastore/v2"
 	"github.com/tphakala/birdnet-go/internal/datastore/v2/repository"
 	"github.com/tphakala/birdnet-go/internal/ebird"
@@ -50,6 +51,8 @@ type Controller struct {
 	Repo                datastore.DetectionRepository // New: Preferred for detection CRUD operations
 	Settings            *conf.Settings
 	BirdImageCache      *imageprovider.BirdImageCache
+	guideCache          *guideprovider.GuideCache
+	guideCacheMu        sync.RWMutex // protects guideCache for hot-reload
 	SunCalc             *suncalc.SunCalc
 	Processor           *processor.Processor
 	EBirdClient         *ebird.Client
@@ -153,6 +156,43 @@ func WithAuthService(svc auth.Service) Option {
 func WithMetricsStore(store observability.MetricsStore) Option {
 	return func(c *Controller) {
 		c.metricsStore = store
+	}
+}
+
+// WithGuideCache sets the species guide cache for the controller.
+func WithGuideCache(gc *guideprovider.GuideCache) Option {
+	return func(c *Controller) {
+		c.guideCache = gc
+	}
+}
+
+// WithGuideCache executes a callback with the current guide cache.
+// The pointer is snapshotted under the read lock and the lock is released before
+// invoking the callback. This keeps SetGuideCache (rare config hot-reload) from
+// blocking for the duration of long-running network I/O inside the callback.
+//
+// GuideCache is safe to use after Close(): Close() only cancels the root context
+// and closes the quit channel. Memory- and DB-cache hits still succeed; only
+// network fetches that fall back to rootCtx will return a cancelled-context
+// error. Callbacks that arrive exactly during a swap may see that degraded
+// behavior, which is acceptable since hot-reload is user-initiated and rare.
+func (c *Controller) WithGuideCache(fn func(*guideprovider.GuideCache) error) error {
+	c.guideCacheMu.RLock()
+	gc := c.guideCache
+	c.guideCacheMu.RUnlock()
+	return fn(gc)
+}
+
+// SetGuideCache replaces the guide cache (thread-safe). The old cache is closed if non-nil.
+// Close() is called outside the lock so it does not block concurrent WithGuideCache readers.
+func (c *Controller) SetGuideCache(gc *guideprovider.GuideCache) {
+	c.guideCacheMu.Lock()
+	oldCache := c.guideCache
+	c.guideCache = gc
+	c.guideCacheMu.Unlock()
+
+	if oldCache != nil {
+		oldCache.Close()
 	}
 }
 
@@ -737,6 +777,18 @@ func (c *Controller) Shutdown() {
 	// Consider migrating to a context-aware cache implementation.
 	if c.detectionCache != nil {
 		c.detectionCache.Flush()
+	}
+
+	// Close the species guide cache. The Controller is the canonical owner
+	// because hot-reload swaps the cache in via SetGuideCache (which closes
+	// the prior instance). Closing here ensures the post-reload cache, which
+	// the Controller alone holds a reference to, is stopped on shutdown.
+	c.guideCacheMu.Lock()
+	gc := c.guideCache
+	c.guideCache = nil
+	c.guideCacheMu.Unlock()
+	if gc != nil {
+		gc.Close()
 	}
 
 	c.Debug("API Controller shutdown complete")

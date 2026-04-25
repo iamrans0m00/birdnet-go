@@ -141,13 +141,6 @@ func ReadFiles(paths []string, opts *ReadOptions) ([]LogEntry, error) {
 // (e.g., actions-2024-01-15T10-30-00Z.log). Compressed (.gz) files are excluded
 // since they require decompression.
 func FindLogFiles(basePath string) ([]string, error) {
-	// Start with the active log file if it exists.
-	var files []string
-
-	if _, err := os.Stat(basePath); err == nil {
-		files = append(files, basePath)
-	}
-
 	// Build glob pattern for rotated files: <base>-*<ext>
 	ext := filepath.Ext(basePath)
 	base := strings.TrimSuffix(basePath, ext)
@@ -156,6 +149,12 @@ func FindLogFiles(basePath string) ([]string, error) {
 	rotated, err := filepath.Glob(pattern)
 	if err != nil {
 		return nil, fmt.Errorf("globbing rotated log files with pattern %s: %w", pattern, err)
+	}
+
+	// Start with the active log file if it exists.
+	files := make([]string, 0, 1+len(rotated))
+	if _, err := os.Stat(basePath); err == nil {
+		files = append(files, basePath)
 	}
 
 	// Filter out compressed files and the active file.

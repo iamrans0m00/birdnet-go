@@ -3049,3 +3049,128 @@ func (ds *Datastore) DeleteExpiredNotificationHistory(before time.Time) (int64, 
 	ctx := context.Background()
 	return ds.notification.DeleteExpiredNotificationHistory(ctx, before)
 }
+
+// GetSpeciesNotes retrieves all notes for a species by scientific name.
+func (ds *Datastore) GetSpeciesNotes(ctx context.Context, scientificName string) ([]datastore.SpeciesNote, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var notes []datastore.SpeciesNote
+	err := datastore.RetryOnLock(ctx, "get_species_notes", func() error {
+		return ds.manager.DB().WithContext(ctx).
+			Where("scientific_name = ?", scientificName).
+			Order("created_at DESC").
+			Find(&notes).Error
+	}, ds.metrics)
+	if err != nil {
+		return nil, fmt.Errorf("get species notes: %w", err)
+	}
+	return notes, nil
+}
+
+// SaveSpeciesNote saves a new species note.
+func (ds *Datastore) SaveSpeciesNote(ctx context.Context, note *datastore.SpeciesNote) error {
+	if note == nil {
+		return fmt.Errorf("species note cannot be nil")
+	}
+
+	// Validate and normalize scientific name
+	note.ScientificName = strings.TrimSpace(note.ScientificName)
+	if note.ScientificName == "" {
+		return fmt.Errorf("species scientific name cannot be empty")
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	normalizedEntry, err := datastore.NormalizeSpeciesNoteEntry(note.Entry)
+	if err != nil {
+		return err
+	}
+	note.Entry = normalizedEntry
+	return datastore.RetryOnLock(ctx, "save_species_note", func() error {
+		return ds.manager.DB().WithContext(ctx).Create(note).Error
+	}, ds.metrics)
+}
+
+// DeleteSpeciesNote deletes a species note by ID.
+func (ds *Datastore) DeleteSpeciesNote(ctx context.Context, noteID string) error {
+	id, err := parseID(noteID)
+	if err != nil {
+		return err
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var rowsAffected int64
+	err = datastore.RetryOnLock(ctx, "delete_species_note", func() error {
+		result := ds.manager.DB().WithContext(ctx).Delete(&datastore.SpeciesNote{}, id)
+		if result.Error != nil {
+			return fmt.Errorf("delete species note: %w", result.Error)
+		}
+		rowsAffected = result.RowsAffected
+		return nil
+	}, ds.metrics)
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return datastore.ErrSpeciesNoteNotFound
+	}
+	return nil
+}
+
+// UpdateSpeciesNote updates an existing species note's entry.
+func (ds *Datastore) UpdateSpeciesNote(ctx context.Context, noteID, entry string) error {
+	id, err := parseID(noteID)
+	if err != nil {
+		return err
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	normalizedEntry, err := datastore.NormalizeSpeciesNoteEntry(entry)
+	if err != nil {
+		return err
+	}
+	var rowsAffected int64
+	err = datastore.RetryOnLock(ctx, "update_species_note", func() error {
+		result := ds.manager.DB().WithContext(ctx).Model(&datastore.SpeciesNote{}).Where("id = ?", id).Update("entry", normalizedEntry)
+		if result.Error != nil {
+			return fmt.Errorf("update species note: %w", result.Error)
+		}
+		rowsAffected = result.RowsAffected
+		return nil
+	}, ds.metrics)
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		var count int64
+		if err := ds.manager.DB().WithContext(ctx).Model(&datastore.SpeciesNote{}).Where("id = ?", id).Count(&count).Error; err != nil {
+			return fmt.Errorf("check species note existence: %w", err)
+		}
+		if count == 0 {
+			return datastore.ErrSpeciesNoteNotFound
+		}
+	}
+	return nil
+}
+
+// GetSpeciesNoteByID retrieves a single species note by its primary key.
+func (ds *Datastore) GetSpeciesNoteByID(ctx context.Context, id uint) (*datastore.SpeciesNote, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	var note datastore.SpeciesNote
+	err := datastore.RetryOnLock(ctx, "get_species_note_by_id", func() error {
+		return ds.manager.DB().WithContext(ctx).First(&note, id).Error
+	}, ds.metrics)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, datastore.ErrSpeciesNoteNotFound
+		}
+		return nil, fmt.Errorf("get species note by id: %w", err)
+	}
+	return &note, nil
+}
