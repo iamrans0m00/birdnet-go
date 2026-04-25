@@ -3,6 +3,11 @@ package metrics
 
 import "github.com/prometheus/client_golang/prometheus"
 
+// dbStatusError is the status label value used for failed guide-cache DB
+// operations. Kept local to this package to avoid an import cycle with
+// internal/guideprovider (which depends on this package).
+const dbStatusError = "error"
+
 // GuideProviderMetrics contains Prometheus metrics for guide provider operations.
 type GuideProviderMetrics struct {
 	registry *prometheus.Registry
@@ -48,7 +53,7 @@ func (m *GuideProviderMetrics) initMetrics() error {
 			Name: "guidecache_hits_total",
 			Help: "Total number of guide cache hits",
 		},
-		[]string{"provider", "quality"}, // provider: wikipedia, ebird; quality: full, stub, intro_only
+		[]string{"provider", "quality"}, // provider: wikipedia, ebird; quality: full, stub, not_found
 	)
 
 	m.cacheMissesTotal = prometheus.NewCounterVec(
@@ -198,7 +203,7 @@ func (m *GuideProviderMetrics) RecordDuration(operation string, seconds float64)
 // status="error" (so status-based dashboards stay correct), and a dedicated
 // errors counter labelled by error_type for categorized breakdowns.
 func (m *GuideProviderMetrics) RecordError(operation, errorType string) {
-	m.dbOperationsTotal.WithLabelValues(operation, "error").Inc()
+	m.dbOperationsTotal.WithLabelValues(operation, dbStatusError).Inc()
 	m.dbOperationErrorsTotal.WithLabelValues(operation, errorType).Inc()
 }
 
@@ -217,7 +222,7 @@ func (m *GuideProviderMetrics) RecordDBOperation(operation, status string, durat
 // guide cache code paths.
 func (m *GuideProviderMetrics) RecordDBError(operation, errorType string, duration float64) {
 	m.dbOperationDuration.WithLabelValues(operation).Observe(duration)
-	m.dbOperationsTotal.WithLabelValues(operation, "error").Inc()
+	m.dbOperationsTotal.WithLabelValues(operation, dbStatusError).Inc()
 	m.dbOperationErrorsTotal.WithLabelValues(operation, errorType).Inc()
 }
 
