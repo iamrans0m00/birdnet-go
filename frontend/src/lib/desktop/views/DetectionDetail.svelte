@@ -105,6 +105,10 @@
   // maxlength="10000" on the textareas as a rough cap for the common plain-text
   // case, and then enforce the real byte limit with getByteLength() before submit.
   const MAX_NOTE_BYTES = 10_000;
+  // HTTP 503 from /api/v2/species/:name/guide signals the SpeciesGuide
+  // feature is disabled server-side. Named so the call site reads as a
+  // semantic check rather than a bare numeric comparison.
+  const HTTP_SERVICE_UNAVAILABLE = 503;
   type TabType = 'overview' | 'history' | 'notes' | 'review';
 
   // UTF-8 byte length — matches what the backend counts with len(string).
@@ -439,7 +443,7 @@
         const data: SpeciesGuideData = await response.json();
         if (controller.signal.aborted) return;
         guideData = data;
-      } else if (response.status === 503) {
+      } else if (response.status === HTTP_SERVICE_UNAVAILABLE) {
         // Server reports the SpeciesGuide feature is disabled. Notes share the
         // same gate, so signal callers to skip the redundant /notes fetch.
         guideFeatureDisabled = true;
