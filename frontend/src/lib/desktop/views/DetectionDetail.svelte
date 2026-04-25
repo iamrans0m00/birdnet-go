@@ -161,9 +161,11 @@
       : []
   );
 
-  // Type guard to help TypeScript understand guideData is not null
+  // Mirrors the Species Notes render condition below so we never fetch notes
+  // we won't display. The notes section requires guideData to be present, so
+  // any null guideData (feature disabled, network error, 404) skips the fetch.
   function shouldFetchNotes(guide: SpeciesGuideData | null): boolean {
-    if (!guide) return true; // Fetch by default if no guide data
+    if (!guide) return false;
     return guide.features?.notes !== false;
   }
 
