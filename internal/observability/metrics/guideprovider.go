@@ -127,7 +127,7 @@ func (m *GuideProviderMetrics) initMetrics() error {
 			Name: "guidecache_db_operation_errors_total",
 			Help: "Total number of guide cache DB operation errors categorized by error type",
 		},
-		[]string{"operation", "error_type"}, // error_type: validation, network, etc.
+		[]string{"operation", "error_type"}, // error_type: context_canceled, context_deadline, database
 	)
 
 	// Initialize collectors slice
