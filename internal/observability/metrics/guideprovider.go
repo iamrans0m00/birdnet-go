@@ -4,8 +4,9 @@ package metrics
 import "github.com/prometheus/client_golang/prometheus"
 
 // dbStatusError is the status label value used for failed guide-cache DB
-// operations. Kept local to this package to avoid an import cycle with
-// internal/guideprovider (which depends on this package).
+// operations. Kept local to this package: the metrics package is a leaf
+// dependency that intentionally does not import consumer packages such as
+// internal/guideprovider, even when label values overlap with their constants.
 const dbStatusError = "error"
 
 // GuideProviderMetrics contains Prometheus metrics for guide provider operations.
