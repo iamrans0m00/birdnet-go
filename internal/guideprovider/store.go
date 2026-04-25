@@ -46,12 +46,17 @@ func (s *GORMGuideStore) GetGuideCache(ctx context.Context, scientificName, prov
 		locale = "en"
 	}
 	var entry GuideCacheEntry
-	// Silent logger: First() logs ErrRecordNotFound as a warning by default.
-	// We treat "not found" as a normal cache miss (return nil, nil), so we
-	// suppress the noise here. Write paths intentionally keep the default
-	// logger so real GORM errors remain visible in logs.
+	// Silent: First() logs ErrRecordNotFound at warn level under the stdlib
+	// gorm logger, but "not found" is a normal cache miss for us (return
+	// nil, nil). Production loggers (datastore.GormLogger, logger.GormLoggerAdapter)
+	// already filter ErrRecordNotFound, so this is mostly defense in depth
+	// for callers that pass a *gorm.DB without a custom logger (e.g. tests
+	// using bare gorm.Open). Use s.db.Logger.LogMode so the configured
+	// logger is preserved instead of being replaced by gormlogger.Default.
+	// Write paths intentionally keep the configured logger so real GORM
+	// errors remain visible.
 	err := s.db.WithContext(ctx).
-		Session(&gorm.Session{Logger: gormlogger.Default.LogMode(gormlogger.Silent)}).
+		Session(&gorm.Session{Logger: s.db.Logger.LogMode(gormlogger.Silent)}).
 		Where("scientific_name = ? AND provider_name = ? AND locale = ?", scientificName, providerName, locale).
 		First(&entry).Error
 
@@ -137,7 +142,7 @@ func (s *GORMGuideStore) GetAllGuideCaches(ctx context.Context, providerName str
 	start := time.Now()
 	var entries []GuideCacheEntry
 	query := s.db.WithContext(ctx).
-		Session(&gorm.Session{Logger: gormlogger.Default.LogMode(gormlogger.Silent)}).
+		Session(&gorm.Session{Logger: s.db.Logger.LogMode(gormlogger.Silent)}).
 		Where("provider_name = ?", providerName)
 	if !notBefore.IsZero() {
 		query = query.Where("cached_at >= ?", notBefore)
