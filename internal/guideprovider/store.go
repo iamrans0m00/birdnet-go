@@ -141,8 +141,12 @@ func (s *GORMGuideStore) SaveGuideCache(ctx context.Context, entry *GuideCacheEn
 func (s *GORMGuideStore) GetAllGuideCaches(ctx context.Context, providerName string, notBefore time.Time) ([]GuideCacheEntry, error) {
 	start := time.Now()
 	var entries []GuideCacheEntry
+	// No silent session here: Find() returns nil error + empty slice when no
+	// rows match (unlike First(), which returns ErrRecordNotFound). There is
+	// no "not found" noise to suppress, and silencing would hide slow-query
+	// warnings from the configured logger — useful signal for this scan,
+	// which can iterate over many rows at startup and during refresh.
 	query := s.db.WithContext(ctx).
-		Session(&gorm.Session{Logger: s.db.Logger.LogMode(gormlogger.Silent)}).
 		Where("provider_name = ?", providerName)
 	if !notBefore.IsZero() {
 		query = query.Where("cached_at >= ?", notBefore)
