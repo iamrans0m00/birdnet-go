@@ -158,7 +158,7 @@ func (s *GORMGuideStore) GetAllGuideCaches(ctx context.Context, providerName str
 		s.recordDBError(DBOperationQueryGuideCaches, err, start)
 		getLogger().Warn("Failed to query guide caches",
 			logger.String("provider", providerName),
-			logger.Any("error", err))
+			logger.Error(err))
 		return nil, errors.Newf("GetAllGuideCaches provider=%s: %w", providerName, err).
 			Component("guideprovider").
 			Category(errors.CategoryDatabase).
@@ -181,7 +181,7 @@ func (s *GORMGuideStore) DeleteStaleGuideCaches(ctx context.Context, providerNam
 		s.recordDBError(DBOperationDeleteGuideCaches, result.Error, start)
 		getLogger().Warn("Failed to delete stale guide caches",
 			logger.String("provider", providerName),
-			logger.Any("error", result.Error))
+			logger.Error(result.Error))
 		return 0, errors.Newf("DeleteStaleGuideCaches provider=%s: %w", providerName, result.Error).
 			Component("guideprovider").
 			Category(errors.CategoryDatabase).
