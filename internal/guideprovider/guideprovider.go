@@ -3,6 +3,7 @@ package guideprovider
 
 import (
 	"context"
+	"encoding/json"
 	"maps"
 	"sync"
 	"time"
@@ -170,6 +171,7 @@ type GuideCacheEntry struct {
 	SourceURL          string    `gorm:"size:2048"`
 	LicenseName        string    `gorm:"size:200"`
 	LicenseURL         string    `gorm:"size:2048"`
+	SimilarSpecies     string    `gorm:"type:text"` // JSON-encoded []string
 	CachedAt           time.Time `gorm:"index;index:idx_guidecache_age_provider"`
 }
 
@@ -461,16 +463,17 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 	var primaryResult *SpeciesGuide
 
 	// transientFailure tracks whether any provider returned a non-404 error
-	// (timeout, circuit breaker, misconfiguration, etc.). When true we must not
-	// negative-cache the result — the species may exist but was unreachable.
+	// (timeout, circuit breaker, etc.). When true we must not negative-cache
+	// the result — the species may exist but was unreachable.
 	transientFailure := false
 
 	// A configured-but-unregistered primary provider is a misconfiguration
-	// (e.g. eBird selected without an API key). Treat it as transient so we
-	// don't write a negative-cache entry that would mask the misconfig.
-	if !hasPrimary {
-		transientFailure = true
-		log.Warn("Configured primary guide provider not registered; treating as transient failure",
+	// (e.g. eBird selected without an API key). We must not negative-cache it,
+	// and we surface a distinct error so callers can distinguish misconfig
+	// from a genuine provider outage.
+	primaryNotConfigured := !hasPrimary
+	if primaryNotConfigured {
+		log.Warn("Configured primary guide provider not registered",
 			logger.String("provider", primaryProvider))
 	}
 
@@ -543,8 +546,12 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 	}
 
 	// Only negative-cache when all providers explicitly reported not-found.
-	// Transient failures (timeouts, circuit breakers, etc.) must not be cached
-	// as 404s — the species may simply be temporarily unreachable.
+	// Transient failures (timeouts, circuit breakers, etc.) and misconfiguration
+	// must not be cached as 404s — the species may simply be temporarily
+	// unreachable, or the provider may not be set up correctly.
+	if primaryNotConfigured {
+		return nil, ErrProviderNotConfigured
+	}
 	if transientFailure {
 		return nil, ErrAllProvidersUnavailable
 	}
@@ -616,7 +623,7 @@ func isCacheEntryStale(cachedAt time.Time, isNegative bool) bool {
 
 // dbEntryToGuide converts a database cache entry to a SpeciesGuide.
 func dbEntryToGuide(entry *GuideCacheEntry) *SpeciesGuide {
-	return &SpeciesGuide{
+	guide := &SpeciesGuide{
 		ScientificName:     entry.ScientificName,
 		CommonName:         entry.CommonName,
 		Description:        entry.Description,
@@ -628,6 +635,26 @@ func dbEntryToGuide(entry *GuideCacheEntry) *SpeciesGuide {
 		CachedAt:           entry.CachedAt,
 		Partial:            entry.Description == "",
 	}
+	if entry.SimilarSpecies != "" {
+		var similar []string
+		if err := json.Unmarshal([]byte(entry.SimilarSpecies), &similar); err == nil {
+			guide.SimilarSpecies = similar
+		}
+	}
+	return guide
+}
+
+// encodeSimilarSpecies serializes the SimilarSpecies slice to a JSON string for
+// persistence. Returns "" for nil/empty slices to keep the column compact.
+func encodeSimilarSpecies(similar []string) string {
+	if len(similar) == 0 {
+		return ""
+	}
+	b, err := json.Marshal(similar)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // saveToDB persists a guide entry to the database.
@@ -641,12 +668,15 @@ func (c *GuideCache) saveToDB(ctx context.Context, guide *SpeciesGuide, provider
 	// full upsert payload, but we MUST still bump CachedAt so refreshStaleEntries
 	// stops re-fetching this row indefinitely. Reuse the existing entry and
 	// SaveGuideCache (an upsert) which updates only cached_at via OnConflict.
+	similarEncoded := encodeSimilarSpecies(guide.SimilarSpecies)
+
 	existing, err := c.store.GetGuideCache(ctx, guide.ScientificName, providerName, locale)
 	if err == nil && existing != nil &&
 		existing.Description == guide.Description &&
 		existing.CommonName == guide.CommonName &&
 		existing.ConservationStatus == guide.ConservationStatus &&
-		existing.SourceProvider == guide.SourceProvider {
+		existing.SourceProvider == guide.SourceProvider &&
+		existing.SimilarSpecies == similarEncoded {
 		existing.CachedAt = guide.CachedAt
 		if err := c.store.SaveGuideCache(ctx, existing); err != nil {
 			getLogger().Warn("Failed to refresh guide cache CachedAt in database",
@@ -667,6 +697,7 @@ func (c *GuideCache) saveToDB(ctx context.Context, guide *SpeciesGuide, provider
 		SourceURL:          guide.SourceURL,
 		LicenseName:        guide.LicenseName,
 		LicenseURL:         guide.LicenseURL,
+		SimilarSpecies:     similarEncoded,
 		CachedAt:           guide.CachedAt,
 	}
 
@@ -761,11 +792,18 @@ func (c *GuideCache) refreshStaleEntries() {
 		return
 	}
 
-	staleEntries := make([]string, 0, len(entries))
+	type staleKey struct {
+		Name   string
+		Locale string
+	}
+	staleEntries := make([]staleKey, 0, len(entries))
 	for i := range entries {
 		isNegative := entries[i].SourceProvider == negativeEntryMarker
 		if isCacheEntryStale(entries[i].CachedAt, isNegative) {
-			staleEntries = append(staleEntries, entries[i].ScientificName)
+			staleEntries = append(staleEntries, staleKey{
+				Name:   entries[i].ScientificName,
+				Locale: entries[i].Locale,
+			})
 		}
 	}
 
@@ -778,7 +816,7 @@ func (c *GuideCache) refreshStaleEntries() {
 
 	ctx := c.rootCtx
 	refreshed := 0
-	for i, name := range staleEntries {
+	for i, key := range staleEntries {
 		if c.shouldQuit() {
 			break
 		}
@@ -788,7 +826,7 @@ func (c *GuideCache) refreshStaleEntries() {
 			}
 		}
 
-		if _, err := c.fetchFromProviders(ctx, name, FetchOptions{}); err == nil {
+		if _, err := c.fetchFromProviders(ctx, key.Name, FetchOptions{Locale: key.Locale}); err == nil {
 			refreshed++
 		}
 	}
