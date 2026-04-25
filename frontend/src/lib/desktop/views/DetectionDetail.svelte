@@ -105,10 +105,6 @@
   // maxlength="10000" on the textareas as a rough cap for the common plain-text
   // case, and then enforce the real byte limit with getByteLength() before submit.
   const MAX_NOTE_BYTES = 10_000;
-  // HTTP 503 from /api/v2/species/:name/guide signals the SpeciesGuide
-  // feature is disabled server-side. Named so the call site reads as a
-  // semantic check rather than a bare numeric comparison.
-  const HTTP_SERVICE_UNAVAILABLE = 503;
   type TabType = 'overview' | 'history' | 'notes' | 'review';
 
   // UTF-8 byte length — matches what the backend counts with len(string).
@@ -143,10 +139,6 @@
   let detectionError = $state<string | null>(null);
   let imageAttribution = $state<ImageAttribution | null>(null);
   let guideData = $state<SpeciesGuideData | null>(null);
-  // Set when the guide endpoint returns 503 because SpeciesGuide.Enabled is false
-  // server-side. Used to skip the notes fetch, which is gated by the same flag and
-  // would otherwise trigger an unnecessary 503 round-trip.
-  let guideFeatureDisabled = $state(false);
   let isLoadingGuide = $state(false);
   let speciesNotes = $state<SpeciesNoteData[]>([]);
   let isLoadingNotes = $state(false);
@@ -169,12 +161,11 @@
       : []
   );
 
-  // Type guard to help TypeScript understand guideData is not null
+  // Mirrors the Species Notes render condition below so we never fetch notes
+  // we won't display. The notes section requires guideData to be present, so
+  // any null guideData (feature disabled, network error, 404) skips the fetch.
   function shouldFetchNotes(guide: SpeciesGuideData | null): boolean {
-    // If the guide endpoint reported the feature is disabled, /notes will
-    // 503 for the same reason — skip the request entirely.
-    if (guideFeatureDisabled) return false;
-    if (!guide) return true; // Fetch by default if no guide data
+    if (!guide) return false;
     return guide.features?.notes !== false;
   }
 
@@ -255,7 +246,6 @@
     speciesInfo = null;
     taxonomyInfo = null;
     guideData = null;
-    guideFeatureDisabled = false;
     isLoadingGuide = false;
     speciesNotes = [];
     isLoadingNotes = false;
@@ -443,10 +433,6 @@
         const data: SpeciesGuideData = await response.json();
         if (controller.signal.aborted) return;
         guideData = data;
-      } else if (response.status === HTTP_SERVICE_UNAVAILABLE) {
-        // Server reports the SpeciesGuide feature is disabled. Notes share the
-        // same gate, so signal callers to skip the redundant /notes fetch.
-        guideFeatureDisabled = true;
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
