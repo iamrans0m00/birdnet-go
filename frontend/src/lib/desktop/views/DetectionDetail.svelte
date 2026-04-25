@@ -139,6 +139,10 @@
   let detectionError = $state<string | null>(null);
   let imageAttribution = $state<ImageAttribution | null>(null);
   let guideData = $state<SpeciesGuideData | null>(null);
+  // Set when the guide endpoint returns 503 because SpeciesGuide.Enabled is false
+  // server-side. Used to skip the notes fetch, which is gated by the same flag and
+  // would otherwise trigger an unnecessary 503 round-trip.
+  let guideFeatureDisabled = $state(false);
   let isLoadingGuide = $state(false);
   let speciesNotes = $state<SpeciesNoteData[]>([]);
   let isLoadingNotes = $state(false);
@@ -163,6 +167,9 @@
 
   // Type guard to help TypeScript understand guideData is not null
   function shouldFetchNotes(guide: SpeciesGuideData | null): boolean {
+    // If the guide endpoint reported the feature is disabled, /notes will
+    // 503 for the same reason — skip the request entirely.
+    if (guideFeatureDisabled) return false;
     if (!guide) return true; // Fetch by default if no guide data
     return guide.features?.notes !== false;
   }
@@ -244,6 +251,7 @@
     speciesInfo = null;
     taxonomyInfo = null;
     guideData = null;
+    guideFeatureDisabled = false;
     isLoadingGuide = false;
     speciesNotes = [];
     isLoadingNotes = false;
@@ -431,6 +439,10 @@
         const data: SpeciesGuideData = await response.json();
         if (controller.signal.aborted) return;
         guideData = data;
+      } else if (response.status === 503) {
+        // Server reports the SpeciesGuide feature is disabled. Notes share the
+        // same gate, so signal callers to skip the redundant /notes fetch.
+        guideFeatureDisabled = true;
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
