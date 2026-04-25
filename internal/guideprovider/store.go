@@ -46,6 +46,10 @@ func (s *GORMGuideStore) GetGuideCache(ctx context.Context, scientificName, prov
 		locale = "en"
 	}
 	var entry GuideCacheEntry
+	// Silent logger: First() logs ErrRecordNotFound as a warning by default.
+	// We treat "not found" as a normal cache miss (return nil, nil), so we
+	// suppress the noise here. Write paths intentionally keep the default
+	// logger so real GORM errors remain visible in logs.
 	err := s.db.WithContext(ctx).
 		Session(&gorm.Session{Logger: gormlogger.Default.LogMode(gormlogger.Silent)}).
 		Where("scientific_name = ? AND provider_name = ? AND locale = ?", scientificName, providerName, locale).
