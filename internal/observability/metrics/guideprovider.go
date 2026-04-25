@@ -48,7 +48,7 @@ func (m *GuideProviderMetrics) initMetrics() error {
 			Name: "guidecache_hits_total",
 			Help: "Total number of guide cache hits",
 		},
-		[]string{"provider", "quality"}, // provider: wikipedia, ebird; quality: full, stub, intro_only
+		[]string{"provider", "quality"}, // provider: wikipedia, ebird; quality: full, stub, not_found
 	)
 
 	m.cacheMissesTotal = prometheus.NewCounterVec(
