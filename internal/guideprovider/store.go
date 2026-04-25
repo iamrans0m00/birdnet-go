@@ -98,13 +98,19 @@ func classifyDBError(err error) string {
 // SaveGuideCache saves or updates a guide cache entry (upsert).
 func (s *GORMGuideStore) SaveGuideCache(ctx context.Context, entry *GuideCacheEntry) error {
 	start := time.Now()
+	// Normalize empty locale to "en" so the unique key matches GetGuideCache lookups,
+	// which apply the same normalization. Without this, an entry saved with locale=""
+	// would never be retrieved by GetGuideCache(..., "") (which queries locale="en").
+	if entry.Locale == "" {
+		entry.Locale = "en"
+	}
 	err := s.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "provider_name"}, {Name: "scientific_name"}, {Name: "locale"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"source_provider", "common_name", "description",
 				"conservation_status", "source_url", "license_name",
-				"license_url", "cached_at",
+				"license_url", "similar_species", "cached_at",
 			}),
 		}).
 		Create(entry).Error

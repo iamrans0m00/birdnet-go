@@ -779,6 +779,18 @@ func (c *Controller) Shutdown() {
 		c.detectionCache.Flush()
 	}
 
+	// Close the species guide cache. The Controller is the canonical owner
+	// because hot-reload swaps the cache in via SetGuideCache (which closes
+	// the prior instance). Closing here ensures the post-reload cache, which
+	// the Controller alone holds a reference to, is stopped on shutdown.
+	c.guideCacheMu.Lock()
+	gc := c.guideCache
+	c.guideCache = nil
+	c.guideCacheMu.Unlock()
+	if gc != nil {
+		gc.Close()
+	}
+
 	c.Debug("API Controller shutdown complete")
 }
 
