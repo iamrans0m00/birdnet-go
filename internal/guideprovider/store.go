@@ -107,6 +107,12 @@ func classifyDBError(err error) string {
 // SaveGuideCache saves or updates a guide cache entry (upsert).
 func (s *GORMGuideStore) SaveGuideCache(ctx context.Context, entry *GuideCacheEntry) error {
 	start := time.Now()
+	if entry == nil {
+		return errors.Newf("SaveGuideCache: entry is nil").
+			Component("guideprovider").
+			Category(errors.CategoryValidation).
+			Build()
+	}
 	// Normalize empty locale to "en" so the unique key matches GetGuideCache lookups,
 	// which apply the same normalization. Without this, an entry saved with locale=""
 	// would never be retrieved by GetGuideCache(..., "") (which queries locale="en").
