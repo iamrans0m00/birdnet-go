@@ -107,7 +107,7 @@ func classifyDBError(err error) string {
 // SaveGuideCache saves or updates a guide cache entry (upsert).
 func (s *GORMGuideStore) SaveGuideCache(ctx context.Context, entry *GuideCacheEntry) error {
 	if entry == nil {
-		return errors.Newf("SaveGuideCache: entry is nil").
+		return errors.Newf("guide cache entry cannot be nil").
 			Component("guideprovider").
 			Category(errors.CategoryValidation).
 			Build()
