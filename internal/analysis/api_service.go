@@ -253,13 +253,13 @@ func (s *APIServerService) Stop(ctx context.Context) error {
 		s.proc = nil
 	}
 
-	// Close species guide cache.
-	if s.guideCache != nil {
-		log.Info("closing species guide cache",
-			logger.String("operation", "close_guide_cache"))
-		s.guideCache.Close()
-		s.guideCache = nil
-	}
+	// Note: the species guide cache is owned by the Controller after handoff
+	// (hot-reload swaps a new instance into the Controller and closes the old
+	// one). Controller.Shutdown is responsible for closing the live cache, so
+	// we just drop our startup-time reference here without calling Close —
+	// it would either be the already-closed pre-reload pointer or a duplicate
+	// close of the live cache.
+	s.guideCache = nil
 
 	// Stop notification service (after processor, which may send final notifications).
 	if notification.IsInitialized() {

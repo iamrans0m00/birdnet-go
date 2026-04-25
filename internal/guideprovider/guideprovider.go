@@ -465,6 +465,15 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 	// negative-cache the result — the species may exist but was unreachable.
 	transientFailure := false
 
+	// A configured-but-unregistered primary provider is a misconfiguration
+	// (e.g. eBird selected without an API key). Treat it as transient so we
+	// don't write a negative-cache entry that would mask the misconfig.
+	if !hasPrimary {
+		transientFailure = true
+		log.Warn("Configured primary guide provider not registered; treating as transient failure",
+			logger.String("provider", primaryProvider))
+	}
+
 	// Try primary provider
 	if hasPrimary {
 		providerCtx, cancel := context.WithTimeout(ctx, providerTimeout)
@@ -565,6 +574,9 @@ func mergeGuides(primary, secondary *SpeciesGuide) SpeciesGuide {
 	if result.SourceURL == "" {
 		result.SourceURL = secondary.SourceURL
 	}
+	if len(result.SimilarSpecies) == 0 {
+		result.SimilarSpecies = secondary.SimilarSpecies
+	}
 	result.Partial = result.Description == ""
 	return result
 }
@@ -625,15 +637,22 @@ func (c *GuideCache) saveToDB(ctx context.Context, guide *SpeciesGuide, provider
 		return
 	}
 
-	// Content diffing: skip write if existing DB entry has identical description.
+	// Content diffing: when the existing DB entry is byte-identical we skip the
+	// full upsert payload, but we MUST still bump CachedAt so refreshStaleEntries
+	// stops re-fetching this row indefinitely. Reuse the existing entry and
+	// SaveGuideCache (an upsert) which updates only cached_at via OnConflict.
 	existing, err := c.store.GetGuideCache(ctx, guide.ScientificName, providerName, locale)
 	if err == nil && existing != nil &&
 		existing.Description == guide.Description &&
 		existing.CommonName == guide.CommonName &&
 		existing.ConservationStatus == guide.ConservationStatus &&
 		existing.SourceProvider == guide.SourceProvider {
-		getLogger().Debug("Guide cache content unchanged, skipping DB write",
-			logger.String("species", guide.ScientificName))
+		existing.CachedAt = guide.CachedAt
+		if err := c.store.SaveGuideCache(ctx, existing); err != nil {
+			getLogger().Warn("Failed to refresh guide cache CachedAt in database",
+				logger.String("species", guide.ScientificName),
+				logger.Any("error", err))
+		}
 		return
 	}
 
@@ -783,8 +802,8 @@ func (c *GuideCache) refreshStaleEntries() {
 
 	// Clean up very old entries from database (beyond retention period).
 	// This prevents unbounded database growth while keeping recent entries for quick re-fetch.
-	cutoffTime := time.Now().Add(-dbRetentionPeriod)
-	deleted, err := c.store.DeleteStaleGuideCaches(c.rootCtx, providerName, cutoffTime)
+	// Reuse the cutoff computed above for consistency and to avoid a second time.Now().
+	deleted, err := c.store.DeleteStaleGuideCaches(c.rootCtx, providerName, cutoff)
 	if err != nil {
 		log.Warn("Failed to clean up old guide cache entries",
 			logger.String("provider", providerName),
