@@ -37,6 +37,11 @@ import (
 // sunriseSetWindowMinutes defines the time window (in minutes) around sunrise and sunset
 const sunriseSetWindowMinutes = 30
 
+const (
+	noteCommentMaxLength = 1_000
+	SpeciesNoteMaxLength = 10_000
+)
+
 // Database dialect constants.
 // NOTE: These must be lowercase to match GORM's dialector.Name() output.
 const (
@@ -65,6 +70,8 @@ var (
 	ErrImageCacheNotFound = errors.Newf("image cache not found").Component("datastore").Category(errors.CategoryNotFound).Build()
 	// ErrNotificationHistoryNotFound indicates no notification history record exists for the given species and type.
 	ErrNotificationHistoryNotFound = errors.Newf("notification history not found").Component("datastore").Category(errors.CategoryNotFound).Build()
+	// ErrSpeciesNoteNotFound indicates the requested species note was not found.
+	ErrSpeciesNoteNotFound = errors.Newf("species note not found").Component("datastore").Category(errors.CategoryNotFound).Build()
 	// ErrDBNotConnected indicates the database is not connected, but partial stats may be available.
 	ErrDBNotConnected = errors.Newf("database not connected").Component("datastore").Category(errors.CategorySystem).Build()
 )
@@ -219,6 +226,12 @@ type Interface interface {
 	GetNotificationHistory(scientificName string, notificationType string) (*NotificationHistory, error)
 	GetActiveNotificationHistory(after time.Time) ([]NotificationHistory, error)
 	DeleteExpiredNotificationHistory(before time.Time) (int64, error) // Returns count deleted
+	// Species notes methods
+	GetSpeciesNotes(ctx context.Context, scientificName string) ([]SpeciesNote, error)
+	GetSpeciesNoteByID(ctx context.Context, id uint) (*SpeciesNote, error)
+	SaveSpeciesNote(ctx context.Context, note *SpeciesNote) error
+	DeleteSpeciesNote(ctx context.Context, noteID string) error
+	UpdateSpeciesNote(ctx context.Context, noteID string, entry string) error
 	// Database stats method for runtime statistics
 	GetDatabaseStats() (*DatabaseStats, error)
 	// SchemaVersion returns the datastore schema version ("legacy" or "v2").
@@ -1530,7 +1543,7 @@ func (ds *DataStore) SaveNoteComment(comment *NoteComment) error {
 		return validationError("note ID cannot be zero", "note_id", comment.NoteID)
 	}
 	// Entry can be empty as comments are optional, but if provided, check length
-	if len(comment.Entry) > 1000 {
+	if len(comment.Entry) > noteCommentMaxLength {
 		return validationError("comment entry exceeds maximum length", "entry_length", len(comment.Entry))
 	}
 
@@ -1615,6 +1628,175 @@ func (ds *DataStore) UpdateNoteComment(commentID, entry string) error {
 	}
 
 	return nil
+}
+
+// NormalizeSpeciesNoteEntry trims and validates a species-note entry before persistence.
+func NormalizeSpeciesNoteEntry(entry string) (string, error) {
+	trimmed := strings.TrimSpace(entry)
+	if trimmed == "" {
+		return "", validationError("note entry cannot be empty", "entry", "")
+	}
+	if len(trimmed) > SpeciesNoteMaxLength {
+		return "", errors.Newf("note entry exceeds maximum length of %d bytes", SpeciesNoteMaxLength).
+			Component("datastore").
+			Category(errors.CategoryValidation).
+			Context("field", "entry").
+			Context("length", len(trimmed)).
+			Build()
+	}
+	return trimmed, nil
+}
+
+func withSpeciesNoteContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
+// GetSpeciesNotes retrieves all notes for a species by scientific name.
+func (ds *DataStore) GetSpeciesNotes(ctx context.Context, scientificName string) ([]SpeciesNote, error) {
+	// Normalize scientific name for consistent lookup
+	scientificName = strings.TrimSpace(scientificName)
+
+	ctx = withSpeciesNoteContext(ctx)
+	var notes []SpeciesNote
+	if err := ds.DB.WithContext(ctx).
+		Where("scientific_name = ?", scientificName).
+		Order("created_at DESC").
+		Find(&notes).Error; err != nil {
+		return nil, errors.New(err).
+			Component("datastore").
+			Category(errors.CategoryDatabase).
+			Context("operation", "get_species_notes").
+			Context("scientific_name", scientificName).
+			Build()
+	}
+	return notes, nil
+}
+
+// GetSpeciesNoteByID retrieves a single species note by its primary key.
+func (ds *DataStore) GetSpeciesNoteByID(ctx context.Context, id uint) (*SpeciesNote, error) {
+	ctx = withSpeciesNoteContext(ctx)
+	var note SpeciesNote
+	if err := ds.DB.WithContext(ctx).First(&note, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrSpeciesNoteNotFound
+		}
+		return nil, errors.New(err).
+			Component("datastore").
+			Category(errors.CategoryDatabase).
+			Context("operation", "get_species_note_by_id").
+			Context("note_id", id).
+			Build()
+	}
+	return &note, nil
+}
+
+// SaveSpeciesNote saves a new species note.
+func (ds *DataStore) SaveSpeciesNote(ctx context.Context, note *SpeciesNote) error {
+	if note == nil {
+		return validationError("note cannot be nil", "note", nil)
+	}
+
+	// Normalize scientific name for consistent storage
+	note.ScientificName = strings.TrimSpace(note.ScientificName)
+	if note.ScientificName == "" {
+		return validationError("scientific name cannot be empty", "scientific_name", "")
+	}
+
+	normalizedEntry, err := NormalizeSpeciesNoteEntry(note.Entry)
+	if err != nil {
+		return err
+	}
+	ctx = withSpeciesNoteContext(ctx)
+	note.Entry = normalizedEntry
+
+	return RetryOnLock(ctx, "save_species_note", func() error {
+		if err := ds.DB.WithContext(ctx).Create(note).Error; err != nil {
+			return dbError(err, "save_species_note", errors.PriorityMedium,
+				"scientific_name", note.ScientificName,
+				"table", "species_notes",
+				"action", "add_species_note")
+		}
+		return nil
+	}, ds.getMetrics())
+}
+
+// DeleteSpeciesNote deletes a species note by ID.
+func (ds *DataStore) DeleteSpeciesNote(ctx context.Context, noteID string) error {
+	id, err := strconv.ParseUint(noteID, 10, 32)
+	if err != nil {
+		return errors.New(err).
+			Component("datastore").
+			Category(errors.CategoryValidation).
+			Context("operation", "delete_species_note").
+			Context("note_id", noteID).
+			Build()
+	}
+	ctx = withSpeciesNoteContext(ctx)
+
+	return RetryOnLock(ctx, "delete_species_note", func() error {
+		result := ds.DB.WithContext(ctx).Delete(&SpeciesNote{}, id)
+		if result.Error != nil {
+			return errors.New(result.Error).
+				Component("datastore").
+				Category(errors.CategoryDatabase).
+				Context("operation", "delete_species_note").
+				Context("note_id", noteID).
+				Build()
+		}
+		if result.RowsAffected == 0 {
+			return ErrSpeciesNoteNotFound
+		}
+		return nil
+	}, ds.getMetrics())
+}
+
+// UpdateSpeciesNote updates an existing species note's entry.
+func (ds *DataStore) UpdateSpeciesNote(ctx context.Context, noteID, entry string) error {
+	normalizedEntry, err := NormalizeSpeciesNoteEntry(entry)
+	if err != nil {
+		return err
+	}
+
+	id, err := strconv.ParseUint(noteID, 10, 32)
+	if err != nil {
+		return errors.New(err).
+			Component("datastore").
+			Category(errors.CategoryValidation).
+			Context("operation", "update_species_note").
+			Context("note_id", noteID).
+			Build()
+	}
+	ctx = withSpeciesNoteContext(ctx)
+
+	return RetryOnLock(ctx, "update_species_note", func() error {
+		result := ds.DB.WithContext(ctx).Model(&SpeciesNote{}).Where("id = ?", id).Update("entry", normalizedEntry)
+		if result.Error != nil {
+			return errors.New(result.Error).
+				Component("datastore").
+				Category(errors.CategoryDatabase).
+				Context("operation", "update_species_note").
+				Context("note_id", noteID).
+				Build()
+		}
+		if result.RowsAffected == 0 {
+			var count int64
+			if err := ds.DB.WithContext(ctx).Model(&SpeciesNote{}).Where("id = ?", id).Count(&count).Error; err != nil {
+				return errors.New(err).
+					Component("datastore").
+					Category(errors.CategoryDatabase).
+					Context("operation", "update_species_note").
+					Context("note_id", noteID).
+					Build()
+			}
+			if count == 0 {
+				return ErrSpeciesNoteNotFound
+			}
+		}
+		return nil
+	}, ds.getMetrics())
 }
 
 // getHourRange returns the start and end times for a given hour and duration.

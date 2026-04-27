@@ -574,7 +574,8 @@
     "currentlyHearing": {
       "title": "Escuchando ahora",
       "subtitle": "Especies identificadas en tiempo real",
-      "empty": "Todo tranquilo — no se detectan aves en este momento"
+      "empty": "Todo tranquilo — no se detectan aves en este momento",
+      "viewGuide": "Ver guía para {species}"
     },
     "rejected": "Rechazado",
     "dailySummary": {
@@ -1535,6 +1536,59 @@
         "detections": "Detecciones:",
         "confidence": "Confianza:",
         "first": "Primera:"
+      },
+      "guide": {
+        "title": "Guía de especies",
+        "loading": "Cargando información de la especie...",
+        "source": "Fuente:",
+        "description": "Descripción",
+        "songs": "Cantos y llamadas",
+        "similar": "Especies similares",
+        "qualityFull": "Detallado",
+        "qualityIntroOnly": "Breve",
+        "qualityStub": "Borrador",
+        "expectedness": {
+          "expected": "Esperado",
+          "uncommon": "Poco común",
+          "rare": "Raro",
+          "unexpected": "Inesperado"
+        },
+        "season": {
+          "spring": "Primavera",
+          "summer": "Verano",
+          "fall": "Otoño",
+          "winter": "Invierno",
+          "wet1": "Temporada húmeda 1",
+          "dry1": "Temporada seca 1",
+          "wet2": "Temporada húmeda 2",
+          "dry2": "Temporada seca 2"
+        },
+        "vs": "vs",
+        "noDescription": "Sin descripción disponible",
+        "noSongs": "Sin información de cantos/llamadas",
+        "noSimilar": "No se listaron especies similares"
+      },
+      "notes": {
+        "title": "Notas de especie",
+        "placeholder": "Agregar una nota sobre esta especie...",
+        "editLabel": "Editar nota de especie",
+        "save": "Guardar nota",
+        "empty": "Sin notas aún. Agregue sus observaciones sobre esta especie.",
+        "deleteConfirm": "¿Eliminar esta nota?",
+        "saving": "Guardando...",
+        "deleteFailed": "Error al eliminar la nota",
+        "saveFailed": "Error al guardar la nota",
+        "tooLong": "La nota es demasiado larga. Acórtela para que no supere los {max} bytes."
+      },
+      "similar": {
+        "title": "Especies similares",
+        "compare": "Comparar con similares",
+        "loading": "Cargando especies similares...",
+        "empty": "No se encontraron especies similares en este género.",
+        "sameGenus": "Mismo género",
+        "sameFamily": "Misma familia",
+        "similar": "Similar",
+        "hideComparison": "Ocultar panel de comparación"
       }
     },
     "advanced": {
@@ -3882,7 +3936,8 @@
         "appearance": "Apariencia",
         "language": "Idioma y regional",
         "visualContent": "Contenido visual",
-        "audioPlayback": "Reproducción de audio"
+        "audioPlayback": "Reproducción de audio",
+        "speciesGuide": "Guía de especies"
       },
       "appearance": {
         "title": "Apariencia",
@@ -3902,6 +3957,56 @@
         "defaultGain": "Amplificación de volumen predeterminada",
         "defaultGainHelpText": "Ganancia inicial aplicada al reproducir grabaciones. Los sonidos de aves suelen ser suaves, por lo que se recomienda una amplificación de 6-12 dB.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Guía de especies",
+        "description": "Configura la guía de identificación de especies.",
+        "enabled": {
+          "label": "Activar guía de especies",
+          "helpText": "Mostrar guías de identificación del proveedor seleccionado (p. ej., Wikipedia o eBird) al ver una detección o especie."
+        },
+        "provider": {
+          "label": "Proveedor de guía",
+          "helpText": "Fuente de datos para las guías de identificación de especies.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Política de reserva",
+          "helpText": "Qué hacer cuando el proveedor preferido no puede proporcionar una guía.",
+          "options": {
+            "all": "Probar todos los proveedores",
+            "none": "Sin reserva"
+          }
+        },
+        "sections": {
+          "title": "Secciones de la guía"
+        },
+        "showEnrichments": {
+          "label": "Mostrar enriquecimientos",
+          "helpText": "Mostrar contexto estacional, indicadores de rango y enlaces externos."
+        },
+        "showSimilarSpecies": {
+          "label": "Mostrar especies similares",
+          "helpText": "Panel de comparación con especies del mismo género."
+        },
+        "showNotes": {
+          "label": "Mostrar notas de especie",
+          "helpText": "Panel de notas personales."
+        },
+        "cache": {
+          "title": "Caché de guías"
+        },
+        "preFetchEnabled": {
+          "label": "Precargar guías",
+          "helpText": "Obtener guías automáticamente en segundo plano."
+        },
+        "warmTopN": {
+          "label": "Precalentar caché al inicio",
+          "helpText": "Número de especies a precargar. 0 = desactivado."
+        }
       }
     },
     "restartRequired": "Algunos cambios requieren reiniciar el servidor para aplicarse. Reinicia BirdNET-Go."

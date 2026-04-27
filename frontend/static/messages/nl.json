@@ -574,7 +574,8 @@
     "currentlyHearing": {
       "title": "Nu te horen",
       "subtitle": "Soorten worden in realtime geïdentificeerd",
-      "empty": "Alles rustig — momenteel geen vogels gedetecteerd"
+      "empty": "Alles rustig — momenteel geen vogels gedetecteerd",
+      "viewGuide": "Gids weergeven voor {species}"
     },
     "rejected": "Afgewezen",
     "dailySummary": {
@@ -1535,6 +1536,59 @@
         "detections": "Aantal herkend:",
         "confidence": "Betrouwbaarheid:",
         "first": "Eerst:"
+      },
+      "guide": {
+        "title": "Soortengids",
+        "loading": "Soortinformatie laden...",
+        "source": "Bron:",
+        "description": "Beschrijving",
+        "songs": "Zangen en roepen",
+        "similar": "Soortgelijke soorten",
+        "qualityFull": "Gedetailleerd",
+        "qualityIntroOnly": "Kort",
+        "qualityStub": "Concept",
+        "expectedness": {
+          "expected": "Verwacht",
+          "uncommon": "Ongewoon",
+          "rare": "Zeldzaam",
+          "unexpected": "Onverwacht"
+        },
+        "season": {
+          "spring": "Lente",
+          "summer": "Zomer",
+          "fall": "Herfst",
+          "winter": "Winter",
+          "wet1": "Eerste Regenseizoen",
+          "dry1": "Eerste Droogseizoen",
+          "wet2": "Tweede Regenseizoen",
+          "dry2": "Tweede Droogseizoen"
+        },
+        "vs": "vs",
+        "noDescription": "Geen beschrijving beschikbaar",
+        "noSongs": "Geen zang-/roepinformatie beschikbaar",
+        "noSimilar": "Geen vergelijkbare soorten vermeld"
+      },
+      "notes": {
+        "title": "Soortnotities",
+        "placeholder": "Voeg een notitie toe over deze soort...",
+        "editLabel": "Soortnotitie bewerken",
+        "save": "Notitie opslaan",
+        "empty": "Nog geen notities. Voeg uw waarnemingen over deze soort toe.",
+        "deleteConfirm": "Deze notitie verwijderen?",
+        "saving": "Opslaan...",
+        "deleteFailed": "Notitie verwijderen mislukt",
+        "saveFailed": "Notitie opslaan mislukt",
+        "tooLong": "Notitie is te lang. Kort deze in tot maximaal {max} bytes."
+      },
+      "similar": {
+        "title": "Vergelijkbare soorten",
+        "compare": "Vergelijk met soortgelijken",
+        "loading": "Vergelijkbare soorten laden...",
+        "empty": "Geen vergelijkbare soorten gevonden binnen hetzelfde geslacht of familie.",
+        "sameGenus": "Zelfde geslacht",
+        "sameFamily": "Zelfde familie",
+        "similar": "Vergelijkbaar",
+        "hideComparison": "Vergelijkingspaneel verbergen"
       }
     },
     "advanced": {
@@ -3882,7 +3936,8 @@
         "appearance": "Uiterlijk",
         "language": "Taal en regionaal",
         "visualContent": "Visuele inhoud",
-        "audioPlayback": "Audioweergave"
+        "audioPlayback": "Audioweergave",
+        "speciesGuide": "Soortengids"
       },
       "appearance": {
         "title": "Uiterlijk",
@@ -3902,6 +3957,56 @@
         "defaultGain": "Standaard volumeversterking",
         "defaultGainHelpText": "Initiële versterking bij het afspelen van opnames. Vogelgeluiden zijn vaak zacht, dus een versterking van 6-12 dB wordt aanbevolen.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Soortengids",
+        "description": "Configureer de soortidentificatiegids.",
+        "enabled": {
+          "label": "Soortengids inschakelen",
+          "helpText": "Identificatiegidsen van de geselecteerde provider (bijv. Wikipedia of eBird) weergeven bij het bekijken van een detectie of soort."
+        },
+        "provider": {
+          "label": "Gidsleverancier",
+          "helpText": "Welke gegevensbron te gebruiken voor soortgidsen.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Terugvalbeleid",
+          "helpText": "Wat te doen als de voorkeursleverancier geen gids kan leveren.",
+          "options": {
+            "all": "Alle leveranciers proberen",
+            "none": "Geen terugval"
+          }
+        },
+        "sections": {
+          "title": "Gidssecties"
+        },
+        "showEnrichments": {
+          "label": "Verrijkingen tonen",
+          "helpText": "Seizoenscontext, verspreidingsbadges en externe links weergeven."
+        },
+        "showSimilarSpecies": {
+          "label": "Vergelijkbare soorten tonen",
+          "helpText": "Vergelijkingspaneel met soorten van hetzelfde geslacht of dezelfde familie."
+        },
+        "showNotes": {
+          "label": "Soortnotities tonen",
+          "helpText": "Persoonlijk notitiesvenster."
+        },
+        "cache": {
+          "title": "Gidscache"
+        },
+        "preFetchEnabled": {
+          "label": "Gidsen vooraf ophalen",
+          "helpText": "Gidsen automatisch ophalen op de achtergrond."
+        },
+        "warmTopN": {
+          "label": "Cache opwarmen bij opstarten",
+          "helpText": "Aantal soorten waarvoor gidsen worden voorgeladen. 0 = uitgeschakeld."
+        }
       }
     },
     "restartRequired": "Sommige wijzigingen vereisen een herstart van de server. Herstart BirdNET-Go."

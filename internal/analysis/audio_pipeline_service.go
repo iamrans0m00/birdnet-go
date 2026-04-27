@@ -901,7 +901,7 @@ type sourceConfigWithModels struct {
 // the current settings, paired with their configured model IDs.
 func (p *AudioPipelineService) buildSourceConfigsWithModels() []sourceConfigWithModels {
 	settings := conf.Setting()
-	var result []sourceConfigWithModels
+	result := make([]sourceConfigWithModels, 0, len(settings.Realtime.RTSP.Streams)+len(settings.Realtime.Audio.Sources))
 
 	// RTSP streams.
 	for _, stream := range settings.Realtime.RTSP.EnabledStreams() {

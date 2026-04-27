@@ -12,6 +12,7 @@ import (
 	"github.com/tphakala/birdnet-go/internal/backup"
 	"github.com/tphakala/birdnet-go/internal/conf"
 	"github.com/tphakala/birdnet-go/internal/errors"
+	"github.com/tphakala/birdnet-go/internal/guideprovider"
 	"github.com/tphakala/birdnet-go/internal/imageprovider"
 	"github.com/tphakala/birdnet-go/internal/logger"
 	"github.com/tphakala/birdnet-go/internal/monitor"
@@ -38,6 +39,7 @@ type APIServerService struct {
 	server         *api.Server
 	proc           *processor.Processor
 	birdImageCache *imageprovider.BirdImageCache
+	guideCache     *guideprovider.GuideCache
 	sunCalc        *suncalc.SunCalc
 	oauth2Server   *security.OAuth2Server
 	systemMonitor  *monitor.SystemMonitor
@@ -74,6 +76,10 @@ func (s *APIServerService) Start(_ context.Context) error {
 	defer func() {
 		if !startSucceeded {
 			// Best-effort cleanup of partially initialized resources.
+			if s.guideCache != nil {
+				s.guideCache.Close()
+				s.guideCache = nil
+			}
 			if s.systemMonitor != nil {
 				s.systemMonitor.Stop()
 				s.systemMonitor = nil
@@ -114,12 +120,22 @@ func (s *APIServerService) Start(_ context.Context) error {
 	// Initialize bird image cache.
 	s.birdImageCache = initBirdImageCache(s.settings, dataStore, s.metrics)
 
+	// Initialize species guide cache (optional — failure is non-fatal).
+	s.guideCache = initGuideCacheIfNeeded(s.settings, dataStore, dataStore, s.metrics.GuideProvider)
+
 	// Create SunCalc for sunrise/sunset calculations.
 	s.sunCalc = suncalc.NewSunCalc(s.settings.BirdNET.Latitude, s.settings.BirdNET.Longitude)
 
 	// Create processor.
 	s.proc = processor.New(s.settings, dataStore, bn, s.metrics, s.birdImageCache, GetLogger())
 	s.proc.SetSunCalc(s.sunCalc)
+
+	// Wire up guide pre-fetch when enabled at startup. Hot-reload of the
+	// PreFetchEnabled flag is handled by ControlMonitor.handleReconfigureSpeciesGuide,
+	// which swaps the callback in/out on settings changes (see control_monitor.go).
+	if s.guideCache != nil && s.settings.Realtime.Dashboard.SpeciesGuide.PreFetchEnabled {
+		s.proc.SetGuidePreFetch(s.guideCache.PreFetch)
+	}
 
 	// Initialize backup system (optional — failure is non-fatal).
 	backupLog := logger.Global().Module("backup")
@@ -169,6 +185,7 @@ func (s *APIServerService) Start(_ context.Context) error {
 		api.WithAudioLevelChannel(s.audioLevelChan),
 		api.WithOAuth2Server(s.oauth2Server),
 		api.WithSunCalc(s.sunCalc),
+		api.WithGuideCache(s.guideCache),
 		api.WithV2Manager(s.dbService.V2Manager()),
 		api.WithAudioEngine(s.engine),
 	)
@@ -235,6 +252,14 @@ func (s *APIServerService) Stop(ctx context.Context) error {
 		}
 		s.proc = nil
 	}
+
+	// Note: the species guide cache is owned by the Controller after handoff
+	// (hot-reload swaps a new instance into the Controller and closes the old
+	// one). Controller.Shutdown is responsible for closing the live cache, so
+	// we just drop our startup-time reference here without calling Close —
+	// it would either be the already-closed pre-reload pointer or a duplicate
+	// close of the live cache.
+	s.guideCache = nil
 
 	// Stop notification service (after processor, which may send final notifications).
 	if notification.IsInitialized() {

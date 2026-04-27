@@ -155,10 +155,13 @@ func NewBirdNET(settings *conf.Settings, modelInfo *ModelInfo) (*BirdNET, error)
 	}
 
 	// Normalize and validate locale setting.
+	// NormalizeLocale returns the fallback locale alongside an error when the
+	// input is unsupported; the error signals "fell back" rather than a fatal
+	// failure, mirroring the pattern in conf.ValidateBirdNETSettings.
 	inputLocale := strings.ToLower(settings.BirdNET.Locale)
 	normalizedLocale, err := conf.NormalizeLocale(inputLocale)
 	if err != nil {
-		return nil, err
+		bn.Debug("Locale '%s' not supported, using fallback '%s': %v", inputLocale, normalizedLocale, err)
 	}
 	settings.BirdNET.Locale = normalizedLocale
 

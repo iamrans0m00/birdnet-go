@@ -162,9 +162,37 @@ type CustomColors struct {
 	Accent  string `yaml:"accent,omitempty" json:"accent,omitempty"`   // accent hex color, e.g. "#0284c7"
 }
 
+// SpeciesGuideConfig holds configuration for the species guide provider.
+type SpeciesGuideConfig struct {
+	Enabled            bool   `yaml:"enabled" json:"enabled"`                       // enable species guide feature
+	Provider           string `yaml:"provider" json:"provider"`                     // preferred provider: "wikipedia", "auto"
+	FallbackPolicy     string `yaml:"fallbackpolicy" json:"fallbackPolicy"`         // fallback policy: "none", "all"
+	WarmTopN           int    `yaml:"warmtopn" json:"warmTopN"`                     // number of top detected species to warm on startup (0 = disabled)
+	PreFetchEnabled    bool   `yaml:"prefetchenabled" json:"preFetchEnabled"`       // pre-fetch guides for newly detected species
+	ShowNotes          *bool  `yaml:"shownotes" json:"showNotes"`                   // show species notes section (default: true)
+	ShowEnrichments    *bool  `yaml:"showenrichments" json:"showEnrichments"`       // show expectedness, season badges, and external links (default: true)
+	ShowSimilarSpecies *bool  `yaml:"showsimilarspecies" json:"showSimilarSpecies"` // show similar species comparison (default: true)
+}
+
+// IsShowNotes returns whether species notes are enabled (defaults to true).
+func (c *SpeciesGuideConfig) IsShowNotes() bool {
+	return c.ShowNotes == nil || *c.ShowNotes
+}
+
+// IsShowEnrichments returns whether enrichment badges are enabled (defaults to true).
+func (c *SpeciesGuideConfig) IsShowEnrichments() bool {
+	return c.ShowEnrichments == nil || *c.ShowEnrichments
+}
+
+// IsShowSimilarSpecies returns whether similar species comparison is enabled (defaults to true).
+func (c *SpeciesGuideConfig) IsShowSimilarSpecies() bool {
+	return c.ShowSimilarSpecies == nil || *c.ShowSimilarSpecies
+}
+
 // Dashboard contains settings for the web dashboard.
 type Dashboard struct {
 	Thumbnails       Thumbnails           `yaml:"thumbnails" json:"thumbnails"`                         // thumbnails settings
+	SpeciesGuide     SpeciesGuideConfig   `yaml:"speciesguide" json:"speciesGuide"`                     // species guide provider settings
 	SummaryLimit     int                  `yaml:"summarylimit" json:"summaryLimit"`                     // limit for the number of species shown in the summary table
 	Locale           string               `yaml:"locale,omitempty" json:"locale,omitempty"`             // UI locale setting
 	Spectrogram      SpectrogramPreRender `yaml:"spectrogram" json:"spectrogram"`                       // Spectrogram pre-rendering settings
@@ -2621,6 +2649,13 @@ func (b *SettingsBuilder) WithRTSPHealthThreshold(seconds int) *SettingsBuilder 
 func (b *SettingsBuilder) WithImageProvider(provider, fallbackPolicy string) *SettingsBuilder {
 	b.settings.Realtime.Dashboard.Thumbnails.ImageProvider = provider
 	b.settings.Realtime.Dashboard.Thumbnails.FallbackPolicy = fallbackPolicy
+	return b
+}
+
+// WithSpeciesGuideProvider configures species guide provider settings.
+func (b *SettingsBuilder) WithSpeciesGuideProvider(provider, fallbackPolicy string) *SettingsBuilder {
+	b.settings.Realtime.Dashboard.SpeciesGuide.Provider = provider
+	b.settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = fallbackPolicy
 	return b
 }
 

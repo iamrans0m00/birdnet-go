@@ -213,6 +213,14 @@ func (c *Controller) Login(ctx echo.Context) error {
 
 	// Extract the base path dynamically
 	basePath := c.extractBasePath(ctx, req)
+	// Defensively normalize to guaranteed single trailing slash so concatenation
+	// below cannot produce "/birdnetfoo" if extractBasePath ever regresses, and
+	// prevents an empty basePath from short-circuiting the HasPrefix check.
+	if basePath == "" {
+		basePath = "/"
+	} else {
+		basePath = strings.TrimSuffix(basePath, "/") + "/"
+	}
 
 	// Validate and sanitize the redirect URL from the request
 	finalRedirect := basePath // Default to detected base path
@@ -220,7 +228,14 @@ func (c *Controller) Login(ctx echo.Context) error {
 		// Use the security package's validation
 		if security.IsValidRedirect(req.RedirectURL) {
 			// Ensure the redirect stays within the detected base path
-			finalRedirect = ensurePathWithinBase(req.RedirectURL, basePath)
+			switch {
+			case req.RedirectURL == basePath || strings.HasPrefix(req.RedirectURL, basePath):
+				finalRedirect = req.RedirectURL
+			case strings.HasPrefix(req.RedirectURL, "/") && !strings.HasPrefix(req.RedirectURL, "//"):
+				finalRedirect = basePath + strings.TrimPrefix(req.RedirectURL, "/")
+			default:
+				finalRedirect = basePath
+			}
 
 			// Log if redirect was adjusted
 			if finalRedirect != req.RedirectURL {
@@ -245,10 +260,31 @@ func (c *Controller) Login(ctx echo.Context) error {
 	// the reverse proxy (e.g., /birdnet/api/v2/auth/callback instead of /api/v2/auth/callback).
 	// URL-encode both code and redirect to prevent parameter injection and handle special characters.
 	requestBase, _ := ctx.Get("basePath").(string)
+
+	// Normalize requestBase: if "/" set to "" (no proxy), otherwise ensure format is /path (no trailing slash)
+	if requestBase == "/" {
+		requestBase = ""
+	} else if requestBase != "" {
+		// Ensure starts with / and has no trailing slash
+		if !strings.HasPrefix(requestBase, "/") {
+			requestBase = "/" + requestBase
+		}
+		requestBase = strings.TrimSuffix(requestBase, "/")
+	}
+
 	// Normalize finalRedirect against the request base path so the post-auth
 	// redirect goes through the proxy (e.g., /birdnet/ui/ instead of /ui/).
 	if requestBase != "" {
-		finalRedirect = ensurePathWithinBase(finalRedirect, requestBase+"/")
+		switch {
+		case finalRedirect == requestBase:
+			finalRedirect = requestBase + "/"
+		case strings.HasPrefix(finalRedirect, requestBase+"/"):
+			// Already within base path
+		case strings.HasPrefix(finalRedirect, "/") && !strings.HasPrefix(finalRedirect, "//"):
+			finalRedirect = requestBase + "/" + strings.TrimPrefix(finalRedirect, "/")
+		default:
+			finalRedirect = requestBase + "/"
+		}
 	}
 	redirectURL := fmt.Sprintf("%s/api/v2/auth/callback?code=%s&redirect=%s", requestBase, url.QueryEscape(authCode), url.QueryEscape(finalRedirect))
 

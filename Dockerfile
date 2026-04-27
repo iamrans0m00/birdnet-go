@@ -51,6 +51,7 @@ ENV BUILD_VERSION=${BUILD_VERSION:-unknown}
 
 ARG TARGETPLATFORM
 ARG ONNXRUNTIME_VERSION
+ARG EXTRA_BUILD_TAGS=onnx
 
 # Skip puppeteer download during build (not needed for production)
 ENV PUPPETEER_SKIP_DOWNLOAD=true
@@ -77,7 +78,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,uid=10001,gid=10001 \
     task check-tensorflow && \
     TARGET=$(echo ${TARGETPLATFORM} | tr '/' '_') && \
     echo "Building non-embedded version with BUILD_VERSION=${BUILD_VERSION}" && \
-    BUILD_VERSION="${BUILD_VERSION}" DOCKER_LIB_DIR=/home/dev-user/lib EXTRA_BUILD_TAGS=onnx task noembed_${TARGET}
+    BUILD_VERSION="${BUILD_VERSION}" DOCKER_LIB_DIR=/home/dev-user/lib EXTRA_BUILD_TAGS="${EXTRA_BUILD_TAGS}" task noembed_${TARGET}
 
 # Create final image using a multi-platform base image
 FROM --platform=$TARGETPLATFORM debian:trixie-slim

@@ -46,6 +46,7 @@ Performance Optimizations:
   import { t } from '$lib/i18n';
   import type { DailySpeciesSummary, Detection } from '$lib/types/detection.types';
   import type { PendingDetection } from '$lib/types/pending.types';
+  import type { SpeciesData } from '$lib/types/species';
   import {
     getLocalDateString,
     isFutureDate,
@@ -75,6 +76,7 @@ Performance Optimizations:
   import MiniSpectrogram from '$lib/desktop/features/dashboard/components/MiniSpectrogram.svelte';
   import DashboardEditMode from '$lib/desktop/features/dashboard/components/DashboardEditMode.svelte';
   import DailySummaryConfigForm from '$lib/desktop/features/dashboard/components/DailySummaryConfigForm.svelte';
+  import SpeciesDetailModal from '$lib/desktop/features/analytics/components/modals/SpeciesDetailModal.svelte';
   import {
     Image,
     Map as MapIcon,
@@ -96,6 +98,11 @@ Performance Optimizations:
   // BUFFER_TARGET: After cleanup, keep limit + this many species to avoid frequent re-sorting
   const SPECIES_LIMIT_BUFFER_TRIGGER = 10;
   const SPECIES_LIMIT_BUFFER_TARGET = 5;
+  // A pending detection represents a single, real-time event so its summary count is one.
+  const PENDING_DETECTION_COUNT = 1;
+  // Pending detection timestamps come from the API as Unix epoch seconds; multiply
+  // to convert to JS Date milliseconds.
+  const MILLIS_PER_SECOND = 1000;
 
   // SSE Detection Data Type (camelCase per API v2 conventions)
   type SSEDetectionData = {
@@ -158,6 +165,10 @@ Performance Optimizations:
   let summaryLimit = $state(30); // Default from backend (conf/defaults.go) - species count limit for daily summary
   let configLoaded = $state(false); // Gates reactive preloading until config is loaded
   let pendingDetections = $state<PendingDetection[]>([]);
+
+  // Species detail modal state
+  let selectedSpecies = $state<SpeciesData | null>(null);
+  let showSpeciesDetailModal = $state(false);
 
   // Subscribe to edit mode store
   let isEditing = $derived($dashboardEditMode);
@@ -505,6 +516,28 @@ Performance Optimizations:
 
     // Just fetch recent detections - don't touch daily summary
     fetchRecentDetections();
+  }
+
+  // Handle clicking on a bird in the "currently hearing" section
+  function handleBirdClick(detection: PendingDetection) {
+    // Convert PendingDetection to SpeciesData format expected by SpeciesDetailModal
+    const firstDetectedDate = new Date(detection.firstDetected * MILLIS_PER_SECOND);
+    selectedSpecies = {
+      common_name: detection.species,
+      scientific_name: detection.scientificName,
+      count: PENDING_DETECTION_COUNT,
+      avg_confidence: null,
+      max_confidence: null,
+      first_heard: getLocalDateString(firstDetectedDate),
+      last_heard: getLocalDateString(firstDetectedDate),
+      thumbnail_url: detection.thumbnail || undefined,
+    };
+    showSpeciesDetailModal = true;
+  }
+
+  function handleCloseSpeciesModal() {
+    showSpeciesDetailModal = false;
+    selectedSpecies = null;
   }
 
   // Animation cleanup timers and RAF manager - use $state.raw() for performance
@@ -1547,7 +1580,10 @@ Performance Optimizations:
           onDateChange={handleDateChange}
         />
       {:else if element.type === 'currently-hearing'}
-        <CurrentlyHearingCard detections={isViewingToday ? pendingDetections : []} />
+        <CurrentlyHearingCard
+          detections={isViewingToday ? pendingDetections : []}
+          onBirdClick={handleBirdClick}
+        />
       {:else if element.type === 'live-spectrogram'}
         {#if isViewingToday}
           <MiniSpectrogram {pendingDetections} />
@@ -1575,3 +1611,10 @@ Performance Optimizations:
     {/snippet}
   </DashboardEditMode>
 </div>
+
+<!-- Species detail modal for "currently hearing" birds -->
+<SpeciesDetailModal
+  species={selectedSpecies}
+  isOpen={showSpeciesDetailModal}
+  onClose={handleCloseSpeciesModal}
+/>

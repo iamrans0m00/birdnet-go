@@ -2008,6 +2008,7 @@ var settingsChangeChecks = []settingsChangeCheck{
 	{"Push notifications", "reconfigure_push_notifications", pushNotificationSettingsChanged, "Reconfiguring push notification providers...", notification.MsgSettingsReconfiguringPushNotifications, "info", toastDurationMedium},
 	{"Quiet hours", schedule.SignalReconfigureQuietHours, quietHoursSettingsChanged, "Updating quiet hours schedule...", "", "info", toastDurationShort},
 	{"Web server", "", webserverSettingsChanged, "Web server settings changed. Restart required to apply.", notification.MsgSettingsWebserverRestart, "warning", toastDurationExtended},
+	{"Species Guide", "reconfigure_species_guide", speciesGuideSettingsChanged, "Reconfiguring species guide...", "", "info", toastDurationShort},
 }
 
 // handleSettingsChanges checks if important settings have changed and triggers appropriate actions
@@ -2322,6 +2323,18 @@ func webserverSettingsChanged(oldSettings, currentSettings *conf.Settings) bool 
 	}
 
 	return false
+}
+
+// speciesGuideSettingsChanged checks if any species guide setting changed that
+// warrants a cache reconfiguration. WarmTopN is only read at cache init
+// (guide_cache_init.go), so without this trigger UI changes wouldn't take
+// effect until restart. FallbackPolicy is read live in fetchFromProviders but
+// still belongs here so the user gets toast confirmation that their change
+// landed, and so we stay consistent if the value is ever cached in the future.
+func speciesGuideSettingsChanged(oldSettings, currentSettings *conf.Settings) bool {
+	old := oldSettings.Realtime.Dashboard.SpeciesGuide
+	cur := currentSettings.Realtime.Dashboard.SpeciesGuide
+	return !reflect.DeepEqual(old, cur)
 }
 
 // LocaleData represents a locale with its code and full name

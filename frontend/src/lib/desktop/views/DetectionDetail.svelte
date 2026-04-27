@@ -21,12 +21,21 @@
   import SpeciesBadges from '$lib/desktop/components/modals/SpeciesBadges.svelte';
   import ErrorAlert from '$lib/desktop/components/ui/ErrorAlert.svelte';
   import { handleBirdImageError } from '$lib/desktop/components/ui/image-utils.js';
-  import { t } from '$lib/i18n';
+  import CollapsibleSection from '$lib/desktop/components/ui/CollapsibleSection.svelte';
+  import { t, getLocale } from '$lib/i18n';
   import type { Detection, ImageAttribution } from '$lib/types/detection.types';
+  import {
+    parseGuideDescription,
+    type SpeciesGuideData,
+    type SpeciesNoteData,
+  } from '$lib/types/species';
+  import { highlightSeasonKeywords } from '$lib/utils/seasonHighlight';
   import { hasReviewPermission, isAuthenticated } from '$lib/utils/auth';
   import { formatLocalDateTime } from '$lib/utils/date';
+  import { api } from '$lib/utils/api';
   import { buildAppUrl } from '$lib/utils/urlHelpers';
   import { loggers } from '$lib/utils/logger';
+  import { trackEvent, AnalyticsEvents } from '$lib/telemetry/analytics';
   import {
     Download,
     Camera,
@@ -37,7 +46,15 @@
     Moon,
     Sunrise,
     Sunset,
+    ExternalLink,
+    Trash2,
+    BookOpen,
+    GitCompareArrows,
+    Pencil,
+    X,
+    Check,
   } from '@lucide/svelte';
+  import SpeciesComparison from '$lib/desktop/components/ui/SpeciesComparison.svelte';
 
   // Interface definitions for API responses
   interface SpeciesRarity {
@@ -82,7 +99,18 @@
 
   // Constants
   const TAB_FOCUS_DELAY_MS = 50;
+  // Must match internal/api/v2/species.go:maxNoteEntryLength (UTF-8 bytes).
+  // HTML maxlength counts UTF-16 code units, which underestimates byte cost for
+  // non-ASCII (e.g. an emoji is 2 UTF-16 units but 4 UTF-8 bytes). We still set
+  // maxlength="10000" on the textareas as a rough cap for the common plain-text
+  // case, and then enforce the real byte limit with getByteLength() before submit.
+  const MAX_NOTE_BYTES = 10_000;
   type TabType = 'overview' | 'history' | 'notes' | 'review';
+
+  // UTF-8 byte length — matches what the backend counts with len(string).
+  function getByteLength(value: string): number {
+    return new TextEncoder().encode(value).length;
+  }
 
   interface Props {
     detectionId?: string;
@@ -110,6 +138,21 @@
   let isLoadingTaxonomy = $state(false);
   let detectionError = $state<string | null>(null);
   let imageAttribution = $state<ImageAttribution | null>(null);
+  let guideData = $state<SpeciesGuideData | null>(null);
+  let isLoadingGuide = $state(false);
+  let speciesNotes = $state<SpeciesNoteData[]>([]);
+  let isLoadingNotes = $state(false);
+  let isSavingNote = $state(false);
+  let newNoteText = $state('');
+  let showComparison = $state(false);
+  // Inline error surfaced above the save controls when client-side validation
+  // fails (e.g. note exceeds MAX_NOTE_BYTES). Cleared on next keystroke.
+  let newNoteError = $state<string | null>(null);
+  let editNoteError = $state<string | null>(null);
+
+  // Editing state
+  let editingNoteId = $state<number | null>(null);
+  let editingText = $state('');
 
   // Derived state for subspecies with proper typing
   let subspeciesList = $derived<Subspecies[]>(
@@ -118,11 +161,21 @@
       : []
   );
 
+  // Mirrors the Species Notes render condition below so we never fetch notes
+  // we won't display. The notes section requires guideData to be present, so
+  // any null guideData (feature disabled, network error, 404) skips the fetch.
+  function shouldFetchNotes(guide: SpeciesGuideData | null): boolean {
+    if (!guide) return false;
+    return guide.features?.notes !== false;
+  }
+
   // AbortController for preventing race conditions
   let detectionController: AbortController | null = null;
   let speciesController: AbortController | null = null;
   let taxonomyController: AbortController | null = null;
   let attributionController: AbortController | null = null;
+  let guideController: AbortController | null = null;
+  let notesController: AbortController | null = null;
 
   // Validate detection ID to prevent path traversal attacks
   // Only allow alphanumeric characters, hyphens, and underscores
@@ -171,6 +224,8 @@
       speciesController?.abort();
       taxonomyController?.abort();
       attributionController?.abort();
+      guideController?.abort();
+      notesController?.abort();
     };
   });
 
@@ -187,6 +242,21 @@
 
     isLoadingDetection = true;
     detectionError = null;
+    imageAttribution = null;
+    speciesInfo = null;
+    taxonomyInfo = null;
+    guideData = null;
+    isLoadingGuide = false;
+    speciesNotes = [];
+    isLoadingNotes = false;
+    // Reset note editor state so a stale error, draft, or in-progress edit
+    // from the previous detection doesn't carry over.
+    newNoteError = null;
+    editNoteError = null;
+    newNoteText = '';
+    editingNoteId = null;
+    editingText = '';
+    showComparison = false;
 
     try {
       const response = await fetch(buildAppUrl(`/api/v2/detections/${resolvedDetectionId}`), {
@@ -223,9 +293,12 @@
       }
 
       if (detection) {
-        fetchSpeciesInfo();
-        fetchTaxonomy();
-        fetchImageAttribution();
+        void Promise.all([fetchSpeciesInfo(), fetchTaxonomy(), fetchImageAttribution()]);
+        // Fetch guide first, then conditionally fetch notes
+        await fetchGuide();
+        if (shouldFetchNotes(guideData)) {
+          void fetchSpeciesNotes();
+        }
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
@@ -245,24 +318,27 @@
     if (!detection?.scientificName) return;
 
     attributionController?.abort();
-    attributionController = new AbortController();
+    const controller = new AbortController();
+    attributionController = controller;
 
     try {
       const url = buildAppUrl(
         `/api/v2/media/species-image/info?name=${encodeURIComponent(detection.scientificName)}`
       );
-      const response = await fetch(url, { signal: attributionController?.signal });
-      if (attributionController?.signal.aborted) return;
+      const response = await fetch(url, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       if (response.ok) {
         const data = await response.json();
-        if (attributionController?.signal.aborted) return;
+        if (controller.signal.aborted) return;
         imageAttribution = data as ImageAttribution;
       }
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') return;
       // Attribution is non-critical — fail silently
     } finally {
-      attributionController = null;
+      if (attributionController === controller) {
+        attributionController = null;
+      }
     }
   }
 
@@ -271,19 +347,20 @@
     if (!detection?.scientificName) return;
 
     speciesController?.abort();
-    speciesController = new AbortController();
+    const controller = new AbortController();
+    speciesController = controller;
 
     try {
       const response = await fetch(
         buildAppUrl(
           `/api/v2/species?scientific_name=${encodeURIComponent(detection.scientificName)}`
         ),
-        { signal: speciesController?.signal }
+        { signal: controller.signal }
       );
-      if (speciesController?.signal.aborted) return;
+      if (controller.signal.aborted) return;
       if (response.ok) {
         const data = await response.json();
-        if (speciesController?.signal.aborted) return;
+        if (controller.signal.aborted) return;
         speciesInfo = data;
       }
     } catch (error) {
@@ -292,7 +369,9 @@
       }
       logger.error('Error fetching species info:', error);
     } finally {
-      speciesController = null;
+      if (speciesController === controller) {
+        speciesController = null;
+      }
     }
   }
 
@@ -301,7 +380,8 @@
     if (!detection?.scientificName) return;
 
     taxonomyController?.abort();
-    taxonomyController = new AbortController();
+    const controller = new AbortController();
+    taxonomyController = controller;
 
     isLoadingTaxonomy = true;
     try {
@@ -309,12 +389,12 @@
         buildAppUrl(
           `/api/v2/species/taxonomy?scientific_name=${encodeURIComponent(detection.scientificName)}`
         ),
-        { signal: taxonomyController?.signal }
+        { signal: controller.signal }
       );
-      if (taxonomyController?.signal.aborted) return;
+      if (controller.signal.aborted) return;
       if (response.ok) {
         const data = await response.json();
-        if (taxonomyController?.signal.aborted) return;
+        if (controller.signal.aborted) return;
         taxonomyInfo = data;
       }
     } catch (error) {
@@ -324,7 +404,150 @@
       logger.error('Error fetching taxonomy info:', error);
     } finally {
       isLoadingTaxonomy = false;
-      taxonomyController = null;
+      if (taxonomyController === controller) {
+        taxonomyController = null;
+      }
+    }
+  }
+
+  // Fetch species guide information
+  async function fetchGuide() {
+    if (!detection?.scientificName) return;
+
+    guideController?.abort();
+    const controller = new AbortController();
+    guideController = controller;
+
+    isLoadingGuide = true;
+    try {
+      const locale = getLocale();
+      const localeParam = locale && locale !== 'en' ? `?locale=${locale}` : '';
+      const response = await fetch(
+        buildAppUrl(
+          `/api/v2/species/${encodeURIComponent(detection.scientificName)}/guide${localeParam}`
+        ),
+        { signal: controller.signal }
+      );
+      if (controller.signal.aborted) return;
+      if (response.ok) {
+        const data: SpeciesGuideData = await response.json();
+        if (controller.signal.aborted) return;
+        guideData = data;
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      // Guide is non-critical — fail silently
+    } finally {
+      if (guideController === controller) {
+        isLoadingGuide = false;
+        guideController = null;
+      }
+    }
+  }
+
+  // Fetch species notes
+  async function fetchSpeciesNotes() {
+    if (!detection?.scientificName) return;
+
+    notesController?.abort();
+    const controller = new AbortController();
+    notesController = controller;
+
+    isLoadingNotes = true;
+    try {
+      const response = await fetch(
+        buildAppUrl(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`),
+        { signal: controller.signal }
+      );
+      if (controller.signal.aborted) return;
+      if (response.ok) {
+        speciesNotes = await response.json();
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') return;
+      // Notes are non-critical — fail silently
+    } finally {
+      if (notesController === controller) {
+        isLoadingNotes = false;
+        notesController = null;
+      }
+    }
+  }
+
+  // Save a new species note
+  async function saveSpeciesNote() {
+    const trimmed = newNoteText.trim();
+    if (!detection?.scientificName || !trimmed) return;
+    // Backend enforces the 10,000-byte limit authoritatively. This guard just
+    // gives users a fast, specific error instead of a roundtrip failure.
+    if (getByteLength(trimmed) > MAX_NOTE_BYTES) {
+      newNoteError = t('analytics.species.notes.tooLong', { max: MAX_NOTE_BYTES });
+      return;
+    }
+    newNoteError = null;
+    isSavingNote = true;
+    try {
+      await api.post(`/api/v2/species/${encodeURIComponent(detection.scientificName)}/notes`, {
+        entry: trimmed,
+      });
+      trackEvent(AnalyticsEvents.SPECIES_NOTE_CREATED, {
+        species: detection.scientificName,
+        entry_length: trimmed.length,
+      });
+      newNoteText = '';
+      await fetchSpeciesNotes();
+    } catch (err) {
+      logger.error('Error saving species note', { error: err });
+      newNoteError = t('analytics.species.notes.saveFailed');
+    } finally {
+      isSavingNote = false;
+    }
+  }
+
+  // Delete a species note
+  async function deleteSpeciesNote(noteId: number) {
+    try {
+      await api.delete(`/api/v2/species/notes/${noteId}`);
+      trackEvent(AnalyticsEvents.SPECIES_NOTE_DELETED, {
+        species: detection?.scientificName,
+      });
+      await fetchSpeciesNotes();
+    } catch (err) {
+      logger.error('Error deleting species note', { error: err });
+    }
+  }
+
+  function startEditNote(note: SpeciesNoteData) {
+    editingNoteId = note.id;
+    editingText = note.entry;
+    editNoteError = null;
+  }
+
+  function cancelEditNote() {
+    editingNoteId = null;
+    editingText = '';
+    editNoteError = null;
+  }
+
+  async function saveEditNote(noteId: number) {
+    const trimmed = editingText.trim();
+    if (!trimmed) return;
+    // Mirrors saveSpeciesNote() — pre-check the real UTF-8 byte size so users
+    // editing a long note with emoji or CJK get immediate feedback instead of
+    // a server-side failure.
+    if (getByteLength(trimmed) > MAX_NOTE_BYTES) {
+      editNoteError = t('analytics.species.notes.tooLong', { max: MAX_NOTE_BYTES });
+      return;
+    }
+    editNoteError = null;
+    try {
+      await api.put(`/api/v2/species/notes/${noteId}`, { entry: trimmed });
+      editingNoteId = null;
+      editingText = '';
+      await fetchSpeciesNotes();
+    } catch (err) {
+      logger.error('Error updating species note', { error: err });
+      editNoteError = t('analytics.species.notes.saveFailed');
     }
   }
 
@@ -664,6 +887,266 @@
       </section>
     {/if}
   </div>
+
+  <!-- Species Guide -->
+  {#if isLoadingGuide}
+    <section class="mt-4" aria-labelledby="guide-heading">
+      <h3 id="guide-heading" class="section-heading">{t('analytics.species.guide.title')}</h3>
+      <div class="content-panel">
+        <div class="flex items-center gap-2 text-sm opacity-60">
+          <div
+            class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
+          ></div>
+          <span>{t('analytics.species.guide.loading')}</span>
+        </div>
+      </div>
+    </section>
+  {:else if guideData?.description}
+    <section class="mt-4" aria-labelledby="guide-heading">
+      <div class="flex items-center gap-2 flex-wrap">
+        <h3 id="guide-heading" class="section-heading !mb-0">
+          {t('analytics.species.guide.title')}
+        </h3>
+        {#if guideData.quality && guideData.quality !== 'full'}
+          <span class="guide-quality-badge guide-quality-{guideData.quality}">
+            {t(
+              `analytics.species.guide.quality${guideData.quality === 'intro_only' ? 'IntroOnly' : 'Stub'}`
+            )}
+          </span>
+        {/if}
+        {#if guideData.features?.enrichments}
+          {#if guideData.expectedness}
+            <span class="guide-badge guide-expectedness-{guideData.expectedness}">
+              {t(`analytics.species.guide.expectedness.${guideData.expectedness}`)}
+            </span>
+          {/if}
+          {#if guideData.current_season}
+            <span class="guide-badge guide-season">
+              {t(`analytics.species.guide.season.${guideData.current_season}`)}
+            </span>
+          {/if}
+        {/if}
+      </div>
+      <div class="guide-content">
+        {#each parseGuideDescription(guideData.description) as section, i (i)}
+          {#if section.heading}
+            <CollapsibleSection
+              title={section.heading}
+              defaultOpen={false}
+              className="guide-collapsible"
+              titleClassName="guide-collapsible-title"
+              contentClassName="guide-collapsible-content"
+            >
+              {#if section.body}
+                <p class="guide-section-body">
+                  {@html highlightSeasonKeywords(section.body, guideData.current_season)}
+                </p>
+              {/if}
+            </CollapsibleSection>
+          {:else if section.body}
+            <div class="content-panel">
+              <p class="guide-section-body">
+                {@html highlightSeasonKeywords(section.body, guideData.current_season)}
+              </p>
+            </div>
+          {/if}
+        {/each}
+
+        {#if guideData.conservation_status}
+          <div class="flex items-center gap-2 text-xs mt-3">
+            <span class="px-2 py-0.5 rounded-full bg-[var(--color-base-300)] font-medium">
+              {guideData.conservation_status}
+            </span>
+          </div>
+        {/if}
+
+        <div class="flex items-center gap-1 text-xs opacity-50 mt-2">
+          <span>{t('analytics.species.guide.source')}</span>
+          {#if guideData.source.url}
+            <a
+              href={guideData.source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-0.5 underline hover:opacity-80"
+            >
+              {guideData.source.provider}
+              <ExternalLink class="h-3 w-3" />
+            </a>
+          {:else}
+            <span>{guideData.source.provider}</span>
+          {/if}
+          {#if guideData.source.license}
+            <span>· {guideData.source.license}</span>
+          {/if}
+        </div>
+
+        {#if guideData.features?.enrichments && guideData.external_links && guideData.external_links.length > 0}
+          <div class="flex items-center flex-wrap gap-2 mt-3">
+            <span class="text-[0.6875rem] opacity-50">{t('common.buttons.learnMore')}</span>
+            {#each guideData.external_links as link (link.name)}
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-1 text-[0.6875rem] font-medium px-2.5 py-0.5 rounded-full border border-[var(--border-100)] text-[var(--color-primary)] no-underline hover:bg-[color-mix(in_srgb,var(--color-primary)_8%,transparent)] hover:border-[var(--color-primary)] transition-all"
+              >
+                {link.name}
+                <ExternalLink class="h-3 w-3" />
+              </a>
+            {/each}
+          </div>
+        {/if}
+
+        {#if guideData.features?.similar_species}
+          <button
+            class="inline-flex items-center gap-1.5 text-[0.6875rem] font-medium px-3 py-1 rounded-full border border-[var(--border-100)] bg-[var(--color-base-100)] opacity-70 hover:opacity-100 hover:bg-[var(--color-base-200)] transition-all mt-3 cursor-pointer"
+            onclick={() => (showComparison = !showComparison)}
+          >
+            <GitCompareArrows class="h-3.5 w-3.5" />
+            {t('analytics.species.similar.compare')}
+          </button>
+        {/if}
+      </div>
+    </section>
+  {/if}
+
+  <!-- Similar Species Comparison -->
+  {#if showComparison && detection}
+    <section class="mt-4">
+      <SpeciesComparison
+        scientificName={detection.scientificName}
+        commonName={detection.commonName}
+        onclose={() => (showComparison = false)}
+      />
+    </section>
+  {/if}
+
+  <!-- Species Notes -->
+  {#if guideData && guideData.features?.notes !== false}
+    <section class="mt-4" aria-labelledby="species-notes-heading">
+      <div class="flex items-center gap-2">
+        <BookOpen class="h-4 w-4 opacity-60" />
+        <h3 id="species-notes-heading" class="section-heading !mb-0">
+          {t('analytics.species.notes.title')}
+        </h3>
+      </div>
+
+      {#if isLoadingNotes}
+        <div class="content-panel mt-2">
+          <div class="flex items-center gap-2 text-sm opacity-60">
+            <div
+              class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
+            ></div>
+          </div>
+        </div>
+      {:else}
+        {#if speciesNotes.length > 0}
+          <div class="space-y-2 mt-2" role="list" aria-label={t('analytics.species.notes.title')}>
+            {#each speciesNotes as note (note.id)}
+              <article class="content-panel species-note-card" role="listitem">
+                {#if editingNoteId === note.id}
+                  <div class="flex flex-col gap-2">
+                    <textarea
+                      class="w-full text-sm px-2 py-1 rounded border border-[var(--color-primary)] bg-[var(--color-base-100)] text-[var(--color-base-content)] focus:outline-none resize-none"
+                      rows="3"
+                      aria-label={t('analytics.species.notes.editLabel')}
+                      maxlength="10000"
+                      bind:value={editingText}
+                      oninput={() => (editNoteError = null)}
+                      onkeydown={(e: KeyboardEvent) => {
+                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveEditNote(note.id);
+                        if (e.key === 'Escape') cancelEditNote();
+                      }}
+                    ></textarea>
+                    {#if editNoteError}
+                      <p class="text-xs text-red-500" role="alert">{editNoteError}</p>
+                    {/if}
+                    <div class="flex gap-2 justify-end">
+                      <button
+                        class="p-1 rounded text-green-500 hover:bg-green-500 hover:text-white transition-all"
+                        aria-label={t('common.save')}
+                        onclick={() => saveEditNote(note.id)}
+                      >
+                        <Check class="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        class="p-1 rounded text-gray-500 hover:bg-gray-500 hover:text-white transition-all"
+                        aria-label={t('common.cancel')}
+                        onclick={cancelEditNote}
+                      >
+                        <X class="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                {:else}
+                  <div class="flex justify-between items-start gap-2">
+                    <p
+                      class="text-sm leading-relaxed flex-1 break-all"
+                      style:white-space="pre-wrap"
+                    >
+                      {note.entry}
+                    </p>
+                    <div class="flex gap-1">
+                      <button
+                        class="p-1 rounded text-blue-500 hover:bg-blue-500 hover:text-white transition-all"
+                        aria-label={t('common.edit')}
+                        onclick={() => startEditNote(note)}
+                      >
+                        <Pencil class="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        class="p-1 rounded text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                        aria-label={t('analytics.species.notes.deleteConfirm')}
+                        onclick={() => deleteSpeciesNote(note.id)}
+                      >
+                        <Trash2 class="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                {/if}
+                <p class="text-xs opacity-40 mt-1.5">
+                  {formatLocalDateTime(new Date(note.created_at))}
+                </p>
+              </article>
+            {/each}
+          </div>
+        {:else}
+          <p class="text-sm opacity-40 italic mt-2">
+            {t('analytics.species.notes.empty')}
+          </p>
+        {/if}
+
+        <!-- Add note form -->
+        <div class="mt-3">
+          <textarea
+            class="w-full text-sm px-3 py-2 rounded-lg border border-[var(--border-100)] bg-[var(--color-base-100)] text-[var(--color-base-content)] focus:outline-none focus:border-[var(--color-primary)] resize-none"
+            placeholder={t('analytics.species.notes.placeholder')}
+            aria-label={t('analytics.species.notes.placeholder')}
+            rows="3"
+            maxlength="10000"
+            bind:value={newNoteText}
+            oninput={() => (newNoteError = null)}
+            onkeydown={(e: KeyboardEvent) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                saveSpeciesNote();
+              }
+            }}
+          ></textarea>
+          {#if newNoteError}
+            <p class="mt-1 text-xs text-red-500" role="alert">{newNoteError}</p>
+          {/if}
+          <button
+            class="mt-2 px-4 py-2 rounded-lg bg-[var(--color-primary)] text-[var(--color-primary-content)] hover:opacity-90 transition-opacity disabled:opacity-50"
+            disabled={!newNoteText.trim() || isSavingNote}
+            onclick={saveSpeciesNote}
+          >
+            {isSavingNote ? t('analytics.species.notes.saving') : t('analytics.species.notes.save')}
+          </button>
+        </div>
+      {/if}
+    </section>
+  {/if}
 {/snippet}
 
 {#snippet historyTab()}

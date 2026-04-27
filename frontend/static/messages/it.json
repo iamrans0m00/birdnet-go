@@ -1531,6 +1531,57 @@
         "detections": "Rilevamenti:",
         "confidence": "Confidenza:",
         "first": "Primo:"
+      },
+      "guide": {
+        "title": "Guida alle specie",
+        "loading": "Caricamento informazioni sulla specie...",
+        "source": "Fonte:",
+        "description": "Descrizione",
+        "songs": "Canti e richiami",
+        "similar": "Specie simili",
+        "qualityFull": "Dettagliato",
+        "qualityIntroOnly": "Breve",
+        "qualityStub": "Bozza",
+        "expectedness": {
+          "expected": "Previsto",
+          "uncommon": "Insolito",
+          "rare": "Raro",
+          "unexpected": "Inatteso"
+        },
+        "season": {
+          "spring": "Primavera",
+          "summer": "Estate",
+          "fall": "Autunno",
+          "winter": "Inverno",
+          "wet1": "Prima Stagione Umida",
+          "dry1": "Prima Stagione Secca",
+          "wet2": "Seconda Stagione Umida",
+          "dry2": "Seconda Stagione Secca"
+        },
+        "vs": "vs",
+        "noDescription": "Nessuna descrizione disponibile",
+        "noSongs": "Nessuna informazione su canti/richiami disponibile",
+        "noSimilar": "Nessuna specie simile elencata"
+      },
+      "notes": {
+        "title": "Note sulla Specie",
+        "placeholder": "Aggiungi una nota su questa specie...",
+        "save": "Salva Nota",
+        "empty": "Nessuna nota ancora. Aggiungi le tue osservazioni su questa specie.",
+        "deleteConfirm": "Eliminare questa nota?",
+        "saving": "Salvataggio...",
+        "deleteFailed": "Impossibile eliminare la nota",
+        "saveFailed": "Impossibile salvare la nota",
+        "tooLong": "La nota è troppo lunga. Accorciala entro {max} byte."
+      },
+      "similar": {
+        "title": "Specie simili",
+        "compare": "Confronta con simili",
+        "loading": "Caricamento specie simili...",
+        "empty": "Nessuna specie simile trovata in questo genere.",
+        "sameGenus": "Stesso genere",
+        "sameFamily": "Stessa famiglia",
+        "similar": "Simile"
       }
     },
     "advanced": {
@@ -3842,7 +3893,8 @@
         "appearance": "Aspetto",
         "language": "Lingua e regionale",
         "visualContent": "Contenuti visivi",
-        "audioPlayback": "Riproduzione audio"
+        "audioPlayback": "Riproduzione audio",
+        "speciesGuide": "Species Guide"
       },
       "appearance": {
         "title": "Aspetto",
@@ -3862,6 +3914,56 @@
         "defaultGain": "Amplificazione volume predefinita",
         "defaultGainHelpText": "Guadagno iniziale applicato durante la riproduzione delle registrazioni. I suoni degli uccelli sono spesso deboli, quindi è consigliato un incremento di 6-12 dB.",
         "defaultGainUnit": "dB"
+      },
+      "speciesGuide": {
+        "title": "Species Guide",
+        "description": "Configure the species identification guide shown in detection details and species modals.",
+        "enabled": {
+          "label": "Enable Species Guide",
+          "helpText": "Show Wikipedia-powered identification guides when viewing a detection or species."
+        },
+        "provider": {
+          "label": "Guide Provider",
+          "helpText": "Which data source to use for species identification guides.",
+          "options": {
+            "wikipedia": "Wikipedia",
+            "ebird": "eBird"
+          }
+        },
+        "fallbackPolicy": {
+          "label": "Fallback Policy",
+          "helpText": "What to do when the preferred provider cannot supply a guide.",
+          "options": {
+            "all": "Try all providers",
+            "none": "No fallback"
+          }
+        },
+        "sections": {
+          "title": "Guide Sections"
+        },
+        "showEnrichments": {
+          "label": "Show Enrichments",
+          "helpText": "Display seasonal context, range expectedness badges, and external links (AllAboutBirds, Xeno-canto)."
+        },
+        "showSimilarSpecies": {
+          "label": "Show Similar Species",
+          "helpText": "Show a comparison panel with same-genus species that are commonly confused."
+        },
+        "showNotes": {
+          "label": "Show Species Notes",
+          "helpText": "Show the personal notes panel where you can save observations about a species."
+        },
+        "cache": {
+          "title": "Guide Cache"
+        },
+        "preFetchEnabled": {
+          "label": "Pre-fetch Guides",
+          "helpText": "Automatically fetch guides in the background when a new species is detected, so they load instantly."
+        },
+        "warmTopN": {
+          "label": "Warm Cache on Startup",
+          "helpText": "Number of top detected species to pre-load guides for at startup. Set to 0 to disable."
+        }
       }
     },
     "restartRequired": "Alcune modifiche richiedono un riavvio del server per avere effetto. Riavvia BirdNET-Go."

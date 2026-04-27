@@ -185,3 +185,165 @@ func BenchmarkValidateSoundLevelSettingsWithError(b *testing.B) {
 		_ = validateSoundLevelSettings(settings)
 	}
 }
+
+// TestValidateDashboardSpeciesGuide covers the SpeciesGuide block of
+// validateDashboardSettings. Provider must be non-empty when the feature is
+// enabled, and must match a known provider when set. FallbackPolicy and
+// WarmTopN are also covered to guard against regressions in the same block.
+func TestValidateDashboardSpeciesGuide(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		guide    SpeciesGuideConfig
+		wantErr  bool
+		errType  string
+	}{
+		{
+			name: "enabled with empty provider - should fail",
+			guide: SpeciesGuideConfig{
+				Enabled:  true,
+				Provider: "",
+			},
+			wantErr: true,
+			errType: "species-guide-provider-missing",
+		},
+		{
+			name: "disabled with empty provider - should pass",
+			guide: SpeciesGuideConfig{
+				Enabled:  false,
+				Provider: "",
+			},
+			wantErr: false,
+		},
+		{
+			name: "enabled with wikipedia provider - should pass",
+			guide: SpeciesGuideConfig{
+				Enabled:  true,
+				Provider: SpeciesGuideProviderWikipedia,
+			},
+			wantErr: false,
+		},
+		{
+			name: "enabled with ebird provider - should pass",
+			guide: SpeciesGuideConfig{
+				Enabled:  true,
+				Provider: SpeciesGuideProviderEBird,
+			},
+			wantErr: false,
+		},
+		{
+			name: "enabled with auto provider - should pass",
+			guide: SpeciesGuideConfig{
+				Enabled:  true,
+				Provider: SpeciesGuideProviderAuto,
+			},
+			wantErr: false,
+		},
+		{
+			name: "enabled with invalid provider - should fail",
+			guide: SpeciesGuideConfig{
+				Enabled:  true,
+				Provider: "mystery-provider",
+			},
+			wantErr: true,
+			errType: "species-guide-provider",
+		},
+		{
+			name: "disabled with invalid provider - should fail (provider still validated when set)",
+			guide: SpeciesGuideConfig{
+				Enabled:  false,
+				Provider: "mystery-provider",
+			},
+			wantErr: true,
+			errType: "species-guide-provider",
+		},
+		{
+			name: "valid provider with invalid fallback policy - should fail",
+			guide: SpeciesGuideConfig{
+				Enabled:        true,
+				Provider:       SpeciesGuideProviderWikipedia,
+				FallbackPolicy: "sometimes",
+			},
+			wantErr: true,
+			errType: "species-guide-fallback-policy",
+		},
+		{
+			name: "valid provider with 'all' fallback - should pass",
+			guide: SpeciesGuideConfig{
+				Enabled:        true,
+				Provider:       SpeciesGuideProviderWikipedia,
+				FallbackPolicy: SpeciesGuideFallbackAll,
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid provider with 'none' fallback - should pass",
+			guide: SpeciesGuideConfig{
+				Enabled:        true,
+				Provider:       SpeciesGuideProviderWikipedia,
+				FallbackPolicy: SpeciesGuideFallbackNone,
+			},
+			wantErr: false,
+		},
+		{
+			name: "negative WarmTopN - should fail",
+			guide: SpeciesGuideConfig{
+				Enabled:  true,
+				Provider: SpeciesGuideProviderWikipedia,
+				WarmTopN: -1,
+			},
+			wantErr: true,
+			errType: "species-guide-warm-top-n",
+		},
+		{
+			name: "zero WarmTopN - should pass (feature disabled knob)",
+			guide: SpeciesGuideConfig{
+				Enabled:  true,
+				Provider: SpeciesGuideProviderWikipedia,
+				WarmTopN: 0,
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dashboard := &Dashboard{
+				SpeciesGuide: tt.guide,
+			}
+
+			err := validateDashboardSettings(dashboard)
+
+			if tt.wantErr {
+				assertValidationError(t, err, tt.errType)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestValidateDashboardSpeciesGuideErrorMessage ensures the missing-provider
+// error mentions all valid providers so operators can fix their config
+// without reading source.
+func TestValidateDashboardSpeciesGuideErrorMessage(t *testing.T) {
+	t.Parallel()
+
+	dashboard := &Dashboard{
+		SpeciesGuide: SpeciesGuideConfig{
+			Enabled:  true,
+			Provider: "",
+		},
+	}
+
+	err := validateDashboardSettings(dashboard)
+	require.Error(t, err, "expected error for enabled guide with empty provider")
+
+	msg := err.Error()
+	assert.Contains(t, msg, "required when species guide is enabled")
+	assert.Contains(t, msg, SpeciesGuideProviderWikipedia)
+	assert.Contains(t, msg, SpeciesGuideProviderEBird)
+	assert.Contains(t, msg, SpeciesGuideProviderAuto)
+}

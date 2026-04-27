@@ -2,7 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.5.5] - 2024-06-09
+## [Unreleased]
+
+### 🚀 Features
+
+- _(species)_ Species Guide feature with Wikipedia-based species information, external links to All About Birds and Xeno-canto, user-authored species notes (CRUD), and similar species comparison with side-by-side descriptions. **New config keys follow the existing project YAML convention of all-lowercase (e.g. `speciesguide`, `fallbackpolicy`, `warmtopn`, `prefetchenabled`)**
+- _(dashboard)_ Real-time bird detections in "Currently Hearing" are now clickable, allowing quick access to species guide provider information
+
+### 🐛 Bug Fixes
+
+- _(api)_ Fixed race conditions in species guide tests
+- _(frontend)_ Fixed TypeScript errors in SpeciesComparison test file
+
+### 🏗️ Building
+
+- _(frontend)_ Added translation keys for species comparison sections in 14 languages
 
 ### 🚀 Features
 

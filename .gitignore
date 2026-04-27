@@ -45,3 +45,10 @@ frontend/playwright-report*.zip
 REFACTOR_CHANGELOG.md
 .worktrees/
 .leann/
+.gstack/
+.claude/worktrees/
+.gocache/
+*.bak
+*.legacy-bak
+Docker/config/
+Docker/data/

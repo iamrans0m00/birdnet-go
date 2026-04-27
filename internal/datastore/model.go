@@ -100,6 +100,16 @@ type NoteLock struct {
 	LockedAt time.Time `gorm:"index;not null"`                                                                                    // When the note was locked
 }
 
+// SpeciesNote represents a user-authored note about a species (not a single detection).
+// Each species can have multiple notes. GORM will create table name as 'species_notes'.
+type SpeciesNote struct {
+	ID             uint      `gorm:"primaryKey"`
+	ScientificName string    `gorm:"index;not null"`  // Scientific name of the species
+	Entry          string    `gorm:"type:text;not null"` // The note text
+	CreatedAt      time.Time `gorm:"index"`
+	UpdatedAt      time.Time
+}
+
 // DailyEvents represents the daily weather data that doesn't change throughout the day
 type DailyEvents struct {
 	ID               uint   `gorm:"primaryKey"`

@@ -130,6 +130,8 @@ func (m *MySQLManager) Initialize() error {
 		&entities.AlertHistory{},
 		// Application metadata
 		&entities.AppMetadata{},
+		// Species-level user notes
+		&entities.SpeciesNote{},
 	)
 	if err != nil {
 		reportInitFailure("mysql", "AutoMigrate", err, m.config.Host, m.config.Database, m.config.Username)
@@ -265,6 +267,7 @@ func (m *MySQLManager) Delete() error {
 		prefix + "notification_histories",
 		prefix + "hourly_weathers",
 		prefix + "daily_events",
+		prefix + "species_notes",
 		// Labels and its dependencies (drop after all referencing tables)
 		prefix + "labels",
 		prefix + "ai_models",

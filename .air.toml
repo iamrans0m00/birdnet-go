@@ -10,6 +10,12 @@ tmp_dir = "tmp"  # Temporary directory for build artifacts
 
   # Main build command
   cmd = """
+    # Fail fast on any command error so air's stop_on_error sees the failure
+    set -e
+
+    # Download avicommons data if not present
+    task download-avicommons-data
+
     # Enable CGO for TensorFlow Lite integration
     export CGO_ENABLED=1
     export CGO_CFLAGS="-I${HOME}/src/tensorflow"
@@ -29,19 +35,25 @@ tmp_dir = "tmp"  # Temporary directory for build artifacts
     export CGO_LDFLAGS="-L${TFLITE_LIB_DIR} -ltensorflowlite_c"
 
     # Build the Go application with version and build date
+    # Note: binary goes to /tmp (WSL native fs) to avoid noexec on /mnt/c
+    mkdir -p /tmp/birdnet-go
     go build -ldflags "-s -w -r /usr/local/lib \
       -X 'main.buildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)' \
       -X 'main.version=$(git describe --tags --always)'" \
-      -o ./tmp/main .
+      -o /tmp/birdnet-go/main .
 
     # On macOS, add the Homebrew library path to rpath since Go's -r flag
-    # doesn't properly handle multiple rpaths
+    # doesn't properly handle multiple rpaths. Only add when missing — adding
+    # a duplicate rpath fails, and we want real install_name_tool errors to
+    # surface (no 2>/dev/null || true) instead of being silently swallowed.
     if [ "$(uname)" = "Darwin" ]; then
-      install_name_tool -add_rpath "${TFLITE_LIB_DIR}" ./tmp/main 2>/dev/null || true
+      if ! otool -l /tmp/birdnet-go/main | awk '/LC_RPATH/{f=1; next} f && /path /{print $2; f=0}' | grep -Fxq "${TFLITE_LIB_DIR}"; then
+        install_name_tool -add_rpath "${TFLITE_LIB_DIR}" /tmp/birdnet-go/main
+      fi
     fi
   """
 
-  entrypoint = ["./tmp/main"]  # Path to the compiled binary
+  bin = "/tmp/birdnet-go/main"  # Path to the compiled binary
   delay = 1000  # Delay (in milliseconds) before restarting the app after a change
   rerun_delay = 5000
 

@@ -3,15 +3,23 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/tphakala/birdnet-go/internal/conf"
+	"github.com/tphakala/birdnet-go/internal/datastore"
+	"github.com/tphakala/birdnet-go/internal/datastore/mocks"
+	"github.com/tphakala/birdnet-go/internal/guideprovider"
 )
 
 // TestCalculateRarityStatus tests the calculateRarityStatus helper function.
@@ -413,6 +421,158 @@ func TestTaxonomyInfoJSONSerialization(t *testing.T) {
 	assert.Len(t, subspecies, 1)
 }
 
+// TestGetSpeciesGuide tests the GetSpeciesGuide endpoint.
+func TestGetSpeciesGuide(t *testing.T) {
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "species-guide")
+
+	tests := []struct {
+		name           string
+		scientificName string
+		setupCtrl      func(*Controller)
+		expectedStatus int
+		expectedBody   string
+	}{
+		{
+			name:           "feature disabled",
+			scientificName: "Turdus merula",
+			setupCtrl: func(c *Controller) {
+				settings := conf.GetTestSettings()
+				settings.Realtime.Dashboard.SpeciesGuide.Enabled = false
+				c.Settings = settings
+			},
+			expectedStatus: http.StatusServiceUnavailable,
+			expectedBody:   "Species guide feature is disabled",
+		},
+		{
+			name:           "nil guide cache",
+			scientificName: "Turdus merula",
+			setupCtrl: func(c *Controller) {
+				settings := conf.GetTestSettings()
+				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				c.Settings = settings
+				c.SetGuideCache(nil)
+			},
+			expectedStatus: http.StatusServiceUnavailable,
+			expectedBody:   "Species guide service not available",
+		},
+		{
+			name:           "empty scientific name",
+			scientificName: "",
+			setupCtrl: func(c *Controller) {
+				settings := conf.GetTestSettings()
+				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				c.Settings = settings
+				c.SetGuideCache(guideprovider.NewGuideCache(nil, nil))
+			},
+			expectedStatus: http.StatusBadRequest,
+			expectedBody:   "Missing required parameter",
+		},
+		{
+			name:           "species not found returns 404",
+			scientificName: "Nonexistent species",
+			setupCtrl: func(c *Controller) {
+				settings := conf.GetTestSettings()
+				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
+				settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
+				c.Settings = settings
+				cache := guideprovider.NewGuideCache(nil, nil)
+				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
+					err: guideprovider.ErrGuideNotFound,
+				})
+				c.SetGuideCache(cache)
+			},
+			expectedStatus: http.StatusNotFound,
+			expectedBody:   "Species guide not found",
+		},
+		{
+			name:           "success returns guide data with quality stub",
+			scientificName: "Turdus merula",
+			setupCtrl: func(c *Controller) {
+				settings := conf.GetTestSettings()
+				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
+				settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
+				c.Settings = settings
+				cache := guideprovider.NewGuideCache(nil, nil)
+				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
+					guide: guideprovider.SpeciesGuide{
+						ScientificName: "Turdus merula",
+						CommonName:     "Common Blackbird",
+						Description:    "A species of true thrush.",
+						SourceProvider: guideprovider.WikipediaProviderName,
+						SourceURL:      "https://en.wikipedia.org/wiki/Common_blackbird",
+						LicenseName:    "CC BY-SA 4.0",
+						LicenseURL:     "https://creativecommons.org/licenses/by-sa/4.0/",
+						Partial:        true,
+					},
+				})
+				c.SetGuideCache(cache)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `"quality":"stub"`,
+		},
+		{
+			name:           "success returns full quality guide",
+			scientificName: "Turdus merula",
+			setupCtrl: func(c *Controller) {
+				settings := conf.GetTestSettings()
+				settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+				settings.Realtime.Dashboard.SpeciesGuide.Provider = guideprovider.WikipediaProviderName
+				settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy = guideprovider.FallbackPolicyNone
+				c.Settings = settings
+				cache := guideprovider.NewGuideCache(nil, nil)
+				cache.RegisterProvider(guideprovider.WikipediaProviderName, &stubGuideProvider{
+					guide: guideprovider.SpeciesGuide{
+						ScientificName: "Turdus merula",
+						CommonName:     "Common Blackbird",
+						Description:    "The common blackbird.\n\n## Description\nBlack plumage.\n\n## Songs and calls\nFlute-like song.",
+						SourceProvider: guideprovider.WikipediaProviderName,
+					},
+				})
+				c.SetGuideCache(cache)
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   `"quality":"full"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodGet, "/api/v2/species/"+url.PathEscape(tt.scientificName)+"/guide", http.NoBody)
+			rec := httptest.NewRecorder()
+			ctx := e.NewContext(req, rec)
+			ctx.SetParamNames("scientific_name")
+			ctx.SetParamValues(tt.scientificName)
+
+			c := &Controller{Echo: e, Group: e.Group("/api/v2")}
+			tt.setupCtrl(c)
+
+			err := c.GetSpeciesGuide(ctx)
+			require.NoError(t, err, tt.name)
+			assert.Equal(t, tt.expectedStatus, rec.Code, tt.name)
+			assert.Contains(t, rec.Body.String(), tt.expectedBody, tt.name)
+		})
+	}
+}
+
+// stubGuideProvider is a test double for guideprovider.GuideProvider.
+type stubGuideProvider struct {
+	guide guideprovider.SpeciesGuide
+	err   error
+}
+
+func (s *stubGuideProvider) Fetch(_ context.Context, _ string, _ guideprovider.FetchOptions) (guideprovider.SpeciesGuide, error) {
+	if s.err != nil {
+		return guideprovider.SpeciesGuide{}, s.err
+	}
+	return s.guide, nil
+}
+
 // TestGetAllSpecies tests the GetAllSpecies endpoint returns all BirdNET labels.
 func TestGetAllSpecies(t *testing.T) {
 	t.Parallel()
@@ -486,4 +646,483 @@ func TestGetAllSpecies(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestClassifyGuideQuality tests the guide quality classification logic.
+func TestClassifyGuideQuality(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "guide-quality")
+
+	tests := []struct {
+		name        string
+		description string
+		partial     bool
+		expected    GuideQuality
+	}{
+		{
+			name:        "full guide with sections",
+			description: "An introduction paragraph.\n\n## Description\nA detailed description.\n\n## Songs and calls\nVarious songs.",
+			partial:     false,
+			expected:    GuideQualityFull,
+		},
+		{
+			name:        "intro only - no sections",
+			description: "A common blackbird found throughout Europe.",
+			partial:     false,
+			expected:    GuideQualityIntroOnly,
+		},
+		{
+			name:        "stub - empty description",
+			description: "",
+			partial:     false,
+			expected:    GuideQualityStub,
+		},
+		{
+			name:        "stub - partial flag set",
+			description: "Some text",
+			partial:     true,
+			expected:    GuideQualityStub,
+		},
+		{
+			name:        "stub - partial with empty",
+			description: "",
+			partial:     true,
+			expected:    GuideQualityStub,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := classifyGuideQuality(tt.description, tt.partial)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// speciesGuideTestSettings returns Settings with the species guide feature enabled,
+// which is required for notes CRUD handlers to pass their master feature guard.
+func speciesGuideTestSettings() *conf.Settings {
+	settings := &conf.Settings{}
+	settings.Realtime.Dashboard.SpeciesGuide.Enabled = true
+	return settings
+}
+
+// TestGetSpeciesNotes tests the GetSpeciesNotes endpoint.
+func TestGetSpeciesNotes(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "species-notes")
+
+	t.Run("feature disabled returns 503", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodGet, "/api/v2/species/Turdus%20merula/notes", http.NoBody)
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("scientific_name")
+		ctx.SetParamValues("Turdus merula")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), Settings: &conf.Settings{}}
+		err := c.GetSpeciesNotes(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+		assert.Contains(t, rec.Body.String(), "Species guide feature is disabled")
+	})
+
+	t.Run("empty scientific name", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodGet, "/api/v2/species//notes", http.NoBody)
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("scientific_name")
+		ctx.SetParamValues("")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), Settings: speciesGuideTestSettings()}
+		err := c.GetSpeciesNotes(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("returns notes for species", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		mockDS := mocks.NewMockInterface(t)
+		mockDS.EXPECT().
+			GetSpeciesNotes(mock.Anything, "Turdus merula").
+			Return([]datastore.SpeciesNote{
+				{ID: 1, ScientificName: "Turdus merula", Entry: "Seen in garden"},
+				{ID: 2, ScientificName: "Turdus merula", Entry: "Singing at dawn"},
+			}, nil)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/v2/species/Turdus%20merula/notes", http.NoBody)
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("scientific_name")
+		ctx.SetParamValues("Turdus merula")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS, Settings: speciesGuideTestSettings()}
+		err := c.GetSpeciesNotes(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var notes []SpeciesNoteResponse
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &notes))
+		assert.Len(t, notes, 2)
+		assert.Equal(t, "Seen in garden", notes[0].Entry)
+	})
+}
+
+// TestCreateSpeciesNote tests the CreateSpeciesNote endpoint.
+func TestCreateSpeciesNote(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "species-notes")
+
+	t.Run("feature disabled returns 503", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		body := `{"entry":"Beautiful singer"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v2/species/Turdus%20merula/notes",
+			strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("scientific_name")
+		ctx.SetParamValues("Turdus merula")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), Settings: &conf.Settings{}}
+		err := c.CreateSpeciesNote(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+		assert.Contains(t, rec.Body.String(), "Species guide feature is disabled")
+	})
+
+	t.Run("empty entry", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		body := `{"entry":""}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v2/species/Turdus%20merula/notes",
+			strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("scientific_name")
+		ctx.SetParamValues("Turdus merula")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), Settings: speciesGuideTestSettings()}
+		err := c.CreateSpeciesNote(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("successful creation", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		mockDS := mocks.NewMockInterface(t)
+		mockDS.EXPECT().
+			SaveSpeciesNote(mock.Anything, mock.AnythingOfType("*datastore.SpeciesNote")).
+			Run(func(ctx context.Context, note *datastore.SpeciesNote) {
+				assert.Equal(t, "Turdus merula", note.ScientificName)
+				assert.Equal(t, "Beautiful singer", note.Entry)
+			}).
+			Return(nil)
+
+		body := `{"entry":"Beautiful singer"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/v2/species/Turdus%20merula/notes",
+			strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("scientific_name")
+		ctx.SetParamValues("Turdus merula")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS, Settings: speciesGuideTestSettings()}
+		err := c.CreateSpeciesNote(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusCreated, rec.Code)
+	})
+}
+
+// TestDeleteSpeciesNote tests the DeleteSpeciesNote endpoint.
+func TestDeleteSpeciesNote(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "species-notes")
+
+	t.Run("feature disabled returns 503", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodDelete, "/api/v2/species/notes/42", http.NoBody)
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("id")
+		ctx.SetParamValues("42")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), Settings: &conf.Settings{}}
+		err := c.DeleteSpeciesNote(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+		assert.Contains(t, rec.Body.String(), "Species guide feature is disabled")
+	})
+
+	t.Run("empty ID", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodDelete, "/api/v2/species/notes/", http.NoBody)
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("id")
+		ctx.SetParamValues("")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), Settings: speciesGuideTestSettings()}
+		err := c.DeleteSpeciesNote(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("successful deletion", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		mockDS := mocks.NewMockInterface(t)
+		mockDS.EXPECT().
+			DeleteSpeciesNote(mock.Anything, "42").
+			Return(nil)
+
+		req := httptest.NewRequest(http.MethodDelete, "/api/v2/species/notes/42", http.NoBody)
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("id")
+		ctx.SetParamValues("42")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS, Settings: speciesGuideTestSettings()}
+		err := c.DeleteSpeciesNote(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNoContent, rec.Code)
+	})
+}
+
+// TestUpdateSpeciesNote tests the UpdateSpeciesNote endpoint.
+func TestUpdateSpeciesNote(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "species-notes")
+
+	t.Run("feature disabled returns 503", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		body := `{"entry":"updated"}`
+		req := httptest.NewRequest(http.MethodPut, "/api/v2/species/notes/42",
+			strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("id")
+		ctx.SetParamValues("42")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), Settings: &conf.Settings{}}
+		err := c.UpdateSpeciesNote(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+		assert.Contains(t, rec.Body.String(), "Species guide feature is disabled")
+	})
+
+	t.Run("successful update", func(t *testing.T) {
+		t.Parallel()
+		e := echo.New()
+		mockDS := mocks.NewMockInterface(t)
+		mockDS.EXPECT().
+			UpdateSpeciesNote(mock.Anything, "42", "updated entry").
+			Return(nil)
+		mockDS.EXPECT().
+			GetSpeciesNoteByID(mock.Anything, uint(42)).
+			Return(&datastore.SpeciesNote{
+				ID:             42,
+				ScientificName: "Turdus merula",
+				Entry:          "updated entry",
+			}, nil)
+
+		body := `{"entry":"updated entry"}`
+		req := httptest.NewRequest(http.MethodPut, "/api/v2/species/notes/42",
+			strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		ctx := e.NewContext(req, rec)
+		ctx.SetParamNames("id")
+		ctx.SetParamValues("42")
+
+		c := &Controller{Echo: e, Group: e.Group("/api/v2"), DS: mockDS, Settings: speciesGuideTestSettings()}
+		err := c.UpdateSpeciesNote(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		var note SpeciesNoteResponse
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &note))
+		assert.Equal(t, "updated entry", note.Entry)
+	})
+}
+
+// TestScoreToExpectedness tests the scoreToExpectedness helper function.
+func TestScoreToExpectedness(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "expectedness")
+
+	tests := []struct {
+		name     string
+		score    float64
+		expected Expectedness
+	}{
+		{
+			name:     "high score is expected",
+			score:    0.9,
+			expected: ExpectednessExpected,
+		},
+		{
+			name:     "moderate score is expected",
+			score:    0.6,
+			expected: ExpectednessExpected,
+		},
+		{
+			name:     "borderline common/uncommon is uncommon",
+			score:    0.4,
+			expected: ExpectednessUncommon,
+		},
+		{
+			name:     "low score is rare",
+			score:    0.1,
+			expected: ExpectednessRare,
+		},
+		{
+			name:     "very low score is unexpected",
+			score:    0.01,
+			expected: ExpectednessUnexpected,
+		},
+		{
+			name:     "zero score is unexpected",
+			score:    0.0,
+			expected: ExpectednessUnexpected,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := scoreToExpectedness(tt.score)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestComputeCurrentSeason tests the computeCurrentSeason helper function.
+func TestComputeCurrentSeason(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "seasonal-context")
+
+	tests := []struct {
+		name     string
+		latitude float64
+		date     time.Time
+		expected string
+	}{
+		{
+			name:     "northern hemisphere - spring",
+			latitude: 52.0,
+			date:     time.Date(2024, 4, 15, 12, 0, 0, 0, time.UTC),
+			expected: "spring",
+		},
+		{
+			name:     "northern hemisphere - summer",
+			latitude: 52.0,
+			date:     time.Date(2024, 7, 15, 12, 0, 0, 0, time.UTC),
+			expected: "summer",
+		},
+		{
+			name:     "northern hemisphere - fall",
+			latitude: 52.0,
+			date:     time.Date(2024, 10, 15, 12, 0, 0, 0, time.UTC),
+			expected: "fall",
+		},
+		{
+			name:     "northern hemisphere - winter",
+			latitude: 52.0,
+			date:     time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC),
+			expected: "winter",
+		},
+		{
+			name:     "southern hemisphere - spring in september",
+			latitude: -35.0,
+			date:     time.Date(2024, 10, 15, 12, 0, 0, 0, time.UTC),
+			expected: "spring",
+		},
+		{
+			name:     "southern hemisphere - summer in january",
+			latitude: -35.0,
+			date:     time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC),
+			expected: "summer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := computeCurrentSeason(tt.latitude, tt.date)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestBuildExternalLinks tests the buildExternalLinks helper function.
+func TestBuildExternalLinks(t *testing.T) {
+	t.Parallel()
+	t.Attr("component", "species")
+	t.Attr("type", "unit")
+	t.Attr("feature", "external-links")
+
+	t.Run("generates links for common name", func(t *testing.T) {
+		t.Parallel()
+		links := buildExternalLinks("Northern Cardinal", "Passer domesticus")
+		require.Len(t, links, 2)
+
+		assert.Equal(t, "All About Birds", links[0].Name)
+		assert.Equal(t, "https://www.allaboutbirds.org/guide/Northern_Cardinal", links[0].URL)
+
+		assert.Equal(t, "Xeno-canto", links[1].Name)
+		assert.Contains(t, links[1].URL, "xeno-canto.org/species/")
+	})
+
+	t.Run("handles apostrophes", func(t *testing.T) {
+		t.Parallel()
+		links := buildExternalLinks("Cooper's Hawk", "Accipiter cooperii")
+		require.Len(t, links, 2)
+		assert.Equal(t, "https://www.allaboutbirds.org/guide/Coopers_Hawk", links[0].URL)
+	})
+
+	t.Run("returns nil for empty name", func(t *testing.T) {
+		t.Parallel()
+		links := buildExternalLinks("", "")
+		assert.Nil(t, links)
+	})
+
+	t.Run("falls back to scientific name for All About Birds when common name is empty", func(t *testing.T) {
+		t.Parallel()
+		links := buildExternalLinks("", "Turdus migratorius")
+		require.Len(t, links, 2)
+
+		assert.Equal(t, "All About Birds", links[0].Name)
+		assert.Equal(t, "https://www.allaboutbirds.org/guide/Turdus_migratorius", links[0].URL)
+
+		assert.Equal(t, "Xeno-canto", links[1].Name)
+		assert.Equal(t, "https://xeno-canto.org/species/Turdus-migratorius", links[1].URL)
+	})
 }

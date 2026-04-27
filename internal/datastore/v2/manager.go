@@ -227,6 +227,8 @@ func v2Entities() []any {
 		&entities.AlertHistory{},
 		// Application metadata
 		&entities.AppMetadata{},
+		// Species notes
+		&entities.SpeciesNote{},
 	}
 }
 

@@ -136,6 +136,7 @@
     "d3": "^7.9.0",
     "d3-scale-chromatic": "^3.1.0",
     "d3-time-format": "^4.1.0",
+    "enhanced-resolve": "^5.20.1",
     "eventsource": "^4.1.0",
     "hls.js": "^1.6.16",
     "maplibre-gl": "^5.23.0",
@@ -149,5 +150,8 @@
   "overrides": {
     "flatted": "3.4.2",
     "lru-cache": "11.2.7"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-win32-x64-gnu": "^4.60.1"
   }
 }
