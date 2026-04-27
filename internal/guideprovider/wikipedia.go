@@ -79,96 +79,155 @@ var identificationSections = []string{
 	"Similar species",
 }
 
-// localizedSectionNames maps locale codes to their identification section headings.
-// Languages not listed here will only get the intro paragraph (no section extraction).
-var localizedSectionNames = map[string][]string{
-	"de": {"Beschreibung", "Merkmale", "Stimme", "Aussehen", "Verwechslungsmöglichkeiten", "Ähnliche Arten"},
-	"fr": {sectionDescription, "Chant et cris", "Voix", "Plumage", "Espèces similaires"},
-	"es": {"Descripción", sectionNameVoz, sectionNameCanto, "Vocalización", "Especies similares"},
-	"nl": {"Beschrijving", "Geluid", "Stem", "Herkenning"},
-	"pl": {sectionNameOpisLang, "Wygląd", "Głos", "Odgłosy"},
-	"pt": {"Descrição", "Vocalização", sectionNameCanto, sectionNameVoz},
-	"it": {"Descrizione", "Voce", sectionNameCanto, "Piumaggio"},
-	"sv": {"Utseende", "Läte", "Kännetecken"},
-	"da": {"Udseende", "Stemme", "Kendetegn"},
-	"fi": {"Kuvaus", "Ääntelyt", "Ulkonäkö"},
-	"hu": {"Leírás", "Megjelenés", "Hang"},
-	"sk": {sectionNameOpisLang, "Hlas", "Vzhľad"},
-	"lv": {"Apraksts", "Balss", "Izskats"},
+// localeSections holds Wikipedia section headings for a single locale, grouped
+// by purpose. Identification is the union used for guide extraction; Description,
+// SongCalls, and SimilarSpecies are exposed via the species comparison API.
+type localeSections struct {
+	Identification []string
+	Description    []string
+	SongCalls      []string
+	SimilarSpecies []string
 }
 
-// localizedDescriptionSections maps locale codes to section headings that describe
-// a bird's physical appearance. Used by the species comparison API.
-var localizedDescriptionSections = map[string][]string{
-	"de": {"Beschreibung", "Merkmale", "Aussehen"},
-	"fr": {sectionDescription, "Plumage"},
-	"es": {"Descripción"},
-	"nl": {"Beschrijving", "Herkenning"},
-	"pl": {sectionNameOpisLang, "Wygląd"},
-	"pt": {"Descrição"},
-	"it": {"Descrizione", "Piumaggio"},
-	"sv": {"Utseende", "Kännetecken"},
-	"da": {"Udseende", "Kendetegn"},
-	"fi": {"Kuvaus", "Ulkonäkö"},
-	"hu": {"Leírás", "Megjelenés"},
-	"sk": {sectionNameOpisLang, "Vzhľad"},
-	"lv": {"Apraksts", "Izskats"},
+// englishSections is returned for locale "en" or "".
+var englishSections = localeSections{
+	Identification: identificationSections,
+	Description:    []string{sectionDescription},
+	SongCalls: []string{
+		sectionSongsAndCalls, sectionSongAndCalls, sectionVocalisation,
+		"Vocalisations", "Vocalization", "Vocalizations", sectionVoice,
+	},
+	SimilarSpecies: []string{"Similar species", "Similar Species"},
 }
 
-// localizedSongSections maps locale codes to section headings for songs and calls.
-// Used by the species comparison API.
-var localizedSongSections = map[string][]string{
-	"de": {"Stimme"},
-	"fr": {"Chant et cris", "Voix"},
-	"es": {sectionNameVoz, sectionNameCanto, "Vocalización"},
-	"nl": {"Geluid", "Stem"},
-	"pl": {"Głos", "Odgłosy"},
-	"pt": {"Vocalização", sectionNameCanto, sectionNameVoz},
-	"it": {"Voce", sectionNameCanto},
-	"sv": {"Läte"},
-	"da": {"Stemme"},
-	"fi": {"Ääntelyt"},
-	"hu": {"Hang"},
-	"sk": {"Hlas"},
-	"lv": {"Balss"},
+// fallbackSongCalls is returned for unsupported locales — a short English list
+// (narrower than englishSections.SongCalls so non-English pages don't match
+// English sub-headings spuriously).
+var fallbackSongCalls = []string{sectionSongsAndCalls, sectionSongAndCalls, sectionVocalisation, sectionVoice}
+
+// localizedSections maps locale codes to their per-purpose section headings.
+// Languages not listed here only get the intro paragraph for identification,
+// and English fallbacks for Description/SongCalls.
+var localizedSections = map[string]localeSections{
+	"de": {
+		Identification: []string{"Beschreibung", "Merkmale", "Stimme", "Aussehen", "Verwechslungsmöglichkeiten", "Ähnliche Arten"},
+		Description:    []string{"Beschreibung", "Merkmale", "Aussehen"},
+		SongCalls:      []string{"Stimme"},
+		SimilarSpecies: []string{"Verwechslungsmöglichkeiten", "Ähnliche Arten"},
+	},
+	"fr": {
+		Identification: []string{sectionDescription, "Chant et cris", "Voix", "Plumage", "Espèces similaires"},
+		Description:    []string{sectionDescription, "Plumage"},
+		SongCalls:      []string{"Chant et cris", "Voix"},
+		SimilarSpecies: []string{"Espèces similaires"},
+	},
+	"es": {
+		Identification: []string{"Descripción", sectionNameVoz, sectionNameCanto, "Vocalización", "Especies similares"},
+		Description:    []string{"Descripción"},
+		SongCalls:      []string{sectionNameVoz, sectionNameCanto, "Vocalización"},
+		SimilarSpecies: []string{"Especies similares"},
+	},
+	"nl": {
+		Identification: []string{"Beschrijving", "Geluid", "Stem", "Herkenning"},
+		Description:    []string{"Beschrijving", "Herkenning"},
+		SongCalls:      []string{"Geluid", "Stem"},
+	},
+	"pl": {
+		Identification: []string{sectionNameOpisLang, "Wygląd", "Głos", "Odgłosy"},
+		Description:    []string{sectionNameOpisLang, "Wygląd"},
+		SongCalls:      []string{"Głos", "Odgłosy"},
+	},
+	"pt": {
+		Identification: []string{"Descrição", "Vocalização", sectionNameCanto, sectionNameVoz},
+		Description:    []string{"Descrição"},
+		SongCalls:      []string{"Vocalização", sectionNameCanto, sectionNameVoz},
+	},
+	"it": {
+		Identification: []string{"Descrizione", "Voce", sectionNameCanto, "Piumaggio"},
+		Description:    []string{"Descrizione", "Piumaggio"},
+		SongCalls:      []string{"Voce", sectionNameCanto},
+	},
+	"sv": {
+		Identification: []string{"Utseende", "Läte", "Kännetecken"},
+		Description:    []string{"Utseende", "Kännetecken"},
+		SongCalls:      []string{"Läte"},
+	},
+	"da": {
+		Identification: []string{"Udseende", "Stemme", "Kendetegn"},
+		Description:    []string{"Udseende", "Kendetegn"},
+		SongCalls:      []string{"Stemme"},
+	},
+	"fi": {
+		Identification: []string{"Kuvaus", "Ääntelyt", "Ulkonäkö"},
+		Description:    []string{"Kuvaus", "Ulkonäkö"},
+		SongCalls:      []string{"Ääntelyt"},
+	},
+	"hu": {
+		Identification: []string{"Leírás", "Megjelenés", "Hang"},
+		Description:    []string{"Leírás", "Megjelenés"},
+		SongCalls:      []string{"Hang"},
+	},
+	"sk": {
+		Identification: []string{sectionNameOpisLang, "Hlas", "Vzhľad"},
+		Description:    []string{sectionNameOpisLang, "Vzhľad"},
+		SongCalls:      []string{"Hlas"},
+	},
+	"lv": {
+		Identification: []string{"Apraksts", "Balss", "Izskats"},
+		Description:    []string{"Apraksts", "Izskats"},
+		SongCalls:      []string{"Balss"},
+	},
+}
+
+// sectionsFor returns the localeSections for the given locale and whether the
+// locale is recognized. The English defaults are returned for "" or "en".
+func sectionsFor(locale string) (localeSections, bool) {
+	if locale == "" || locale == defaultLocale {
+		return englishSections, true
+	}
+	s, ok := localizedSections[locale]
+	return s, ok
 }
 
 // DescriptionSectionNames returns the Wikipedia section headings for a species'
-// physical appearance for the given locale.
-// Falls back to English if the locale is unsupported.
+// physical appearance for the given locale. Falls back to English for
+// unsupported locales.
 func DescriptionSectionNames(locale string) []string {
-	if locale == "" || locale == defaultLocale {
-		return []string{sectionDescription}
+	if s, ok := sectionsFor(locale); ok {
+		return s.Description
 	}
-	if sections, ok := localizedDescriptionSections[locale]; ok {
-		return sections
-	}
-	return []string{sectionDescription}
+	return englishSections.Description
 }
 
 // SongCallSectionNames returns the Wikipedia section headings for a species'
-// songs and calls for the given locale.
-// Falls back to English if the locale is unsupported.
+// songs and calls for the given locale. Falls back to a short English list for
+// unsupported locales.
 func SongCallSectionNames(locale string) []string {
-	if locale == "" || locale == defaultLocale {
-		return []string{sectionSongsAndCalls, sectionSongAndCalls, sectionVocalisation, "Vocalisations", "Vocalization", "Vocalizations", sectionVoice}
+	if s, ok := sectionsFor(locale); ok {
+		return s.SongCalls
 	}
-	if sections, ok := localizedSongSections[locale]; ok {
-		return sections
-	}
-	return []string{sectionSongsAndCalls, sectionSongAndCalls, sectionVocalisation, sectionVoice}
+	return fallbackSongCalls
 }
 
-// getIdentificationSections returns the section names to look for based on locale.
+// SimilarSpeciesSectionNames returns the Wikipedia section headings for a species'
+// similar/confusable species for the given locale. Falls back to the English
+// headings for unsupported locales (and for locales without a dedicated similar-
+// species section, since callers typically also need the English variants).
+func SimilarSpeciesSectionNames(locale string) []string {
+	if s, ok := sectionsFor(locale); ok && len(s.SimilarSpecies) > 0 {
+		return s.SimilarSpecies
+	}
+	return englishSections.SimilarSpecies
+}
+
+// getIdentificationSections returns the section names to look for based on
+// locale, or nil for unsupported locales (so only the intro paragraph is used).
 func getIdentificationSections(locale string) []string {
-	if locale == "" || locale == defaultLocale {
-		return identificationSections
+	s, ok := sectionsFor(locale)
+	if !ok {
+		return nil
 	}
-	if sections, ok := localizedSectionNames[locale]; ok {
-		return sections
-	}
-	// Unsupported locale — return nil so we only use the intro paragraph.
-	return nil
+	return s.Identification
 }
 
 // sectionHeaderRe matches Wikipedia section headers like "== Description ==" or "=== Subsection ===".
@@ -182,7 +241,7 @@ var referenceCleanupRe = regexp.MustCompile(`\[\d+\]`)
 func wikipediaURLs(locale string) (restBase, actionAPI string) {
 	if locale == "" || locale == defaultLocale {
 		locale = defaultLocale
-	} else if _, ok := localizedSectionNames[locale]; !ok {
+	} else if _, ok := localizedSections[locale]; !ok {
 		// Unknown locale — fall back to English rather than passing arbitrary input
 		// into the URL subdomain (e.g., "evil.com" → https://evil.com.wikipedia.org/…).
 		locale = defaultLocale
@@ -223,17 +282,14 @@ type WikipediaGuideProvider struct {
 	circuitFailures  int    // Number of consecutive failures
 	circuitLastError string // Last error message for logging
 
-	// testBaseURL overrides the Wikipedia API base URL for testing.
-	testBaseURL string
+	// urlsFunc resolves the REST and action API base URLs for a locale.
+	// Defaults to wikipediaURLs; tests inject a stub pointing at httptest.Server.
+	urlsFunc func(locale string) (restBase, actionAPI string)
 }
 
 // NewWikipediaGuideProvider creates a new WikipediaGuideProvider.
-func NewWikipediaGuideProvider() *WikipediaGuideProvider {
-	return NewWikipediaGuideProviderWithMetrics(nil)
-}
-
-// NewWikipediaGuideProviderWithMetrics creates a new WikipediaGuideProvider with metrics.
-func NewWikipediaGuideProviderWithMetrics(metrics GuideCacheMetrics) *WikipediaGuideProvider {
+// Pass nil for metrics to opt out of metrics recording.
+func NewWikipediaGuideProvider(metrics GuideCacheMetrics) *WikipediaGuideProvider {
 	transport := &http.Transport{
 		MaxIdleConns:       10,
 		IdleConnTimeout:    wikiIdleConnTimeout,
@@ -245,8 +301,9 @@ func NewWikipediaGuideProviderWithMetrics(metrics GuideCacheMetrics) *WikipediaG
 			Timeout:   wikiHTTPTimeout,
 			Transport: transport,
 		},
-		limiter: rate.NewLimiter(rate.Limit(wikiRateLimitPerSec), 1),
-		metrics: metrics,
+		limiter:  rate.NewLimiter(rate.Limit(wikiRateLimitPerSec), 1),
+		metrics:  metrics,
+		urlsFunc: wikipediaURLs,
 	}
 }
 
@@ -404,58 +461,19 @@ func (p *WikipediaGuideProvider) fetchSummary(ctx context.Context, title, locale
 		}
 	}()
 
-	restBase, _ := wikipediaURLs(locale)
-	baseURL := restBase
-	if p.testBaseURL != "" {
-		baseURL = p.testBaseURL
-	}
+	restBase, _ := p.urlsFunc(locale)
 	encodedTitle := url.PathEscape(strings.ReplaceAll(title, " ", "_"))
-	apiURL := fmt.Sprintf("%s/%s", baseURL, encodedTitle)
+	apiURL := fmt.Sprintf("%s/%s", restBase, encodedTitle)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, http.NoBody)
+	body, err := p.doWikiRequest(ctx, apiURL, "summary")
 	if err != nil {
-		return nil, errors.Newf("creating request: %w", err).
-			Component("guideprovider").
-			Category(errors.CategoryNetwork).
-			Build()
-	}
-	req.Header.Set("User-Agent", wikiUserAgent)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		fetchErr = err
-		// Don't trip circuit breaker for context cancellations (caller timeout) — only for actual provider errors
-		// If ctx.Err() == nil and we get DeadlineExceeded, it's the internal client timeout (provider is slow) → trip the breaker
-		if !errors.Is(err, context.Canceled) && ctx.Err() == nil {
-			p.tripCircuitBreaker(cbNetworkDuration, "network error: "+err.Error())
-		}
-		return nil, errors.Newf("HTTP request failed: %w", err).
-			Component("guideprovider").
-			Category(errors.CategoryNetwork).
-			Build()
-	}
-	defer resp.Body.Close() //nolint:errcheck // response body close errors are not actionable after successful read
-
-	if err := p.handleHTTPError(resp); err != nil {
 		fetchErr = err
 		return nil, err
 	}
 
-	// Reset circuit breaker on successful response
-	p.resetCircuit()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, wikiMaxResponseBody))
-	if err != nil {
-		return nil, errors.Newf("reading response: %w", err).
-			Component("guideprovider").
-			Category(errors.CategoryNetwork).
-			Build()
-	}
-
 	var summary wikipediaSummaryResponse
 	if err := json.Unmarshal(body, &summary); err != nil {
-		return nil, errors.Newf("parsing response: %w", err).
+		return nil, errors.Newf("parsing summary response: %w", err).
 			Component("guideprovider").
 			Category(errors.CategoryProcessing).
 			Build()
@@ -494,13 +512,7 @@ func (p *WikipediaGuideProvider) fetchFullExtract(ctx context.Context, title, lo
 		}
 	}()
 
-	_, actionBase := wikipediaURLs(locale)
-	baseURL := actionBase
-	if p.testBaseURL != "" {
-		// In tests, the action API is at testBaseURL + "/w/api.php"
-		// but for simplicity, tests can override this separately.
-		baseURL = p.testBaseURL + "/w/api.php"
-	}
+	_, baseURL := p.urlsFunc(locale)
 
 	params := url.Values{
 		"action":          {"query"},
@@ -512,17 +524,6 @@ func (p *WikipediaGuideProvider) fetchFullExtract(ctx context.Context, title, lo
 	}
 	apiURL := baseURL + "?" + params.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, http.NoBody)
-	if err != nil {
-		fetchErr = err
-		return "", errors.Newf("creating extract request: %w", err).
-			Component("guideprovider").
-			Category(errors.CategoryNetwork).
-			Build()
-	}
-	req.Header.Set("User-Agent", wikiUserAgent)
-	req.Header.Set("Accept", "application/json")
-
 	// Rate limit the second request too.
 	if err := p.limiter.Wait(ctx); err != nil {
 		fetchErr = err
@@ -532,35 +533,10 @@ func (p *WikipediaGuideProvider) fetchFullExtract(ctx context.Context, title, lo
 			Build()
 	}
 
-	resp, err := p.httpClient.Do(req)
+	body, err := p.doWikiRequest(ctx, apiURL, "extract")
 	if err != nil {
-		fetchErr = err
-		// Don't trip circuit breaker for context cancellations (caller timeout) — only for actual provider errors
-		// If ctx.Err() == nil and we get DeadlineExceeded, it's the internal client timeout (provider is slow) → trip the breaker
-		if !errors.Is(err, context.Canceled) && ctx.Err() == nil {
-			p.tripCircuitBreaker(cbNetworkDuration, "extract network error: "+err.Error())
-		}
-		return "", errors.Newf("extract HTTP request failed: %w", err).
-			Component("guideprovider").
-			Category(errors.CategoryNetwork).
-			Build()
-	}
-	defer resp.Body.Close() //nolint:errcheck // response body close errors are not actionable after successful read
-
-	if err := p.handleHTTPError(resp); err != nil {
 		fetchErr = err
 		return "", err
-	}
-	// Reset circuit breaker on a successful HTTP response.
-	p.resetCircuit()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, wikiMaxResponseBody))
-	if err != nil {
-		fetchErr = err
-		return "", errors.Newf("reading extract response: %w", err).
-			Component("guideprovider").
-			Category(errors.CategoryNetwork).
-			Build()
 	}
 
 	var extractResp wikipediaExtractResponse
@@ -581,6 +557,50 @@ func (p *WikipediaGuideProvider) fetchFullExtract(ctx context.Context, title, lo
 
 	fetchErr = ErrGuideNotFound
 	return "", ErrGuideNotFound
+}
+
+// doWikiRequest sends a GET request to apiURL with standard Wikipedia headers,
+// reads up to wikiMaxResponseBody bytes, and handles circuit breaker logic on
+// network/HTTP failures. label prefixes returned errors and circuit-breaker
+// reasons (e.g., "summary" or "extract").
+func (p *WikipediaGuideProvider) doWikiRequest(ctx context.Context, apiURL, label string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, http.NoBody)
+	if err != nil {
+		return nil, errors.Newf("creating %s request: %w", label, err).
+			Component("guideprovider").
+			Category(errors.CategoryNetwork).
+			Build()
+	}
+	req.Header.Set("User-Agent", wikiUserAgent)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		// Don't trip circuit breaker for context cancellations (caller timeout) — only for actual provider errors.
+		// If ctx.Err() == nil and we get DeadlineExceeded, it's the internal client timeout (provider is slow) → trip the breaker.
+		if !errors.Is(err, context.Canceled) && ctx.Err() == nil {
+			p.tripCircuitBreaker(cbNetworkDuration, label+" network error: "+err.Error())
+		}
+		return nil, errors.Newf("%s HTTP request failed: %w", label, err).
+			Component("guideprovider").
+			Category(errors.CategoryNetwork).
+			Build()
+	}
+	defer resp.Body.Close() //nolint:errcheck // response body close errors are not actionable after successful read
+
+	if err := p.handleHTTPError(resp); err != nil {
+		return nil, err
+	}
+	p.resetCircuit()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, wikiMaxResponseBody))
+	if err != nil {
+		return nil, errors.Newf("reading %s response: %w", label, err).
+			Component("guideprovider").
+			Category(errors.CategoryNetwork).
+			Build()
+	}
+	return body, nil
 }
 
 // parseSections splits a Wikipedia plain-text extract into sections by header.
@@ -703,7 +723,7 @@ func truncate(s string, maxLen int) string {
 	// Find last space before maxLen to avoid cutting mid-word.
 	idx := strings.LastIndex(s[:maxLen], " ")
 	if idx < maxLen/2 {
-		idx = maxLen // No good break point, just cut.
+		idx = maxLen
 	}
-	return trimToUTF8Boundary(s[:idx]) + "..."
+	return TruncateUTF8(s, idx, "...")
 }

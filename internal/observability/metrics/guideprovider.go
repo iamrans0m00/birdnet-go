@@ -75,7 +75,7 @@ func (m *GuideProviderMetrics) initMetrics() error {
 		prometheus.HistogramOpts{
 			Name:    "guidecache_wikipedia_duration_seconds",
 			Help:    "Time taken for Wikipedia API requests",
-			Buckets: prometheus.ExponentialBuckets(BucketStart100ms, BucketFactor2, BucketCount12), // 100ms to ~400s
+			Buckets: prometheus.ExponentialBuckets(BucketStart100ms, BucketFactor2, BucketCount12), // 100ms to ~205s
 		},
 		[]string{"endpoint", "result"}, // endpoint: search, extract, links; result: success, not_found, rate_limited, error
 	)
@@ -94,7 +94,7 @@ func (m *GuideProviderMetrics) initMetrics() error {
 		prometheus.HistogramOpts{
 			Name:    "guidecache_ebird_duration_seconds",
 			Help:    "Time taken for eBird API requests",
-			Buckets: prometheus.ExponentialBuckets(BucketStart100ms, BucketFactor2, BucketCount12), // 100ms to ~400s
+			Buckets: prometheus.ExponentialBuckets(BucketStart100ms, BucketFactor2, BucketCount12), // 100ms to ~205s
 		},
 		[]string{"endpoint", "result"}, // endpoint: taxonomy; result: success, not_found, error
 	)
@@ -208,19 +208,11 @@ func (m *GuideProviderMetrics) RecordError(operation, errorType string) {
 	m.dbOperationErrorsTotal.WithLabelValues(operation, errorType).Inc()
 }
 
-// RecordDBOperation records a database operation with duration and status.
-// For error paths, callers should use RecordDBError instead so the
-// error_type-labeled counter is incremented.
-func (m *GuideProviderMetrics) RecordDBOperation(operation, status string, duration float64) {
-	m.RecordOperation(operation, status)
-	m.dbOperationDuration.WithLabelValues(operation).Observe(duration)
-}
-
 // RecordDBError records a failed database operation: observes the duration,
 // bumps the operations counter with status="error", and bumps the dedicated
 // errors counter labelled by error_type. This is the error-path counterpart
-// to RecordDBOperation and ensures dbOperationErrorsTotal is reachable from
-// guide cache code paths.
+// to RecordOperation+RecordDuration and ensures dbOperationErrorsTotal is
+// reachable from guide cache code paths.
 func (m *GuideProviderMetrics) RecordDBError(operation, errorType string, duration float64) {
 	m.dbOperationDuration.WithLabelValues(operation).Observe(duration)
 	m.dbOperationsTotal.WithLabelValues(operation, dbStatusError).Inc()

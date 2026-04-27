@@ -188,7 +188,7 @@ func TestWikipediaGuideProvider_Fetch_EmptyExtract(t *testing.T) {
 func TestWikipediaGuideProvider_CircuitBreaker(t *testing.T) {
 	t.Parallel()
 
-	provider := NewWikipediaGuideProvider()
+	provider := NewWikipediaGuideProvider(nil)
 
 	// Initially closed
 	open, _ := provider.isCircuitOpen()
@@ -258,8 +258,12 @@ func TestTruncate(t *testing.T) {
 }
 
 // newTestWikipediaProvider creates a WikipediaGuideProvider pointing at a test server.
+// Both the REST summary endpoint and the action API are routed to the same baseURL
+// (the action API at "/w/api.php" path).
 func newTestWikipediaProvider(baseURL string) *WikipediaGuideProvider {
-	provider := NewWikipediaGuideProvider()
-	provider.testBaseURL = baseURL
+	provider := NewWikipediaGuideProvider(nil)
+	provider.urlsFunc = func(string) (string, string) {
+		return baseURL, baseURL + "/w/api.php"
+	}
 	return provider
 }

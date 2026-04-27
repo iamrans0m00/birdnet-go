@@ -82,6 +82,46 @@ func (s *mockGuideStore) DeleteStaleGuideCaches(_ context.Context, providerName 
 	return count, nil
 }
 
+// setupCacheWith builds a cache backed by an in-memory mock store, registers `provider`
+// under WikipediaProviderName, and starts the background loop. Callers must defer
+// cache.Close() — using t.Cleanup would deadlock synctest bubbles since the refresh
+// goroutine only exits when rootCtx is cancelled.
+func setupCacheWith(t *testing.T, provider GuideProvider) (*GuideCache, *mockGuideStore) {
+	t.Helper()
+	store := newMockGuideStore()
+	cache := NewGuideCache(store, nil)
+	cache.RegisterProvider(WikipediaProviderName, provider)
+	cache.Start()
+	return cache, store
+}
+
+// attrUnit applies the standard guideprovider unit-test attributes.
+// An empty feature is skipped so callers without a specific feature tag stay clean.
+func attrUnit(t *testing.T, feature string) {
+	t.Helper()
+	t.Attr("component", "guideprovider")
+	t.Attr("type", "unit")
+	if feature != "" {
+		t.Attr("feature", feature)
+	}
+}
+
+// warmBirdFetcher returns a fetchFunc that always succeeds with the canonical
+// warm-bird shape and bumps *count when count is non-nil.
+func warmBirdFetcher(count *int) func(context.Context, string) (SpeciesGuide, error) {
+	return func(_ context.Context, name string) (SpeciesGuide, error) {
+		if count != nil {
+			*count++
+		}
+		return SpeciesGuide{
+			ScientificName: name,
+			CommonName:     testWarmBirdCommonName,
+			Description:    testWarmBirdDesc,
+			SourceProvider: WikipediaProviderName,
+		}, nil
+	}
+}
+
 func TestSpeciesGuide_IsNegativeEntry(t *testing.T) {
 	t.Parallel()
 
@@ -274,10 +314,6 @@ func TestGuideCache_NegativeMemoryCacheHit(t *testing.T) {
 func TestGuideCache_FetchFromProvider(t *testing.T) {
 	t.Parallel()
 
-	store := newMockGuideStore()
-	cache := NewGuideCache(store, nil)
-	defer cache.Close()
-
 	provider := &mockGuideProvider{
 		fetchFunc: func(_ context.Context, scientificName string) (SpeciesGuide, error) {
 			if scientificName == testSpeciesMerula {
@@ -291,7 +327,8 @@ func TestGuideCache_FetchFromProvider(t *testing.T) {
 			return SpeciesGuide{}, ErrGuideNotFound
 		},
 	}
-	cache.RegisterProvider(WikipediaProviderName, provider)
+	cache, store := setupCacheWith(t, provider)
+	defer cache.Close()
 
 	// First fetch should go to the provider
 	result, err := cache.Get(t.Context(), testSpeciesMerula, FetchOptions{})
@@ -314,16 +351,13 @@ func TestGuideCache_FetchFromProvider(t *testing.T) {
 func TestGuideCache_ProviderNotFound(t *testing.T) {
 	t.Parallel()
 
-	store := newMockGuideStore()
-	cache := NewGuideCache(store, nil)
-	defer cache.Close()
-
 	provider := &mockGuideProvider{
 		fetchFunc: func(_ context.Context, _ string) (SpeciesGuide, error) {
 			return SpeciesGuide{}, ErrGuideNotFound
 		},
 	}
-	cache.RegisterProvider(WikipediaProviderName, provider)
+	cache, _ := setupCacheWith(t, provider)
+	defer cache.Close()
 
 	_, err := cache.Get(t.Context(), "Nonexistent species", FetchOptions{})
 	require.ErrorIs(t, err, ErrGuideNotFound)
@@ -342,29 +376,11 @@ func TestGuideCacheEntry_TableName(t *testing.T) {
 
 func TestGuideCache_WarmForSpecies(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "cache-warming")
+	attrUnit(t, "cache-warming")
 
 	synctest.Test(t, func(t *testing.T) {
 		t.Helper()
-		store := newMockGuideStore()
-		cache := NewGuideCache(store, nil)
-
-		fetchCount := 0
-		provider := &mockGuideProvider{
-			fetchFunc: func(_ context.Context, name string) (SpeciesGuide, error) {
-				fetchCount++
-				return SpeciesGuide{
-					ScientificName: name,
-					CommonName:     testWarmBirdCommonName,
-					Description:    testWarmBirdDesc,
-					SourceProvider: WikipediaProviderName,
-				}, nil
-			},
-		}
-		cache.RegisterProvider(WikipediaProviderName, provider)
-		cache.Start()
+		cache, _ := setupCacheWith(t, &mockGuideProvider{fetchFunc: warmBirdFetcher(nil)})
 		defer cache.Close()
 
 		species := []string{testSpeciesMerula, testSpeciesParus, testSpeciesCorvus}
@@ -383,29 +399,12 @@ func TestGuideCache_WarmForSpecies(t *testing.T) {
 
 func TestGuideCache_WarmForSpecies_SkipsExisting(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "cache-warming")
+	attrUnit(t, "cache-warming")
 
 	synctest.Test(t, func(t *testing.T) {
 		t.Helper()
-		store := newMockGuideStore()
-		cache := NewGuideCache(store, nil)
-
-		fetchCount := 0
-		provider := &mockGuideProvider{
-			fetchFunc: func(_ context.Context, name string) (SpeciesGuide, error) {
-				fetchCount++
-				return SpeciesGuide{
-					ScientificName: name,
-					CommonName:     testWarmBirdCommonName,
-					Description:    testWarmBirdDesc,
-					SourceProvider: WikipediaProviderName,
-				}, nil
-			},
-		}
-		cache.RegisterProvider(WikipediaProviderName, provider)
-		cache.Start()
+		var fetchCount int
+		cache, _ := setupCacheWith(t, &mockGuideProvider{fetchFunc: warmBirdFetcher(&fetchCount)})
 		defer cache.Close()
 
 		// Pre-populate one species in memory
@@ -424,27 +423,11 @@ func TestGuideCache_WarmForSpecies_SkipsExisting(t *testing.T) {
 
 func TestGuideCache_PreFetch(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "prefetch")
+	attrUnit(t, "prefetch")
 
 	synctest.Test(t, func(t *testing.T) {
 		t.Helper()
-		store := newMockGuideStore()
-		cache := NewGuideCache(store, nil)
-
-		provider := &mockGuideProvider{
-			fetchFunc: func(_ context.Context, name string) (SpeciesGuide, error) {
-				return SpeciesGuide{
-					ScientificName: name,
-					CommonName:     testWarmBirdCommonName,
-					Description:    testWarmBirdDesc,
-					SourceProvider: WikipediaProviderName,
-				}, nil
-			},
-		}
-		cache.RegisterProvider(WikipediaProviderName, provider)
-		cache.Start()
+		cache, _ := setupCacheWith(t, &mockGuideProvider{fetchFunc: warmBirdFetcher(nil)})
 		defer cache.Close()
 
 		// PreFetch should be non-blocking
@@ -461,15 +444,10 @@ func TestGuideCache_PreFetch(t *testing.T) {
 
 func TestGuideCache_PreFetch_SkipsExisting(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "prefetch")
+	attrUnit(t, "prefetch")
 
 	synctest.Test(t, func(t *testing.T) {
 		t.Helper()
-		store := newMockGuideStore()
-		cache := NewGuideCache(store, nil)
-
 		fetchCount := 0
 		provider := &mockGuideProvider{
 			fetchFunc: func(_ context.Context, name string) (SpeciesGuide, error) {
@@ -480,8 +458,7 @@ func TestGuideCache_PreFetch_SkipsExisting(t *testing.T) {
 				}, nil
 			},
 		}
-		cache.RegisterProvider(WikipediaProviderName, provider)
-		cache.Start()
+		cache, _ := setupCacheWith(t, provider)
 		defer cache.Close()
 
 		// Pre-populate
@@ -497,9 +474,7 @@ func TestGuideCache_PreFetch_SkipsExisting(t *testing.T) {
 
 func TestGuideCache_WarmForSpecies_Empty(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "cache-warming")
+	attrUnit(t, "cache-warming")
 
 	cache := NewGuideCache(nil, nil)
 	// Should not panic with empty or nil list
@@ -509,9 +484,7 @@ func TestGuideCache_WarmForSpecies_Empty(t *testing.T) {
 
 func TestGuideCache_Close_IdempotentAndCancelsContext(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "lifecycle")
+	attrUnit(t, "lifecycle")
 
 	cache := NewGuideCache(nil, nil)
 
@@ -522,7 +495,7 @@ func TestGuideCache_Close_IdempotentAndCancelsContext(t *testing.T) {
 	default:
 	}
 
-	// First Close cancels rootCtx and closes quit channel.
+	// First Close cancels rootCtx.
 	cache.Close()
 
 	select {
@@ -532,14 +505,12 @@ func TestGuideCache_Close_IdempotentAndCancelsContext(t *testing.T) {
 		t.Fatal("rootCtx not cancelled after Close()")
 	}
 
-	// Second Close must not panic (closeOnce guard).
+	// Second Close must not panic (CancelFunc is idempotent).
 	require.NotPanics(t, cache.Close)
 }
 
 func TestGuideCache_StartCacheRefresh_StopsOnClose(t *testing.T) {
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "cache-refresh")
+	attrUnit(t, "cache-refresh")
 
 	synctest.Test(t, func(t *testing.T) {
 		t.Helper()
@@ -561,8 +532,7 @@ func TestGuideCache_StartCacheRefresh_StopsOnClose(t *testing.T) {
 
 func TestMemCacheKey(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
+	attrUnit(t, "")
 
 	tests := []struct {
 		name           string

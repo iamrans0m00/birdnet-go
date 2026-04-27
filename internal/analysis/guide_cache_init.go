@@ -58,7 +58,7 @@ func initGuideCacheIfNeeded(settings *conf.Settings, ds any, store datastore.Int
 		return nil
 	}
 
-	guideStore, err := guideprovider.NewGORMGuideStoreWithMetrics(db, m)
+	guideStore, err := guideprovider.NewGORMGuideStore(db, m)
 	if err != nil {
 		log.Error("failed to initialize guide cache store", logger.Error(err))
 		return nil
@@ -67,7 +67,7 @@ func initGuideCacheIfNeeded(settings *conf.Settings, ds any, store datastore.Int
 	cache := guideprovider.NewGuideCache(guideStore, m)
 
 	// Register Wikipedia provider (always available, no API key needed).
-	wikiProvider := guideprovider.NewWikipediaGuideProviderWithMetrics(m)
+	wikiProvider := guideprovider.NewWikipediaGuideProvider(m)
 	cache.RegisterProvider(guideprovider.WikipediaProviderName, wikiProvider)
 
 	// Register eBird provider if API key is configured.
@@ -76,7 +76,7 @@ func initGuideCacheIfNeeded(settings *conf.Settings, ds any, store datastore.Int
 			APIKey: settings.Realtime.EBird.APIKey,
 		})
 		if clientErr == nil {
-			ebirdProvider, provErr := guideprovider.NewEBirdGuideProviderWithMetrics(ebirdClient, m)
+			ebirdProvider, provErr := guideprovider.NewEBirdGuideProvider(ebirdClient, m)
 			if provErr == nil {
 				cache.RegisterProvider(guideprovider.EBirdProviderName, ebirdProvider)
 				log.Info("registered eBird guide provider")

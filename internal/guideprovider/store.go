@@ -18,12 +18,8 @@ type GORMGuideStore struct {
 }
 
 // NewGORMGuideStore creates a new GORMGuideStore and runs auto-migration.
-func NewGORMGuideStore(db *gorm.DB) (*GORMGuideStore, error) {
-	return NewGORMGuideStoreWithMetrics(db, nil)
-}
-
-// NewGORMGuideStoreWithMetrics creates a new GORMGuideStore with metrics and runs auto-migration.
-func NewGORMGuideStoreWithMetrics(db *gorm.DB, metrics GuideCacheMetrics) (*GORMGuideStore, error) {
+// Pass nil for metrics to opt out of metrics recording.
+func NewGORMGuideStore(db *gorm.DB, metrics GuideCacheMetrics) (*GORMGuideStore, error) {
 	if db == nil {
 		return nil, errors.Newf("guide store database is nil").
 			Component("guideprovider").
@@ -79,7 +75,8 @@ func (s *GORMGuideStore) GetGuideCache(ctx context.Context, scientificName, prov
 
 func (s *GORMGuideStore) recordDBMetric(operation, status string, start time.Time) {
 	if s.metrics != nil {
-		s.metrics.RecordDBOperation(operation, status, time.Since(start).Seconds())
+		s.metrics.RecordOperation(operation, status)
+		s.metrics.RecordDuration(operation, time.Since(start).Seconds())
 	}
 }
 

@@ -16,16 +16,22 @@ import (
 )
 
 // GuideCacheMetrics defines the metrics interface for guide cache operations.
+//
+// RecordOperation/RecordDuration mirror the cross-package Recorder interface
+// (see internal/observability/metrics/recorder.go) so success-path DB calls
+// share the same shape as other instrumented packages. RecordDBError is the
+// error-path composite that adds an error_type label.
 type GuideCacheMetrics interface {
 	RecordCacheHit(provider, quality string)
 	RecordCacheMiss(provider string)
 	RecordWikipediaAPICall(endpoint, result string, duration float64)
 	RecordEBirdAPICall(endpoint, result string, duration float64)
-	RecordDBOperation(operation, status string, duration float64)
+	RecordOperation(operation, status string)
+	RecordDuration(operation string, seconds float64)
 	// RecordDBError records a failed DB operation: observes the duration,
 	// bumps the operations counter with status="error", and bumps a dedicated
 	// error counter labelled by error_type. Callers should use this instead of
-	// RecordDBOperation(op, "error", duration) on error paths.
+	// RecordOperation(op, "error") + RecordDuration on error paths.
 	RecordDBError(operation, errorType string, duration float64)
 	// UpdateCachePopulationRatio records the fraction of stored cache entries that
 	// contain real guide data (positive) vs not-found markers (negative).
@@ -186,12 +192,10 @@ type GuideCache struct {
 	dataMap    sync.Map
 	store      GuideStore
 	sfGroup    singleflight.Group
-	quit       chan struct{}
-	closeOnce  sync.Once
 	mu         sync.RWMutex // protects providers map
 	metrics    GuideCacheMetrics
 	rootCtx    context.Context    // cancelled on Close(); passed to background goroutines
-	rootCancel context.CancelFunc // cancels rootCtx
+	rootCancel context.CancelFunc // cancels rootCtx; idempotent, so Close is safe to call twice
 }
 
 // NewGuideCache creates a new GuideCache with the given store.
@@ -200,7 +204,6 @@ func NewGuideCache(store GuideStore, metrics GuideCacheMetrics) *GuideCache {
 	return &GuideCache{
 		providers:  make(map[string]GuideProvider),
 		store:      store,
-		quit:       make(chan struct{}),
 		metrics:    metrics,
 		rootCtx:    ctx,
 		rootCancel: cancel,
@@ -220,16 +223,13 @@ func (c *GuideCache) Start() {
 	c.startCacheRefresh()
 }
 
-// Close stops background routines. Safe to call multiple times.
+// Close stops background routines. Safe to call multiple times — context.CancelFunc is idempotent.
 func (c *GuideCache) Close() {
-	c.closeOnce.Do(func() {
-		c.rootCancel()
-		close(c.quit)
-	})
+	c.rootCancel()
 }
 
 // WarmForSpecies pre-fetches guides for a list of species in the background.
-// It respects the quit channel and paces requests using refreshDelay.
+// It respects rootCtx cancellation and paces requests using refreshDelay.
 func (c *GuideCache) WarmForSpecies(speciesNames []string) {
 	if len(speciesNames) == 0 {
 		return
@@ -324,10 +324,10 @@ func (c *GuideCache) Get(ctx context.Context, scientificName string, opts FetchO
 	// Tier 3: Fetch from providers (deduplicated per locale).
 	// Use rootCtx so the fetch is not cancelled if this request's context expires —
 	// the result is stored in cache and benefits any concurrent callers.
-	sfKey := scientificName
-	if opts.Locale != "" && opts.Locale != defaultLocale {
-		sfKey = scientificName + ":" + opts.Locale
+	if c.metrics != nil {
+		c.metrics.RecordCacheMiss(providerName)
 	}
+	sfKey := memCacheKey(scientificName, opts.Locale)
 	result, fetchErr, _ := c.sfGroup.Do(sfKey, func() (any, error) {
 		return c.fetchFromProviders(c.rootCtx, scientificName, opts)
 	})
@@ -345,6 +345,15 @@ func (c *GuideCache) resolveProviderName() string {
 		return settings.Realtime.Dashboard.SpeciesGuide.Provider
 	}
 	return defaultProviderName
+}
+
+// resolveFallbackPolicy returns the configured fallback policy, falling back to FallbackPolicyAll.
+func (c *GuideCache) resolveFallbackPolicy() string {
+	settings := conf.GetSettings()
+	if settings != nil && settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy != "" {
+		return settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy
+	}
+	return FallbackPolicyAll
 }
 
 // checkMemoryCache checks the in-memory sync.Map tier.
@@ -430,10 +439,7 @@ func (c *GuideCache) triggerAsyncRefresh(scientificName string, opts FetchOption
 	go func() {
 		ctx, cancel := context.WithTimeout(c.rootCtx, 2*providerTimeout)
 		defer cancel()
-		sfKey := scientificName
-		if opts.Locale != "" && opts.Locale != defaultLocale {
-			sfKey = scientificName + ":" + opts.Locale
-		}
+		sfKey := memCacheKey(scientificName, opts.Locale)
 		_, _, _ = c.sfGroup.Do(sfKey, func() (any, error) {
 			return c.fetchFromProviders(ctx, scientificName, opts)
 		})
@@ -443,18 +449,8 @@ func (c *GuideCache) triggerAsyncRefresh(scientificName string, opts FetchOption
 // fetchFromProviders fetches guide data from configured providers with fallback.
 func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName string, opts FetchOptions) (*SpeciesGuide, error) {
 	log := getLogger()
-	settings := conf.GetSettings()
-
-	primaryProvider := defaultProviderName
-	fallbackPolicy := FallbackPolicyAll
-	if settings != nil {
-		if p := settings.Realtime.Dashboard.SpeciesGuide.Provider; p != "" {
-			primaryProvider = p
-		}
-		if fp := settings.Realtime.Dashboard.SpeciesGuide.FallbackPolicy; fp != "" {
-			fallbackPolicy = fp
-		}
-	}
+	primaryProvider := c.resolveProviderName()
+	fallbackPolicy := c.resolveFallbackPolicy()
 
 	c.mu.RLock()
 	provider, hasPrimary := c.providers[primaryProvider]
@@ -588,28 +584,18 @@ func mergeGuides(primary, secondary *SpeciesGuide) SpeciesGuide {
 	return result
 }
 
-// trimToUTF8Boundary removes any incomplete UTF-8 rune from the end of s.
-// A hard byte-boundary cut can leave an orphaned leading byte at the tail;
-// DecodeLastRuneInString signals this as RuneError with size==1.
-func trimToUTF8Boundary(s string) string {
-	for {
-		r, size := utf8.DecodeLastRuneInString(s)
-		if r != utf8.RuneError || size != 1 {
-			break
-		}
-		s = s[:len(s)-1]
+// TruncateUTF8 truncates s to at most maxBytes while preserving valid UTF-8.
+// It never splits a multi-byte character. The suffix (e.g. "…") is appended
+// only when truncation actually occurred; pass "" for none.
+func TruncateUTF8(s string, maxBytes int, suffix string) string {
+	if len(s) <= maxBytes {
+		return s
 	}
-	return s
-}
-
-// truncateDescription ensures description fits within database limits.
-// Uses maxRichDescriptionLength to accommodate identification and feature content.
-// Safely removes any partial UTF-8 rune at the end to prevent data corruption.
-func truncateDescription(desc string) string {
-	if len(desc) <= maxRichDescriptionLength {
-		return desc
+	truncated := s[:maxBytes]
+	for !utf8.ValidString(truncated) && truncated != "" {
+		truncated = truncated[:len(truncated)-1]
 	}
-	return trimToUTF8Boundary(desc[:maxRichDescriptionLength])
+	return truncated + suffix
 }
 
 // isCacheEntryStale checks if a cache entry has exceeded its TTL.
@@ -692,7 +678,7 @@ func (c *GuideCache) saveToDB(ctx context.Context, guide *SpeciesGuide, provider
 		Locale:             locale,
 		SourceProvider:     guide.SourceProvider,
 		CommonName:         guide.CommonName,
-		Description:        truncateDescription(guide.Description),
+		Description:        TruncateUTF8(guide.Description, maxRichDescriptionLength, ""),
 		ConservationStatus: guide.ConservationStatus,
 		SourceURL:          guide.SourceURL,
 		LicenseName:        guide.LicenseName,
@@ -715,11 +701,7 @@ func (c *GuideCache) loadFromDB() {
 		return
 	}
 
-	settings := conf.GetSettings()
-	providerName := defaultProviderName
-	if settings != nil && settings.Realtime.Dashboard.SpeciesGuide.Provider != "" {
-		providerName = settings.Realtime.Dashboard.SpeciesGuide.Provider
-	}
+	providerName := c.resolveProviderName()
 
 	// Only fetch entries within the retention period — avoids loading the entire table.
 	cutoff := time.Now().Add(-dbRetentionPeriod)
@@ -760,7 +742,7 @@ func (c *GuideCache) startCacheRefresh() {
 
 		for {
 			select {
-			case <-c.quit:
+			case <-c.rootCtx.Done():
 				log.Info("Stopping guide cache refresh routine")
 				return
 			case <-ticker.C:
@@ -777,11 +759,7 @@ func (c *GuideCache) refreshStaleEntries() {
 	}
 
 	log := getLogger()
-	settings := conf.GetSettings()
-	providerName := defaultProviderName
-	if settings != nil && settings.Realtime.Dashboard.SpeciesGuide.Provider != "" {
-		providerName = settings.Realtime.Dashboard.SpeciesGuide.Provider
-	}
+	providerName := c.resolveProviderName()
 
 	// Only fetch entries within retention period — no point refreshing entries
 	// that will be deleted by the next cleanup cycle.
@@ -853,21 +831,16 @@ func (c *GuideCache) refreshStaleEntries() {
 	}
 }
 
-// shouldQuit checks if the cache's quit channel has been signaled.
+// shouldQuit reports whether rootCtx has been cancelled (Close was called).
 func (c *GuideCache) shouldQuit() bool {
-	select {
-	case <-c.quit:
-		return true
-	default:
-		return false
-	}
+	return c.rootCtx.Err() != nil
 }
 
-// waitWithQuit waits for the specified duration, returning true if quit was signaled.
+// waitWithQuit waits for the specified duration, returning true if rootCtx was cancelled.
 func (c *GuideCache) waitWithQuit(d time.Duration) bool {
 	timer := time.NewTimer(d)
 	select {
-	case <-c.quit:
+	case <-c.rootCtx.Done():
 		timer.Stop()
 		return true
 	case <-timer.C:

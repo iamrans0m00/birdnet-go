@@ -48,7 +48,7 @@ func TestNewEBirdGuideProvider_NilClient(t *testing.T) {
 	t.Attr("type", "unit")
 	t.Attr("feature", "ebird-provider")
 
-	p, err := NewEBirdGuideProvider(nil)
+	p, err := NewEBirdGuideProvider(nil, nil)
 	assert.Nil(t, p)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrProviderNotConfigured))
@@ -62,7 +62,7 @@ func TestNewEBirdGuideProvider_ValidClient(t *testing.T) {
 
 	server := ebirdTaxonomyServer(t, nil)
 	client := newEBirdTestClient(t, server)
-	p, err := NewEBirdGuideProvider(client)
+	p, err := NewEBirdGuideProvider(client, nil)
 	require.NoError(t, err)
 	assert.NotNil(t, p)
 }
@@ -84,7 +84,7 @@ func TestEBirdGuideProvider_Fetch_SpeciesFound(t *testing.T) {
 
 	server := ebirdTaxonomyServer(t, entries)
 	client := newEBirdTestClient(t, server)
-	p, err := NewEBirdGuideProvider(client)
+	p, err := NewEBirdGuideProvider(client, nil)
 	require.NoError(t, err)
 
 	guide, err := p.Fetch(t.Context(), testSpeciesMerula, FetchOptions{})
@@ -116,7 +116,7 @@ func TestEBirdGuideProvider_Fetch_ExtinctSpecies(t *testing.T) {
 
 	server := ebirdTaxonomyServer(t, entries)
 	client := newEBirdTestClient(t, server)
-	p, err := NewEBirdGuideProvider(client)
+	p, err := NewEBirdGuideProvider(client, nil)
 	require.NoError(t, err)
 
 	guide, err := p.Fetch(t.Context(), extinctSpecies, FetchOptions{})
@@ -139,7 +139,7 @@ func TestEBirdGuideProvider_Fetch_NotFound(t *testing.T) {
 
 	server := ebirdTaxonomyServer(t, entries)
 	client := newEBirdTestClient(t, server)
-	p, err := NewEBirdGuideProvider(client)
+	p, err := NewEBirdGuideProvider(client, nil)
 	require.NoError(t, err)
 
 	_, err = p.Fetch(t.Context(), testSpeciesMerula, FetchOptions{})
@@ -160,7 +160,7 @@ func TestEBirdGuideProvider_Fetch_APIError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newEBirdTestClient(t, server)
-	p, err := NewEBirdGuideProvider(client)
+	p, err := NewEBirdGuideProvider(client, nil)
 	require.NoError(t, err)
 
 	_, fetchErr := p.Fetch(t.Context(), testSpeciesMerula, FetchOptions{})
@@ -181,7 +181,7 @@ func TestEBirdGuideProvider_Fetch_IgnoresLocale(t *testing.T) {
 
 	server := ebirdTaxonomyServer(t, entries)
 	client := newEBirdTestClient(t, server)
-	p, err := NewEBirdGuideProvider(client)
+	p, err := NewEBirdGuideProvider(client, nil)
 	require.NoError(t, err)
 
 	// eBird always returns English common names regardless of requested locale.

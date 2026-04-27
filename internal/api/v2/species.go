@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -44,13 +43,19 @@ const (
 	RarityThresholdRare       = 0.05
 )
 
+// apiSpeciesErr returns a builder pre-tagged with Component("api-species") and the given category.
+// Chain .Context(...) before .Build() when the error needs additional structured fields.
+func apiSpeciesErr(category errors.ErrorCategory, format string, args ...any) *errors.ErrorBuilder {
+	return errors.Newf(format, args...).
+		Category(category).
+		Component("api-species")
+}
+
 // errInvalidScientificNameEncoding and errMissingScientificName are sentinel errors
 // returned by parseScientificNameParam so callers can produce distinct HTTP messages.
 var (
-	errInvalidScientificNameEncoding = errors.Newf("invalid scientific name encoding").
-						Category(errors.CategoryValidation).Component("api-species").Build()
-	errMissingScientificName = errors.Newf("scientific_name parameter is required").
-					Category(errors.CategoryValidation).Component("api-species").Build()
+	errInvalidScientificNameEncoding = apiSpeciesErr(errors.CategoryValidation, "invalid scientific name encoding").Build()
+	errMissingScientificName         = apiSpeciesErr(errors.CategoryValidation, "scientific_name parameter is required").Build()
 )
 
 // Guide endpoint rate limiting: 30 requests per minute per IP, burst of 5.
@@ -63,19 +68,6 @@ const (
 	guideRateLimitBurst  = 5
 	guideRateLimitWindow = 1 * time.Minute
 )
-
-// truncateUTF8 truncates s to at most maxBytes while preserving valid UTF-8.
-// It never splits a multi-byte character and appends suffix (e.g. "…") to the result.
-func truncateUTF8(s string, maxBytes int, suffix string) string {
-	if len(s) <= maxBytes {
-		return s
-	}
-	truncated := s[:maxBytes]
-	for !utf8.ValidString(truncated) && truncated != "" {
-		truncated = truncated[:len(truncated)-1]
-	}
-	return truncated + suffix
-}
 
 // maxSimilarSpeciesResults is the maximum number of similar species to return.
 const maxSimilarSpeciesResults = 5
@@ -201,6 +193,46 @@ func (c *Controller) initSpeciesRoutes() {
 	c.Group.GET("/taxonomy/tree/:scientific_name", c.GetSpeciesTree)
 }
 
+// speciesGuideDisabled writes a 503 response when the master species-guide flag
+// is off and returns true. Returns false when the feature is enabled. Callers
+// should `return nil` when this returns true — the response has already been written.
+func (c *Controller) speciesGuideDisabled(ctx echo.Context) bool {
+	if c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
+		return false
+	}
+	_ = c.HandleError(ctx, apiSpeciesErr(errors.CategoryConfiguration, "species guide feature is disabled").Build(),
+		"Species guide feature is disabled", http.StatusServiceUnavailable)
+	return true
+}
+
+// speciesNotesDisabled enforces both the master guide flag and the notes
+// sub-feature. Same write-and-bail contract as speciesGuideDisabled.
+func (c *Controller) speciesNotesDisabled(ctx echo.Context) bool {
+	if c.speciesGuideDisabled(ctx) {
+		return true
+	}
+	if c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
+		return false
+	}
+	_ = c.HandleError(ctx, apiSpeciesErr(errors.CategoryConfiguration, "species notes feature is disabled").Build(),
+		"Species notes feature is disabled", http.StatusServiceUnavailable)
+	return true
+}
+
+// similarSpeciesDisabled enforces both the master guide flag and the
+// similar-species sub-feature. Same write-and-bail contract as speciesGuideDisabled.
+func (c *Controller) similarSpeciesDisabled(ctx echo.Context) bool {
+	if c.speciesGuideDisabled(ctx) {
+		return true
+	}
+	if c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowSimilarSpecies() {
+		return false
+	}
+	_ = c.HandleError(ctx, apiSpeciesErr(errors.CategoryConfiguration, "similar species feature is disabled").Build(),
+		"Similar species feature is disabled", http.StatusServiceUnavailable)
+	return true
+}
+
 // parseScientificNameParam decodes and validates the :scientific_name path parameter.
 // Returns the trimmed name, or a sentinel error (errInvalidScientificNameEncoding /
 // errMissingScientificName) for the caller to pass to handleScientificNameError.
@@ -278,20 +310,16 @@ func (c *Controller) GetSpeciesInfo(ctx echo.Context) error {
 	// Get scientific name from query parameter
 	scientificName := ctx.QueryParam("scientific_name")
 	if scientificName == "" {
-		return c.HandleError(ctx, errors.Newf("scientific_name parameter is required").
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Missing required parameter", http.StatusBadRequest)
+		return c.HandleError(ctx, apiSpeciesErr(errors.CategoryValidation, "scientific_name parameter is required").Build(),
+			"Missing required parameter", http.StatusBadRequest)
 	}
 
 	// Validate the scientific name format (basic validation)
 	scientificName = strings.TrimSpace(scientificName)
 	if len(scientificName) < 3 || !strings.Contains(scientificName, " ") {
-		return c.HandleError(ctx, errors.Newf("invalid scientific name format").
-			Category(errors.CategoryValidation).
-			Context("scientific_name", scientificName).
-			Component("api-species").
-			Build(), "Invalid scientific name format", http.StatusBadRequest)
+		return c.HandleError(ctx, apiSpeciesErr(errors.CategoryValidation, "invalid scientific name format").
+			Context("scientific_name", scientificName).Build(),
+			"Invalid scientific name format", http.StatusBadRequest)
 	}
 
 	// Get species info
@@ -307,10 +335,7 @@ func (c *Controller) GetSpeciesInfo(ctx echo.Context) error {
 func (c *Controller) getSpeciesInfo(ctx context.Context, scientificName string) (*SpeciesInfo, error) {
 	// Get the BirdNET instance from the processor
 	if c.Processor == nil || c.Processor.Bn == nil {
-		return nil, errors.Newf("BirdNET processor not available").
-			Category(errors.CategorySystem).
-			Component("api-species").
-			Build()
+		return nil, apiSpeciesErr(errors.CategorySystem, "BirdNET processor not available").Build()
 	}
 
 	bn := c.Processor.Bn
@@ -330,11 +355,8 @@ func (c *Controller) getSpeciesInfo(ctx context.Context, scientificName string) 
 
 	// If species not found in labels, return error
 	if matchedLabel == "" {
-		return nil, errors.Newf("species '%s' not found in BirdNET labels", scientificName).
-			Category(errors.CategoryNotFound).
-			Context("scientific_name", scientificName).
-			Component("api-species").
-			Build()
+		return nil, apiSpeciesErr(errors.CategoryNotFound, "species '%s' not found in BirdNET labels", scientificName).
+			Context("scientific_name", scientificName).Build()
 	}
 
 	// Create basic species info
@@ -563,20 +585,16 @@ func (c *Controller) GetSpeciesTaxonomy(ctx echo.Context) error {
 	// Get parameters from query
 	scientificName := ctx.QueryParam("scientific_name")
 	if scientificName == "" {
-		return c.HandleError(ctx, errors.Newf("scientific_name parameter is required").
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Missing required parameter", http.StatusBadRequest)
+		return c.HandleError(ctx, apiSpeciesErr(errors.CategoryValidation, "scientific_name parameter is required").Build(),
+			"Missing required parameter", http.StatusBadRequest)
 	}
 
 	// Validate the scientific name format (basic validation)
 	scientificName = strings.TrimSpace(scientificName)
 	if len(scientificName) < 3 || !strings.Contains(scientificName, " ") {
-		return c.HandleError(ctx, errors.Newf("invalid scientific name format").
-			Category(errors.CategoryValidation).
-			Context("scientific_name", scientificName).
-			Component("api-species").
-			Build(), "Invalid scientific name format", http.StatusBadRequest)
+		return c.HandleError(ctx, apiSpeciesErr(errors.CategoryValidation, "invalid scientific name format").
+			Context("scientific_name", scientificName).Build(),
+			"Invalid scientific name format", http.StatusBadRequest)
 	}
 
 	// Get optional parameters
@@ -607,12 +625,9 @@ func (c *Controller) getDetailedTaxonomy(ctx context.Context, scientificName, lo
 	}
 
 	// Neither local DB nor eBird API available
-	return nil, errors.Newf("taxonomy data not available (no local database or eBird API)").
-		Category(errors.CategoryConfiguration).
+	return nil, apiSpeciesErr(errors.CategoryConfiguration, "taxonomy data not available (no local database or eBird API)").
 		Priority(errors.PriorityLow).
-		Context("scientific_name", scientificName).
-		Component("api-species").
-		Build()
+		Context("scientific_name", scientificName).Build()
 }
 
 // tryLocalTaxonomy attempts to retrieve taxonomy from the local database.
@@ -704,11 +719,8 @@ func (c *Controller) getEBirdTaxonomy(ctx context.Context, scientificName, local
 	}
 
 	if speciesEntry == nil {
-		return nil, errors.Newf("species '%s' not found in eBird taxonomy", scientificName).
-			Category(errors.CategoryNotFound).
-			Context("scientific_name", scientificName).
-			Component("api-species").
-			Build()
+		return nil, apiSpeciesErr(errors.CategoryNotFound, "species '%s' not found in eBird taxonomy", scientificName).
+			Context("scientific_name", scientificName).Build()
 	}
 
 	// Create taxonomy info
@@ -722,13 +734,6 @@ func (c *Controller) getEBirdTaxonomy(ctx context.Context, scientificName, local
 		},
 	}
 
-	// Parse genus from scientific name
-	parts := strings.Fields(speciesEntry.ScientificName)
-	genus := ""
-	if len(parts) > 0 {
-		genus = parts[0]
-	}
-
 	info.Taxonomy = &TaxonomyHierarchy{
 		Kingdom:       taxonomyKingdomAnimalia,
 		Phylum:        taxonomyPhylumChordata,
@@ -736,7 +741,7 @@ func (c *Controller) getEBirdTaxonomy(ctx context.Context, scientificName, local
 		Order:         speciesEntry.Order,
 		Family:        speciesEntry.FamilySciName,
 		FamilyCommon:  speciesEntry.FamilyComName,
-		Genus:         genus,
+		Genus:         detection.Genus(speciesEntry.ScientificName),
 		Species:       speciesEntry.ScientificName,
 		SpeciesCommon: speciesEntry.CommonName,
 	}
@@ -786,10 +791,8 @@ func (c *Controller) findDetailedSubspecies(taxonomy []ebird.TaxonomyEntry, spec
 func (c *Controller) GetSpeciesThumbnail(ctx echo.Context) error {
 	speciesCode := ctx.Param("code")
 	if speciesCode == "" {
-		return c.HandleError(ctx, errors.Newf("species code parameter is required").
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Missing species code", http.StatusBadRequest)
+		return c.HandleError(ctx, apiSpeciesErr(errors.CategoryValidation, "species code parameter is required").Build(),
+			"Missing species code", http.StatusBadRequest)
 	}
 
 	// Log the request if API logger is available
@@ -801,18 +804,14 @@ func (c *Controller) GetSpeciesThumbnail(ctx echo.Context) error {
 
 	// Check if BirdNET processor is available
 	if c.Processor == nil || c.Processor.Bn == nil {
-		return c.HandleError(ctx, errors.Newf("BirdNET processor not available").
-			Category(errors.CategorySystem).
-			Component("api-species").
-			Build(), "BirdNET service unavailable", http.StatusServiceUnavailable)
+		return c.HandleError(ctx, apiSpeciesErr(errors.CategorySystem, "BirdNET processor not available").Build(),
+			"BirdNET service unavailable", http.StatusServiceUnavailable)
 	}
 
 	// Check if BirdImageCache is available
 	if c.BirdImageCache == nil {
-		return c.HandleError(ctx, errors.Newf("image service unavailable").
-			Category(errors.CategorySystem).
-			Component("api-species").
-			Build(), "Image service unavailable", http.StatusServiceUnavailable)
+		return c.HandleError(ctx, apiSpeciesErr(errors.CategorySystem, "image service unavailable").Build(),
+			"Image service unavailable", http.StatusServiceUnavailable)
 	}
 
 	// Get species name from the taxonomy map using the species code
@@ -820,23 +819,19 @@ func (c *Controller) GetSpeciesThumbnail(ctx echo.Context) error {
 	speciesName, exists := classifier.GetSpeciesNameFromCode(bn.TaxonomyMap, speciesCode)
 
 	if !exists {
-		return c.HandleError(ctx, errors.Newf("species code '%s' not found in taxonomy", speciesCode).
-			Category(errors.CategoryNotFound).
-			Context("species_code", speciesCode).
-			Component("api-species").
-			Build(), "Species not found", http.StatusNotFound)
+		return c.HandleError(ctx, apiSpeciesErr(errors.CategoryNotFound, "species code '%s' not found in taxonomy", speciesCode).
+			Context("species_code", speciesCode).Build(),
+			"Species not found", http.StatusNotFound)
 	}
 
 	// Split the species name to get scientific name
 	scientificName, _ := classifier.SplitSpeciesName(speciesName)
 
 	if scientificName == "" {
-		return c.HandleError(ctx, errors.Newf("invalid species name format for code '%s'", speciesCode).
-			Category(errors.CategoryValidation).
+		return c.HandleError(ctx, apiSpeciesErr(errors.CategoryValidation, "invalid species name format for code '%s'", speciesCode).
 			Context("species_code", speciesCode).
-			Context("species_name", speciesName).
-			Component("api-species").
-			Build(), "Invalid species data", http.StatusInternalServerError)
+			Context("species_name", speciesName).Build(),
+			"Invalid species data", http.StatusInternalServerError)
 	}
 
 	// Delegate to the image proxy handler
@@ -850,12 +845,10 @@ type GuideQuality string
 
 const (
 	// GuideQualityFull means the guide has structured sections (Description, Songs, etc.).
-	// Mirrors guideprovider.GuideQualityFull — both must equal "full".
 	GuideQualityFull GuideQuality = guideprovider.GuideQualityFull
 	// GuideQualityIntroOnly means only the intro paragraph is available (API-layer extension).
 	GuideQualityIntroOnly GuideQuality = "intro_only"
 	// GuideQualityStub means only metadata is available, no description.
-	// Mirrors guideprovider.GuideQualityStub — both must equal "stub".
 	GuideQualityStub GuideQuality = guideprovider.GuideQualityStub
 )
 
@@ -921,15 +914,10 @@ type SpeciesGuideSource struct {
 // @Failure 503 {object} ErrorResponse
 // @Router /api/v2/species/{scientific_name}/guide [get]
 func (c *Controller) GetSpeciesGuide(ctx echo.Context) error {
-	// Check if guide feature is enabled
-	if !c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
-		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
-			Component("api-species").
-			Category(errors.CategoryConfiguration).
-			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
+	if c.speciesGuideDisabled(ctx) {
+		return nil
 	}
 
-	// Get and validate scientific name from path parameter
 	scientificName, err := c.parseScientificNameParam(ctx)
 	if err != nil {
 		return c.handleScientificNameError(ctx, err)
@@ -1051,20 +1039,8 @@ type SimilarSpeciesResponse struct {
 // @Failure 404 {object} ErrorResponse
 // @Router /api/v2/species/{scientific_name}/similar [get]
 func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
-	// Check if main species guide feature is enabled
-	if !c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
-		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
-			Category(errors.CategoryConfiguration).
-			Component("api-species").
-			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
-	}
-
-	// Check if similar species UI component is enabled
-	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowSimilarSpecies() {
-		return c.HandleError(ctx, errors.Newf("similar species feature is disabled").
-			Component("api-species").
-			Category(errors.CategoryConfiguration).
-			Build(), "Similar species feature is disabled", http.StatusServiceUnavailable)
+	if c.similarSpeciesDisabled(ctx) {
+		return nil
 	}
 
 	scientificName, err := c.parseScientificNameParam(ctx)
@@ -1072,11 +1048,7 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 		return c.handleScientificNameError(ctx, err)
 	}
 
-	// Extract genus (first word of the binomial name).
-	genus := scientificName
-	if spaceIdx := strings.IndexByte(scientificName, ' '); spaceIdx > 0 {
-		genus = scientificName[:spaceIdx]
-	}
+	genus := detection.Genus(scientificName)
 
 	// Find same-genus species from BirdNET labels.
 	similar := make([]SimilarSpeciesEntry, 0, maxSimilarSpeciesResults)
@@ -1125,7 +1097,7 @@ func (c *Controller) GetSimilarSpecies(ctx echo.Context) error {
 						return
 					}
 					// Truncate to a short summary for the similar species list.
-					summary := truncateUTF8(guide.Description, maxGuideSummaryLen, "…")
+					summary := guideprovider.TruncateUTF8(guide.Description, maxGuideSummaryLen, "…")
 					sections := extractSections(guide.Description, guide.SimilarSpecies, locale)
 					mu.Lock()
 					similar[idx].GuideSummary = summary
@@ -1165,6 +1137,52 @@ type UpdateSpeciesNoteRequest struct {
 	Entry string `json:"entry"`
 }
 
+// toSpeciesNoteResponse converts a datastore note to its API response shape.
+func toSpeciesNoteResponse(n *datastore.SpeciesNote) SpeciesNoteResponse {
+	return SpeciesNoteResponse{
+		ID:        n.ID,
+		Entry:     n.Entry,
+		CreatedAt: n.CreatedAt,
+		UpdatedAt: n.UpdatedAt,
+	}
+}
+
+// validateNoteEntry trims raw, enforces non-empty + max-length rules. On failure it
+// writes a 400 response and returns ok=false; callers should `return nil`.
+func (c *Controller) validateNoteEntry(ctx echo.Context, raw string) (entry string, ok bool) {
+	entry = strings.TrimSpace(raw)
+	if entry == "" {
+		_ = c.HandleError(ctx, apiSpeciesErr(errors.CategoryValidation, "entry cannot be empty").Build(),
+			"Note entry is required", http.StatusBadRequest)
+		return "", false
+	}
+	if len(entry) > datastore.SpeciesNoteMaxLength {
+		_ = c.HandleError(ctx, apiSpeciesErr(errors.CategoryValidation, "note entry exceeds maximum length of %d bytes", datastore.SpeciesNoteMaxLength).Build(),
+			"Note entry too long", http.StatusBadRequest)
+		return "", false
+	}
+	return entry, true
+}
+
+// parseNoteID validates the :id path parameter as a 32-bit unsigned integer.
+// On failure it writes a 400 response and returns ok=false; callers should `return nil`.
+// Returns the parsed ID and the original string form (for datastore calls that take strings).
+func (c *Controller) parseNoteID(ctx echo.Context) (id uint, raw string, ok bool) {
+	raw = ctx.Param("id")
+	if raw == "" {
+		_ = c.HandleError(ctx, apiSpeciesErr(errors.CategoryValidation, "note ID is required").Build(),
+			"Missing note ID", http.StatusBadRequest)
+		return 0, "", false
+	}
+	parsed, parseErr := strconv.ParseUint(raw, 10, 32)
+	if parseErr != nil {
+		_ = c.HandleError(ctx, apiSpeciesErr(errors.CategoryValidation, "invalid note ID").Build(),
+			"Invalid note ID", http.StatusBadRequest)
+		return 0, "", false
+	}
+	return uint(parsed), raw, true
+}
+
 // GetSpeciesNotes retrieves all notes for a species.
 // @Summary Get species notes
 // @Description Returns user-authored notes for a species
@@ -1175,17 +1193,8 @@ type UpdateSpeciesNoteRequest struct {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v2/species/{scientific_name}/notes [get]
 func (c *Controller) GetSpeciesNotes(ctx echo.Context) error {
-	if !c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
-		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
-			Category(errors.CategoryConfiguration).
-			Component("api-species").
-			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
-	}
-	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
-		return c.HandleError(ctx, errors.Newf("species notes feature is disabled").
-			Category(errors.CategoryConfiguration).
-			Component("api-species").
-			Build(), "Species notes feature is disabled", http.StatusServiceUnavailable)
+	if c.speciesNotesDisabled(ctx) {
+		return nil
 	}
 
 	scientificName, err := c.parseScientificNameParam(ctx)
@@ -1200,13 +1209,8 @@ func (c *Controller) GetSpeciesNotes(ctx echo.Context) error {
 	}
 
 	response := make([]SpeciesNoteResponse, 0, len(notes))
-	for _, n := range notes {
-		response = append(response, SpeciesNoteResponse{
-			ID:        n.ID,
-			Entry:     n.Entry,
-			CreatedAt: n.CreatedAt,
-			UpdatedAt: n.UpdatedAt,
-		})
+	for i := range notes {
+		response = append(response, toSpeciesNoteResponse(&notes[i]))
 	}
 
 	return ctx.JSON(http.StatusOK, response)
@@ -1224,17 +1228,8 @@ func (c *Controller) GetSpeciesNotes(ctx echo.Context) error {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v2/species/{scientific_name}/notes [post]
 func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
-	if !c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
-		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
-			Category(errors.CategoryConfiguration).
-			Component("api-species").
-			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
-	}
-	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
-		return c.HandleError(ctx, errors.Newf("species notes feature is disabled").
-			Category(errors.CategoryConfiguration).
-			Component("api-species").
-			Build(), "Species notes feature is disabled", http.StatusServiceUnavailable)
+	if c.speciesNotesDisabled(ctx) {
+		return nil
 	}
 
 	scientificName, err := c.parseScientificNameParam(ctx)
@@ -1244,24 +1239,13 @@ func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
 
 	var req CreateSpeciesNoteRequest
 	if err := ctx.Bind(&req); err != nil {
-		return c.HandleError(ctx, errors.Newf("invalid request body: %w", err).
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Invalid request body", http.StatusBadRequest)
+		return c.HandleError(ctx, apiSpeciesErr(errors.CategoryValidation, "invalid request body: %w", err).Build(),
+			"Invalid request body", http.StatusBadRequest)
 	}
 
-	entry := strings.TrimSpace(req.Entry)
-	if entry == "" {
-		return c.HandleError(ctx, errors.Newf("entry cannot be empty").
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Note entry is required", http.StatusBadRequest)
-	}
-	if len(entry) > datastore.SpeciesNoteMaxLength {
-		return c.HandleError(ctx, errors.Newf("note entry exceeds maximum length of %d bytes", datastore.SpeciesNoteMaxLength).
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Note entry too long", http.StatusBadRequest)
+	entry, ok := c.validateNoteEntry(ctx, req.Entry)
+	if !ok {
+		return nil
 	}
 
 	note := &datastore.SpeciesNote{
@@ -1273,12 +1257,7 @@ func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
 		return c.HandleError(ctx, err, "Failed to save species note", http.StatusInternalServerError)
 	}
 
-	return ctx.JSON(http.StatusCreated, SpeciesNoteResponse{
-		ID:        note.ID,
-		Entry:     note.Entry,
-		CreatedAt: note.CreatedAt,
-		UpdatedAt: note.UpdatedAt,
-	})
+	return ctx.JSON(http.StatusCreated, toSpeciesNoteResponse(note))
 }
 
 // DeleteSpeciesNote deletes a species note by ID.
@@ -1290,33 +1269,13 @@ func (c *Controller) CreateSpeciesNote(ctx echo.Context) error {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v2/species/notes/{id} [delete]
 func (c *Controller) DeleteSpeciesNote(ctx echo.Context) error {
-	if !c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
-		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
-			Category(errors.CategoryConfiguration).
-			Component("api-species").
-			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
-	}
-	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
-		return c.HandleError(ctx, errors.Newf("species notes feature is disabled").
-			Category(errors.CategoryConfiguration).
-			Component("api-species").
-			Build(), "Species notes feature is disabled", http.StatusServiceUnavailable)
+	if c.speciesNotesDisabled(ctx) {
+		return nil
 	}
 
-	noteID := ctx.Param("id")
-	if noteID == "" {
-		return c.HandleError(ctx, errors.Newf("note ID is required").
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Missing note ID", http.StatusBadRequest)
-	}
-
-	// Validate ID is numeric before calling datastore
-	if _, parseErr := strconv.ParseUint(noteID, 10, 32); parseErr != nil {
-		return c.HandleError(ctx, errors.Newf("invalid note ID").
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Invalid note ID", http.StatusBadRequest)
+	_, noteID, ok := c.parseNoteID(ctx)
+	if !ok {
+		return nil
 	}
 
 	if err := c.DS.DeleteSpeciesNote(ctx.Request().Context(), noteID); err != nil {
@@ -1340,57 +1299,24 @@ func (c *Controller) DeleteSpeciesNote(ctx echo.Context) error {
 // @Failure 400 {object} ErrorResponse
 // @Router /api/v2/species/notes/{id} [put]
 func (c *Controller) UpdateSpeciesNote(ctx echo.Context) error {
-	if !c.Settings.Realtime.Dashboard.SpeciesGuide.Enabled {
-		return c.HandleError(ctx, errors.Newf("species guide feature is disabled").
-			Category(errors.CategoryConfiguration).
-			Component("api-species").
-			Build(), "Species guide feature is disabled", http.StatusServiceUnavailable)
-	}
-	if !c.Settings.Realtime.Dashboard.SpeciesGuide.IsShowNotes() {
-		return c.HandleError(ctx, errors.Newf("species notes feature is disabled").
-			Category(errors.CategoryConfiguration).
-			Component("api-species").
-			Build(), "Species notes feature is disabled", http.StatusServiceUnavailable)
+	if c.speciesNotesDisabled(ctx) {
+		return nil
 	}
 
-	noteID := ctx.Param("id")
-	if noteID == "" {
-		return c.HandleError(ctx, errors.Newf("note ID is required").
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Missing note ID", http.StatusBadRequest)
+	id, noteID, ok := c.parseNoteID(ctx)
+	if !ok {
+		return nil
 	}
 
 	var req UpdateSpeciesNoteRequest
 	if err := ctx.Bind(&req); err != nil {
-		return c.HandleError(ctx, errors.Newf("invalid request body: %w", err).
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Invalid request body", http.StatusBadRequest)
+		return c.HandleError(ctx, apiSpeciesErr(errors.CategoryValidation, "invalid request body: %w", err).Build(),
+			"Invalid request body", http.StatusBadRequest)
 	}
 
-	entry := strings.TrimSpace(req.Entry)
-	if entry == "" {
-		return c.HandleError(ctx, errors.Newf("entry cannot be empty").
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Note entry is required", http.StatusBadRequest)
-	}
-
-	if len(entry) > datastore.SpeciesNoteMaxLength {
-		return c.HandleError(ctx, errors.Newf("note entry exceeds maximum length of %d bytes", datastore.SpeciesNoteMaxLength).
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Note entry too long", http.StatusBadRequest)
-	}
-
-	// Validate ID before hitting the database.
-	id, parseErr := strconv.ParseUint(noteID, 10, 32)
-	if parseErr != nil {
-		return c.HandleError(ctx, errors.Newf("invalid note ID").
-			Category(errors.CategoryValidation).
-			Component("api-species").
-			Build(), "Invalid note ID", http.StatusBadRequest)
+	entry, ok := c.validateNoteEntry(ctx, req.Entry)
+	if !ok {
+		return nil
 	}
 
 	requestCtx := ctx.Request().Context()
@@ -1401,17 +1327,12 @@ func (c *Controller) UpdateSpeciesNote(ctx echo.Context) error {
 		return c.HandleError(ctx, err, "Failed to update species note", http.StatusInternalServerError)
 	}
 
-	updated, err := c.DS.GetSpeciesNoteByID(requestCtx, uint(id))
+	updated, err := c.DS.GetSpeciesNoteByID(requestCtx, id)
 	if err != nil {
 		return c.HandleError(ctx, err, "Failed to retrieve updated species note", http.StatusInternalServerError)
 	}
 
-	return ctx.JSON(http.StatusOK, SpeciesNoteResponse{
-		ID:        updated.ID,
-		Entry:     updated.Entry,
-		CreatedAt: updated.CreatedAt,
-		UpdatedAt: updated.UpdatedAt,
-	})
+	return ctx.JSON(http.StatusOK, toSpeciesNoteResponse(updated))
 }
 
 // extractSections parses the Wikipedia description and extracts key sections for comparison.
@@ -1429,7 +1350,7 @@ func extractSections(description string, similarSpecies []string, locale string)
 	// Get localized section header names for the requested language.
 	descHeaders := guideprovider.DescriptionSectionNames(locale)
 	songHeaders := guideprovider.SongCallSectionNames(locale)
-	similarHeaders := []string{"Similar species", "Similar Species", "Ähnliche Arten", "Espèces similaires"} // Add localized versions as needed
+	similarHeaders := guideprovider.SimilarSpeciesSectionNames(locale)
 
 	// saveSection writes the accumulated content into the appropriate field.
 	var currentSection strings.Builder
@@ -1490,7 +1411,7 @@ func extractSections(description string, similarSpecies []string, locale string)
 
 	// If no sections found but there is description content, use it as a fallback.
 	if sections.Description == "" && description != "" {
-		sections.Description = truncateUTF8(description, 200, "...")
+		sections.Description = guideprovider.TruncateUTF8(description, 200, "...")
 	}
 
 	return sections

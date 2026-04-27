@@ -13,9 +13,7 @@ import (
 // TestGuideCache_ProviderTimeout tests behavior when a provider exceeds timeout.
 func TestGuideCache_ProviderTimeout(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "error-handling")
+	attrUnit(t, "error-handling")
 
 	// Mock provider that simulates timeout
 	provider := &mockGuideProvider{
@@ -26,11 +24,7 @@ func TestGuideCache_ProviderTimeout(t *testing.T) {
 		},
 	}
 
-	// Set up cache with timeout provider
-	store := newMockGuideStore()
-	cache := NewGuideCache(store, nil)
-	cache.RegisterProvider(WikipediaProviderName, provider)
-	cache.Start()
+	cache, _ := setupCacheWith(t, provider)
 	defer cache.Close()
 
 	// Request with short timeout should fail gracefully
@@ -47,9 +41,7 @@ func TestGuideCache_ProviderTimeout(t *testing.T) {
 // TestGuideCache_TransientFailureNoNegativeCache tests that transient errors don't get negative-cached.
 func TestGuideCache_TransientFailureNoNegativeCache(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "error-handling")
+	attrUnit(t, "error-handling")
 
 	// Mock provider that returns transient error (not 404)
 	callCount := 0
@@ -70,10 +62,7 @@ func TestGuideCache_TransientFailureNoNegativeCache(t *testing.T) {
 		},
 	}
 
-	store := newMockGuideStore()
-	cache := NewGuideCache(store, nil)
-	cache.RegisterProvider(WikipediaProviderName, provider)
-	cache.Start()
+	cache, _ := setupCacheWith(t, provider)
 	defer cache.Close()
 
 	// First call fails with transient error
@@ -93,9 +82,7 @@ func TestGuideCache_TransientFailureNoNegativeCache(t *testing.T) {
 // TestGuideCache_NegativeCachePreventsFutureErrors tests that negative cache hits prevent retries.
 func TestGuideCache_NegativeCachePreventsFutureErrors(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "error-handling")
+	attrUnit(t, "error-handling")
 
 	callCount := 0
 	provider := &mockGuideProvider{
@@ -105,10 +92,7 @@ func TestGuideCache_NegativeCachePreventsFutureErrors(t *testing.T) {
 		},
 	}
 
-	store := newMockGuideStore()
-	cache := NewGuideCache(store, nil)
-	cache.RegisterProvider(WikipediaProviderName, provider)
-	cache.Start()
+	cache, _ := setupCacheWith(t, provider)
 	defer cache.Close()
 
 	// First call: not found
@@ -127,9 +111,7 @@ func TestGuideCache_NegativeCachePreventsFutureErrors(t *testing.T) {
 // TestGuideCache_DescriptionTruncation tests that large descriptions are truncated.
 func TestGuideCache_DescriptionTruncation(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "storage-limits")
+	attrUnit(t, "storage-limits")
 
 	// Create a description that exceeds max length
 	largeDesc := string(make([]byte, maxRichDescriptionLength+1000))
@@ -148,10 +130,7 @@ func TestGuideCache_DescriptionTruncation(t *testing.T) {
 		},
 	}
 
-	store := newMockGuideStore()
-	cache := NewGuideCache(store, nil)
-	cache.RegisterProvider(WikipediaProviderName, provider)
-	cache.Start()
+	cache, store := setupCacheWith(t, provider)
 	defer cache.Close()
 
 	guide, err := cache.Get(t.Context(), testSpeciesMerula, FetchOptions{})
@@ -168,9 +147,7 @@ func TestGuideCache_DescriptionTruncation(t *testing.T) {
 // TestGuideCache_DeleteStaleEntries tests database cleanup of old entries.
 func TestGuideCache_DeleteStaleEntries(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "cache-eviction")
+	attrUnit(t, "cache-eviction")
 
 	store := newMockGuideStore()
 
@@ -219,9 +196,7 @@ func TestGuideCache_DeleteStaleEntries(t *testing.T) {
 // TestTruncateDescription tests the description truncation utility.
 func TestTruncateDescription(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "storage-limits")
+	attrUnit(t, "storage-limits")
 
 	tests := []struct {
 		name              string
@@ -251,7 +226,7 @@ func TestTruncateDescription(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := truncateDescription(tt.input)
+			result := TruncateUTF8(tt.input, maxRichDescriptionLength, "")
 			assert.LessOrEqual(t, len(result), tt.expectedMaxLength)
 		})
 	}
@@ -260,9 +235,7 @@ func TestTruncateDescription(t *testing.T) {
 // TestGuideCache_FallbackProviderSucceeds tests that fallback provider result is used when primary fails.
 func TestGuideCache_FallbackProviderSucceeds(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "fallback")
+	attrUnit(t, "fallback")
 
 	primaryCalled := false
 	fallbackCalled := false
@@ -288,11 +261,8 @@ func TestGuideCache_FallbackProviderSucceeds(t *testing.T) {
 		},
 	}
 
-	store := newMockGuideStore()
-	cache := NewGuideCache(store, nil)
-	cache.RegisterProvider(WikipediaProviderName, primaryProvider)
+	cache, _ := setupCacheWith(t, primaryProvider)
 	cache.RegisterProvider(EBirdProviderName, fallbackProvider)
-	cache.Start()
 	defer cache.Close()
 
 	// Request should succeed using fallback data
@@ -308,9 +278,7 @@ func TestGuideCache_FallbackProviderSucceeds(t *testing.T) {
 // TestGuideCache_MergesFallbackResults tests that primary and fallback results are merged.
 func TestGuideCache_MergesFallbackResults(t *testing.T) {
 	t.Parallel()
-	t.Attr("component", "guideprovider")
-	t.Attr("type", "unit")
-	t.Attr("feature", "fallback")
+	attrUnit(t, "fallback")
 
 	// Primary provider provides description
 	primaryProvider := &mockGuideProvider{
@@ -336,11 +304,8 @@ func TestGuideCache_MergesFallbackResults(t *testing.T) {
 		},
 	}
 
-	store := newMockGuideStore()
-	cache := NewGuideCache(store, nil)
-	cache.RegisterProvider(WikipediaProviderName, primaryProvider)
+	cache, _ := setupCacheWith(t, primaryProvider)
 	cache.RegisterProvider(EBirdProviderName, fallbackProvider)
-	cache.Start()
 	defer cache.Close()
 
 	guide, err := cache.Get(t.Context(), testSpeciesMerula, FetchOptions{})

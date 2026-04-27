@@ -72,3 +72,12 @@ func (s Species) String() string {
 	}
 	return s.ScientificName
 }
+
+// Genus returns the genus portion (first word) of a binomial scientific name.
+// Returns the input unchanged when there is no space, and "" when input is empty.
+func Genus(scientificName string) string {
+	if genus, _, found := strings.Cut(scientificName, " "); found {
+		return genus
+	}
+	return scientificName
+}

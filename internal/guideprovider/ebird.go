@@ -18,13 +18,9 @@ type EBirdGuideProvider struct {
 }
 
 // NewEBirdGuideProvider creates a new EBirdGuideProvider wrapping the given client.
+// Pass nil for metrics to opt out of metrics recording.
 // Returns ErrProviderNotConfigured if the client is nil.
-func NewEBirdGuideProvider(client *ebird.Client) (*EBirdGuideProvider, error) {
-	return NewEBirdGuideProviderWithMetrics(client, nil)
-}
-
-// NewEBirdGuideProviderWithMetrics creates a new EBirdGuideProvider with metrics support.
-func NewEBirdGuideProviderWithMetrics(client *ebird.Client, metrics GuideCacheMetrics) (*EBirdGuideProvider, error) {
+func NewEBirdGuideProvider(client *ebird.Client, metrics GuideCacheMetrics) (*EBirdGuideProvider, error) {
 	if client == nil {
 		return nil, ErrProviderNotConfigured
 	}
