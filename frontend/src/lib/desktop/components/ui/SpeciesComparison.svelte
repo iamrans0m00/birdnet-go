@@ -31,6 +31,9 @@
   const GUIDE_SECTION_SONGS = 'songs_and_calls';
   const GUIDE_SECTION_SIMILAR = 'similar_species';
 
+  // Max characters of raw description shown when no parsed sections exist.
+  const PREVIEW_LENGTH = 300;
+
   // Map of localized section headings to canonical IDs
   // These are the known section titles in different languages from Wikipedia
   const sectionHeadingMap: Record<string, string> = {
@@ -254,8 +257,9 @@
   </div>
 
   {#if isLoading}
-    <div class="flex items-center gap-2 p-4 text-sm opacity-60">
+    <div role="status" aria-live="polite" class="flex items-center gap-2 p-4 text-sm opacity-60">
       <div
+        aria-hidden="true"
         class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
       ></div>
       <span>{t('analytics.species.similar.loading')}</span>
@@ -326,8 +330,13 @@
         </h4>
 
         {#if isLoadingSimilarGuide}
-          <div class="flex items-center gap-2 p-4 text-sm opacity-60">
+          <div
+            role="status"
+            aria-live="polite"
+            class="flex items-center gap-2 p-4 text-sm opacity-60"
+          >
             <div
+              aria-hidden="true"
               class="animate-spin h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent rounded-full"
             ></div>
             <span>{t('analytics.species.guide.loading')}</span>
@@ -358,10 +367,10 @@
                 <p class="side-content">
                   {#if focalSections.length > 0}
                     {getFirstSectionBody(focalSections) ||
-                      focalGuide?.description?.substring(0, 300) ||
+                      focalGuide?.description?.substring(0, PREVIEW_LENGTH) ||
                       t('analytics.species.guide.noDescription')}
                   {:else}
-                    {focalGuide?.description?.substring(0, 300) ||
+                    {focalGuide?.description?.substring(0, PREVIEW_LENGTH) ||
                       t('analytics.species.guide.noDescription')}
                   {/if}
                 </p>

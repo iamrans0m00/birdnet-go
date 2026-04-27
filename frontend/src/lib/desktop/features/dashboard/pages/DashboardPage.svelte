@@ -97,6 +97,11 @@ Performance Optimizations:
   // BUFFER_TARGET: After cleanup, keep limit + this many species to avoid frequent re-sorting
   const SPECIES_LIMIT_BUFFER_TRIGGER = 10;
   const SPECIES_LIMIT_BUFFER_TARGET = 5;
+  // A pending detection represents a single, real-time event so its summary count is one.
+  const PENDING_DETECTION_COUNT = 1;
+  // Pending detection timestamps come from the API as Unix epoch seconds; multiply
+  // to convert to JS Date milliseconds.
+  const MILLIS_PER_SECOND = 1000;
 
   // SSE Detection Data Type (camelCase per API v2 conventions)
   type SSEDetectionData = {
@@ -505,14 +510,15 @@ Performance Optimizations:
   // Handle clicking on a bird in the "currently hearing" section
   function handleBirdClick(detection: PendingDetection) {
     // Convert PendingDetection to SpeciesData format expected by SpeciesDetailModal
+    const firstDetectedDate = new Date(detection.firstDetected * MILLIS_PER_SECOND);
     selectedSpecies = {
       common_name: detection.species,
       scientific_name: detection.scientificName,
-      count: 1, // Pending detections are single, real-time events
+      count: PENDING_DETECTION_COUNT,
       avg_confidence: null,
       max_confidence: null,
-      first_heard: getLocalDateString(new Date(detection.firstDetected * 1000)),
-      last_heard: getLocalDateString(new Date(detection.firstDetected * 1000)),
+      first_heard: getLocalDateString(firstDetectedDate),
+      last_heard: getLocalDateString(firstDetectedDate),
       thumbnail_url: detection.thumbnail || undefined,
     };
     showSpeciesDetailModal = true;

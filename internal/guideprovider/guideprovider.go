@@ -244,13 +244,14 @@ func (c *GuideCache) WarmForSpecies(speciesNames []string) {
 		warmed := 0
 		skipped := 0
 
+		warmProvider := c.resolveProviderName()
 		for _, name := range speciesNames {
 			if c.shouldQuit() {
 				break
 			}
 
-			// Skip if already cached in memory
-			if _, ok := c.dataMap.Load(name); ok {
+			// Skip if already cached in memory under the active provider key.
+			if _, ok := c.dataMap.Load(memCacheKey(warmProvider, name, "")); ok {
 				skipped++
 				continue
 			}
@@ -277,8 +278,8 @@ func (c *GuideCache) WarmForSpecies(speciesNames []string) {
 // PreFetch triggers an async guide fetch for a species if not already cached.
 // This is a non-blocking call intended for use in the detection pipeline.
 func (c *GuideCache) PreFetch(ctx context.Context, scientificName string) {
-	// Skip if already in memory cache
-	if _, ok := c.dataMap.Load(scientificName); ok {
+	// Skip if already in memory cache under the active provider key.
+	if _, ok := c.dataMap.Load(memCacheKey(c.resolveProviderName(), scientificName, "")); ok {
 		return
 	}
 
@@ -293,14 +294,39 @@ func (c *GuideCache) PreFetch(ctx context.Context, scientificName string) {
 // that the entry was not present or stale in that tier. Never exposed to callers.
 var errCacheMiss = errors.Newf("cache miss").Component("guideprovider").Build()
 
-// memCacheKey returns the sync.Map key for a (scientificName, locale) pair.
-// Uses the bare scientific name for the default locale ("en" or empty) so that
-// entries warmed before locale support was added remain accessible.
-func memCacheKey(scientificName, locale string) string {
-	if locale == "" || locale == defaultLocale {
-		return scientificName
+// cloneGuide returns a deep copy of src so the SimilarSpecies slice header is
+// not aliased between the cached entry and any value returned to a caller. A
+// nil input returns nil.
+func cloneGuide(src *SpeciesGuide) *SpeciesGuide {
+	if src == nil {
+		return nil
 	}
-	return scientificName + ":" + locale
+	dst := *src
+	if src.SimilarSpecies != nil {
+		dst.SimilarSpecies = append([]string(nil), src.SimilarSpecies...)
+	}
+	return &dst
+}
+
+// memCacheKey returns the sync.Map key for a (provider, scientificName, locale)
+// triple. The provider is included so toggling the provider in settings cannot
+// serve a stale entry produced by a different provider (and also gives
+// singleflight a per-provider deduplication namespace). The default provider +
+// default locale combination preserves the bare scientific name as the key for
+// backwards compatibility with entries warmed before this isolation was added.
+func memCacheKey(providerName, scientificName, locale string) string {
+	defaultLoc := locale == "" || locale == defaultLocale
+	defaultProv := providerName == "" || providerName == defaultProviderName
+	switch {
+	case defaultProv && defaultLoc:
+		return scientificName
+	case defaultProv:
+		return scientificName + ":" + locale
+	case defaultLoc:
+		return providerName + "|" + scientificName
+	default:
+		return providerName + "|" + scientificName + ":" + locale
+	}
 }
 
 // Get retrieves a species guide, checking memory cache, DB cache, and providers.
@@ -330,7 +356,7 @@ func (c *GuideCache) Get(ctx context.Context, scientificName string, opts FetchO
 	// Use DoChan so the caller can abandon the wait when its own context is
 	// cancelled. The fetch itself runs under rootCtx and continues to populate
 	// the cache for other waiters even if this caller leaves.
-	sfKey := memCacheKey(scientificName, opts.Locale)
+	sfKey := memCacheKey(providerName, scientificName, opts.Locale)
 	resChan := c.sfGroup.DoChan(sfKey, func() (any, error) {
 		return c.fetchFromProviders(c.rootCtx, scientificName, opts)
 	})
@@ -346,11 +372,39 @@ func (c *GuideCache) Get(ctx context.Context, scientificName string, opts FetchO
 	}
 }
 
-// resolveProviderName returns the configured provider name, falling back to the default.
+// AutoProviderName indicates the user wants the cache to pick a concrete
+// registered provider, rather than naming one explicitly. It is not a real
+// provider — it is resolved before any fetch via resolveAutoProvider.
+const AutoProviderName = "auto"
+
+// resolveProviderName returns the configured provider name, falling back to the
+// default. The literal "auto" sentinel is resolved to a concrete registered
+// provider so call sites never pass "auto" to provider lookups.
 func (c *GuideCache) resolveProviderName() string {
 	settings := conf.GetSettings()
+	configured := defaultProviderName
 	if settings != nil && settings.Realtime.Dashboard.SpeciesGuide.Provider != "" {
-		return settings.Realtime.Dashboard.SpeciesGuide.Provider
+		configured = settings.Realtime.Dashboard.SpeciesGuide.Provider
+	}
+	if configured == AutoProviderName {
+		return c.resolveAutoProvider()
+	}
+	return configured
+}
+
+// resolveAutoProvider picks a concrete registered provider when settings choose
+// "auto". It prefers Wikipedia, then eBird, then any first-registered provider,
+// and finally falls back to the package default if none are registered yet.
+func (c *GuideCache) resolveAutoProvider() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	for _, name := range defaultFallbackOrder {
+		if _, ok := c.providers[name]; ok {
+			return name
+		}
+	}
+	for name := range c.providers {
+		return name
 	}
 	return defaultProviderName
 }
@@ -369,7 +423,7 @@ func (c *GuideCache) resolveFallbackPolicy() string {
 // Returns ErrGuideNotFound for a fresh negative-cache hit.
 // Returns nil error with a non-nil guide on a positive hit.
 func (c *GuideCache) checkMemoryCache(scientificName string, opts FetchOptions, providerName string) (*SpeciesGuide, error) {
-	cached, ok := c.dataMap.Load(memCacheKey(scientificName, opts.Locale))
+	cached, ok := c.dataMap.Load(memCacheKey(providerName, scientificName, opts.Locale))
 	if !ok {
 		return nil, errCacheMiss
 	}
@@ -390,7 +444,7 @@ func (c *GuideCache) checkMemoryCache(scientificName string, opts FetchOptions, 
 	if isCacheEntryStale(guide.CachedAt, false) {
 		// Stale positive entry: return it immediately and refresh in background
 		// (stale-while-revalidate pattern).
-		c.triggerAsyncRefresh(scientificName, opts)
+		c.triggerAsyncRefresh(providerName, scientificName, opts)
 	}
 
 	if c.metrics != nil {
@@ -400,8 +454,7 @@ func (c *GuideCache) checkMemoryCache(scientificName string, opts FetchOptions, 
 		}
 		c.metrics.RecordCacheHit(providerName, quality)
 	}
-	guideCopy := *guide
-	return &guideCopy, nil
+	return cloneGuide(guide), nil
 }
 
 // checkDBCache checks the persistent SQLite tier.
@@ -427,8 +480,7 @@ func (c *GuideCache) checkDBCache(ctx context.Context, scientificName, providerN
 	// Store a distinct copy in the in-memory tier and return another distinct
 	// copy to the caller, so a caller mutating the returned guide cannot
 	// corrupt the cached entry (matches checkMemoryCache's pattern).
-	stored := *guide
-	c.dataMap.Store(memCacheKey(scientificName, locale), &stored)
+	c.dataMap.Store(memCacheKey(providerName, scientificName, locale), cloneGuide(guide))
 	if guide.IsNegativeEntry() {
 		if c.metrics != nil {
 			c.metrics.RecordCacheHit(providerName, GuideQualityNotFound)
@@ -442,17 +494,16 @@ func (c *GuideCache) checkDBCache(ctx context.Context, scientificName, providerN
 		}
 		c.metrics.RecordCacheHit(providerName, quality)
 	}
-	returned := *guide
-	return &returned, nil
+	return cloneGuide(guide), nil
 }
 
 // triggerAsyncRefresh starts a background goroutine to refresh stale data.
 // Uses singleflight to deduplicate concurrent refreshes for the same species.
-func (c *GuideCache) triggerAsyncRefresh(scientificName string, opts FetchOptions) {
+func (c *GuideCache) triggerAsyncRefresh(providerName, scientificName string, opts FetchOptions) {
 	go func() {
 		ctx, cancel := context.WithTimeout(c.rootCtx, 2*providerTimeout)
 		defer cancel()
-		sfKey := memCacheKey(scientificName, opts.Locale)
+		sfKey := memCacheKey(providerName, scientificName, opts.Locale)
 		_, _, _ = c.sfGroup.Do(sfKey, func() (any, error) {
 			return c.fetchFromProviders(ctx, scientificName, opts)
 		})
@@ -549,7 +600,9 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 	// Cache the result
 	if primaryResult != nil {
 		primaryResult.CachedAt = time.Now()
-		c.dataMap.Store(memCacheKey(scientificName, opts.Locale), primaryResult)
+		// Store a clone so a caller mutating the returned guide cannot corrupt
+		// the cached entry (matches the pattern in checkMemoryCache/checkDBCache).
+		c.dataMap.Store(memCacheKey(primaryProvider, scientificName, opts.Locale), cloneGuide(primaryResult))
 		c.saveToDB(ctx, primaryResult, primaryProvider, opts.Locale)
 		return primaryResult, nil
 	}
@@ -570,7 +623,7 @@ func (c *GuideCache) fetchFromProviders(ctx context.Context, scientificName stri
 		SourceProvider: negativeEntryMarker,
 		CachedAt:       time.Now(),
 	}
-	c.dataMap.Store(memCacheKey(scientificName, opts.Locale), negative)
+	c.dataMap.Store(memCacheKey(primaryProvider, scientificName, opts.Locale), negative)
 	c.saveToDB(ctx, negative, primaryProvider, opts.Locale)
 	return nil, ErrGuideNotFound
 }
@@ -724,7 +777,7 @@ func (c *GuideCache) loadFromDB() {
 			continue
 		}
 		guide := dbEntryToGuide(&entries[i])
-		c.dataMap.Store(memCacheKey(entries[i].ScientificName, entries[i].Locale), guide)
+		c.dataMap.Store(memCacheKey(providerName, entries[i].ScientificName, entries[i].Locale), guide)
 		loaded++
 	}
 

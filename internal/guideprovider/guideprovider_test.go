@@ -536,40 +536,52 @@ func TestMemCacheKey(t *testing.T) {
 
 	tests := []struct {
 		name           string
+		providerName   string
 		scientificName string
 		locale         string
 		wantKey        string
 	}{
 		{
-			name:           "empty locale uses bare name",
+			name:           "default provider + empty locale uses bare name",
+			providerName:   WikipediaProviderName,
 			scientificName: testSpeciesMerula,
 			locale:         "",
 			wantKey:        testSpeciesMerula,
 		},
 		{
-			name:           "default locale uses bare name",
+			name:           "default provider + default locale uses bare name",
+			providerName:   WikipediaProviderName,
 			scientificName: testSpeciesMerula,
 			locale:         "en",
 			wantKey:        testSpeciesMerula,
 		},
 		{
-			name:           "non-default locale appends suffix",
+			name:           "default provider + non-default locale appends locale suffix",
+			providerName:   WikipediaProviderName,
 			scientificName: testSpeciesMerula,
 			locale:         "de",
 			wantKey:        testSpeciesMerula + ":de",
 		},
 		{
-			name:           "french locale",
+			name:           "non-default provider + default locale prepends provider",
+			providerName:   EBirdProviderName,
+			scientificName: testSpeciesMerula,
+			locale:         "en",
+			wantKey:        EBirdProviderName + "|" + testSpeciesMerula,
+		},
+		{
+			name:           "non-default provider + non-default locale combines both",
+			providerName:   EBirdProviderName,
 			scientificName: testSpeciesParus,
 			locale:         "fr",
-			wantKey:        testSpeciesParus + ":fr",
+			wantKey:        EBirdProviderName + "|" + testSpeciesParus + ":fr",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.wantKey, memCacheKey(tt.scientificName, tt.locale))
+			assert.Equal(t, tt.wantKey, memCacheKey(tt.providerName, tt.scientificName, tt.locale))
 		})
 	}
 }
