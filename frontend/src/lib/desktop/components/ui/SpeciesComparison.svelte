@@ -228,7 +228,10 @@
     for (const section of sections) {
       if (section.heading) {
         const normalizedHeading = section.heading.toLowerCase();
-        if (sectionHeadingMap[normalizedHeading] === canonicalId) {
+        if (
+          Object.prototype.hasOwnProperty.call(sectionHeadingMap, normalizedHeading) &&
+          sectionHeadingMap[normalizedHeading] === canonicalId
+        ) {
           return section.body ?? '';
         }
       }

@@ -7,11 +7,6 @@ import {
 } from '../../../../test/render-helpers';
 import SpeciesComparison from './SpeciesComparison.svelte';
 
-vi.mock('$lib/i18n', () => ({
-  t: vi.fn((key: string) => key),
-  getLocale: vi.fn(() => 'en'),
-}));
-
 vi.mock('$lib/utils/urlHelpers', () => ({
   buildAppUrl: vi.fn((path: string) => `http://localhost:8080${path}`),
 }));
@@ -188,9 +183,10 @@ describe('SpeciesComparison', () => {
       },
     });
 
-    await waitFor(async () => {
-      const closeButton = screen.getByRole('button', { name: /common.close/i });
-      await fireEvent.click(closeButton);
+    const closeButton = await screen.findByRole('button', { name: /common.close/i });
+    await fireEvent.click(closeButton);
+
+    await waitFor(() => {
       expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
@@ -342,9 +338,9 @@ describe('SpeciesComparison', () => {
 
     await waitFor(() => {
       expect(screen.getAllByText('Song Thrush').length).toBeGreaterThan(0);
-      // The parsed first section body flows into the (open-by-default)
-      // description panel via getFirstSectionBody(similarGuideSections).
-      expect(screen.getByText('A beautiful songbird')).toBeInTheDocument();
+      // Mock fetch returns the same description for both focal and similar
+      // guide endpoints, so the body renders in both panels — match all.
+      expect(screen.getAllByText('A beautiful songbird').length).toBeGreaterThan(0);
     });
   });
 

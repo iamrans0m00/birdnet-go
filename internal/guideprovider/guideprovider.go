@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"maps"
+	"slices"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -303,7 +304,7 @@ func cloneGuide(src *SpeciesGuide) *SpeciesGuide {
 	}
 	dst := *src
 	if src.SimilarSpecies != nil {
-		dst.SimilarSpecies = append([]string(nil), src.SimilarSpecies...)
+		dst.SimilarSpecies = slices.Clone(src.SimilarSpecies)
 	}
 	return &dst
 }
