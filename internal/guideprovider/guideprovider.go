@@ -327,15 +327,23 @@ func (c *GuideCache) Get(ctx context.Context, scientificName string, opts FetchO
 	if c.metrics != nil {
 		c.metrics.RecordCacheMiss(providerName)
 	}
+	// Use DoChan so the caller can abandon the wait when its own context is
+	// cancelled. The fetch itself runs under rootCtx and continues to populate
+	// the cache for other waiters even if this caller leaves.
 	sfKey := memCacheKey(scientificName, opts.Locale)
-	result, fetchErr, _ := c.sfGroup.Do(sfKey, func() (any, error) {
+	resChan := c.sfGroup.DoChan(sfKey, func() (any, error) {
 		return c.fetchFromProviders(c.rootCtx, scientificName, opts)
 	})
-	if fetchErr != nil {
-		return nil, fetchErr
-	}
 
-	return result.(*SpeciesGuide), nil
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res := <-resChan:
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		return res.Val.(*SpeciesGuide), nil
+	}
 }
 
 // resolveProviderName returns the configured provider name, falling back to the default.
@@ -650,31 +658,6 @@ func (c *GuideCache) saveToDB(ctx context.Context, guide *SpeciesGuide, provider
 		return
 	}
 
-	// Content diffing: when the existing DB entry is byte-identical we skip the
-	// full upsert payload, but we MUST still bump CachedAt so refreshStaleEntries
-	// stops re-fetching this row indefinitely. Reuse the existing entry and
-	// SaveGuideCache (an upsert) which updates only cached_at via OnConflict.
-	similarEncoded := encodeSimilarSpecies(guide.SimilarSpecies)
-
-	existing, err := c.store.GetGuideCache(ctx, guide.ScientificName, providerName, locale)
-	if err == nil && existing != nil &&
-		existing.Description == guide.Description &&
-		existing.CommonName == guide.CommonName &&
-		existing.ConservationStatus == guide.ConservationStatus &&
-		existing.SourceProvider == guide.SourceProvider &&
-		existing.SourceURL == guide.SourceURL &&
-		existing.LicenseName == guide.LicenseName &&
-		existing.LicenseURL == guide.LicenseURL &&
-		existing.SimilarSpecies == similarEncoded {
-		existing.CachedAt = guide.CachedAt
-		if err := c.store.SaveGuideCache(ctx, existing); err != nil {
-			getLogger().Warn("Failed to refresh guide cache CachedAt in database",
-				logger.String("species", guide.ScientificName),
-				logger.Any("error", err))
-		}
-		return
-	}
-
 	entry := &GuideCacheEntry{
 		ProviderName:       providerName,
 		ScientificName:     guide.ScientificName,
@@ -686,7 +669,7 @@ func (c *GuideCache) saveToDB(ctx context.Context, guide *SpeciesGuide, provider
 		SourceURL:          guide.SourceURL,
 		LicenseName:        guide.LicenseName,
 		LicenseURL:         guide.LicenseURL,
-		SimilarSpecies:     similarEncoded,
+		SimilarSpecies:     encodeSimilarSpecies(guide.SimilarSpecies),
 		CachedAt:           guide.CachedAt,
 	}
 

@@ -213,6 +213,14 @@ func (c *Controller) Login(ctx echo.Context) error {
 
 	// Extract the base path dynamically
 	basePath := c.extractBasePath(ctx, req)
+	// Defensively normalize to guaranteed single trailing slash so concatenation
+	// below cannot produce "/birdnetfoo" if extractBasePath ever regresses, and
+	// prevents an empty basePath from short-circuiting the HasPrefix check.
+	if basePath == "" {
+		basePath = "/"
+	} else {
+		basePath = strings.TrimSuffix(basePath, "/") + "/"
+	}
 
 	// Validate and sanitize the redirect URL from the request
 	finalRedirect := basePath // Default to detected base path
@@ -221,7 +229,7 @@ func (c *Controller) Login(ctx echo.Context) error {
 		if security.IsValidRedirect(req.RedirectURL) {
 			// Ensure the redirect stays within the detected base path
 			switch {
-			case strings.HasPrefix(req.RedirectURL, basePath):
+			case req.RedirectURL == basePath || strings.HasPrefix(req.RedirectURL, basePath):
 				finalRedirect = req.RedirectURL
 			case strings.HasPrefix(req.RedirectURL, "/") && !strings.HasPrefix(req.RedirectURL, "//"):
 				finalRedirect = basePath + strings.TrimPrefix(req.RedirectURL, "/")

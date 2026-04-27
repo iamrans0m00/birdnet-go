@@ -1404,7 +1404,6 @@ func extractSections(description string, similarSpecies []string, locale string)
 			currentSection.Reset()
 		} else {
 			currentSection.WriteString(line)
-			currentSection.WriteString("\n")
 		}
 	}
 	saveSection() // flush last section
