@@ -662,6 +662,9 @@ func (c *GuideCache) saveToDB(ctx context.Context, guide *SpeciesGuide, provider
 		existing.CommonName == guide.CommonName &&
 		existing.ConservationStatus == guide.ConservationStatus &&
 		existing.SourceProvider == guide.SourceProvider &&
+		existing.SourceURL == guide.SourceURL &&
+		existing.LicenseName == guide.LicenseName &&
+		existing.LicenseURL == guide.LicenseURL &&
 		existing.SimilarSpecies == similarEncoded {
 		existing.CachedAt = guide.CachedAt
 		if err := c.store.SaveGuideCache(ctx, existing); err != nil {

@@ -20,7 +20,6 @@
 
 import * as Sentry from '@sentry/browser';
 import { getLogger } from '$lib/utils/logger';
-import { getLocalDateString } from '$lib/utils/date';
 
 const logger = getLogger('analytics');
 
@@ -74,7 +73,6 @@ function redactSensitive(data: unknown): unknown {
  * @param labels - Optional labels/context for the event (sensitive keys will be redacted)
  */
 export function trackEvent(eventName: string, labels?: Record<string, unknown>): void {
-  const timestamp = getLocalDateString();
   const safeLabels = labels ? (redactSensitive(labels) as Record<string, unknown>) : {};
 
   // Log to console in development
@@ -82,14 +80,14 @@ export function trackEvent(eventName: string, labels?: Record<string, unknown>):
     logger.debug(`[event] ${eventName}`, safeLabels);
   }
 
-  // Capture as Sentry breadcrumb for error correlation
+  // Capture as Sentry breadcrumb for error correlation. Sentry's SDK fills in
+  // a correctly-formatted timestamp; supplying our own would risk units mismatch.
   try {
     Sentry.addBreadcrumb({
       category: ANALYTICS_CATEGORY,
       message: eventName,
       level: 'info',
       data: safeLabels,
-      timestamp: new Date(timestamp).getTime(),
     });
   } catch {
     // Sentry not available at runtime

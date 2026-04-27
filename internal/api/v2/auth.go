@@ -268,6 +268,8 @@ func (c *Controller) Login(ctx echo.Context) error {
 	// redirect goes through the proxy (e.g., /birdnet/ui/ instead of /ui/).
 	if requestBase != "" {
 		switch {
+		case finalRedirect == requestBase:
+			finalRedirect = requestBase + "/"
 		case strings.HasPrefix(finalRedirect, requestBase+"/"):
 			// Already within base path
 		case strings.HasPrefix(finalRedirect, "/") && !strings.HasPrefix(finalRedirect, "//"):

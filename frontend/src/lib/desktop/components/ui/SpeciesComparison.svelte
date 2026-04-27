@@ -6,15 +6,15 @@
   import { parseGuideDescription } from '$lib/types/species';
   import { loggers } from '$lib/utils/logger';
   import { trackEvent, AnalyticsEvents } from '$lib/telemetry/analytics';
+  import type { HTMLAttributes } from 'svelte/elements';
 
   const logger = loggers.ui;
 
-  interface Props {
+  interface Props extends HTMLAttributes<HTMLDivElement> {
     scientificName: string;
     commonName: string;
     onclose: () => void;
     className?: string;
-    [key: string]: any;
   }
 
   let { scientificName, commonName, onclose, className, ...rest }: Props = $props();

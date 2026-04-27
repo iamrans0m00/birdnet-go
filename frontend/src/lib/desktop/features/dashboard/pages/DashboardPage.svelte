@@ -520,8 +520,8 @@ Performance Optimizations:
       count: 1, // Pending detections are single, real-time events
       avg_confidence: null,
       max_confidence: null,
-      first_heard: new Date(detection.firstDetected * 1000).toISOString(),
-      last_heard: new Date(detection.firstDetected * 1000).toISOString(),
+      first_heard: getLocalDateString(new Date(detection.firstDetected * 1000)),
+      last_heard: getLocalDateString(new Date(detection.firstDetected * 1000)),
       thumbnail_url: detection.thumbnail || undefined,
     };
     showSpeciesDetailModal = true;

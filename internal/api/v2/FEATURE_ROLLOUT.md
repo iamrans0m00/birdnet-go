@@ -211,8 +211,17 @@ guidecache_wikipedia_requests_total
 ## Performance Considerations
 
 - **Memory**: Each cached entry is ~2-10KB. With 10,000 entries, expect ~20-100MB.
-- **Database**: Each entry adds ~1-5KB. Monitor table size with:
+- **Database**: Each entry adds ~1-5KB. Monitor table size with the appropriate query for your backend:
   ```sql
+  -- SQLite
+  SELECT SUM(pgsize) FROM dbstat WHERE name='guide_caches';
+
+  -- MySQL/MariaDB
+  SELECT data_length + index_length AS bytes
+  FROM information_schema.tables
+  WHERE table_name='guide_caches';
+
+  -- PostgreSQL
   SELECT pg_size_pretty(pg_total_relation_size('guide_caches'));
   ```
 - **Wikipedia API**: BirdNET-Go enforces **1 request/second** per instance (voluntary throttle to be respectful). Wikipedia's actual limit is ~200 req/sec per IP. Pre-warming cache on startup helps avoid repeated lookups.
