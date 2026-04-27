@@ -248,7 +248,12 @@
     <h3 class="text-sm font-semibold">
       {t('analytics.species.similar.title')}
     </h3>
-    <button class="comparison-close" onclick={onclose} aria-label={t('common.close')}>
+    <button
+      type="button"
+      class="comparison-close"
+      onclick={onclose}
+      aria-label={t('common.close')}
+    >
       <X class="h-4 w-4" />
     </button>
   </div>
@@ -273,6 +278,7 @@
     <div class="species-row">
       <!-- Focal species card — clicking hides the comparison panel while keeping the row visible. -->
       <button
+        type="button"
         class="species-card focal"
         onclick={() => {
           selectedSimilarIndex = -1;
@@ -291,6 +297,7 @@
       <!-- Similar species cards -->
       {#each similarSpecies as entry, i (entry.scientific_name)}
         <button
+          type="button"
           class="species-card"
           class:selected={selectedSimilarIndex === i}
           onclick={() => selectSimilar(i)}
@@ -330,20 +337,12 @@
             ></div>
             <span>{t('analytics.species.guide.loading')}</span>
           </div>
-        {:else if similarGuideSections.length > 0}
-          <div class="similar-guide-sections">
-            {#each similarGuideSections as section (section.heading)}
-              <div class="guide-section">
-                <h5 class="guide-section-heading">{section.heading}</h5>
-                <p class="guide-section-body">{section.body}</p>
-              </div>
-            {/each}
-          </div>
         {/if}
 
         <!-- Description Section - Expanded by default -->
         <div class="section">
           <button
+            type="button"
             class="section-header"
             aria-expanded={descriptionOpen}
             aria-controls={descriptionSectionId}
@@ -375,7 +374,8 @@
               <div class="comparison-side">
                 <span class="side-label">{similarEntry.common_name}</span>
                 <p class="side-content">
-                  {similarSections?.description ||
+                  {getFirstSectionBody(similarGuideSections) ||
+                    similarSections?.description ||
                     similarEntry.guide_summary ||
                     t('analytics.species.guide.noDescription')}
                 </p>
@@ -387,6 +387,7 @@
         <!-- Songs and Calls Section - Collapsed by default -->
         <div class="section">
           <button
+            type="button"
             class="section-header"
             aria-expanded={songsOpen}
             aria-controls={songsSectionId}
@@ -412,7 +413,9 @@
               <div class="comparison-side">
                 <span class="side-label">{similarEntry.common_name}</span>
                 <p class="side-content">
-                  {similarSections?.songs_and_calls || t('analytics.species.guide.noSongs')}
+                  {getSectionContentByCanonical(similarGuideSections, GUIDE_SECTION_SONGS) ||
+                    similarSections?.songs_and_calls ||
+                    t('analytics.species.guide.noSongs')}
                 </p>
               </div>
             </div>
@@ -422,6 +425,7 @@
         <!-- Similar Species Section - Collapsed by default -->
         <div class="section">
           <button
+            type="button"
             class="section-header"
             aria-expanded={similarOpen}
             aria-controls={similarSectionId}
@@ -451,7 +455,9 @@
               <div class="comparison-side">
                 <span class="side-label">{similarEntry.common_name}</span>
                 <p class="side-content">
-                  {#if similarSections?.similar_species && similarSections.similar_species.length > 0}
+                  {#if getSectionContentByCanonical(similarGuideSections, GUIDE_SECTION_SIMILAR)}
+                    {getSectionContentByCanonical(similarGuideSections, GUIDE_SECTION_SIMILAR)}
+                  {:else if similarSections?.similar_species && similarSections.similar_species.length > 0}
                     {similarSections.similar_species.join(', ')}
                   {:else}
                     {t('analytics.species.guide.noSimilar')}

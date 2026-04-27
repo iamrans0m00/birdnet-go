@@ -123,6 +123,18 @@ export interface SimilarSpeciesResponse {
   similar: SimilarSpeciesEntry[];
 }
 
+// Aggregated species summary used by detail modals (dashboard, analytics).
+export interface SpeciesData {
+  common_name: string;
+  scientific_name: string;
+  count: number;
+  avg_confidence: number | null;
+  max_confidence: number | null;
+  first_heard: string;
+  last_heard: string;
+  thumbnail_url?: string;
+}
+
 // Species note data returned by /api/v2/species/:name/notes
 export interface SpeciesNoteData {
   id: number;

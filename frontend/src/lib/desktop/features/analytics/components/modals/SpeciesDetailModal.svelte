@@ -20,23 +20,13 @@
   import { trackEvent, AnalyticsEvents } from '$lib/telemetry/analytics';
   import {
     parseGuideDescription,
+    type SpeciesData,
     type SpeciesGuideData,
     type SpeciesNoteData,
   } from '$lib/types/species';
   import { highlightSeasonKeywords } from '$lib/utils/seasonHighlight';
 
   const logger = loggers.ui;
-
-  interface SpeciesData {
-    common_name: string;
-    scientific_name: string;
-    count: number;
-    avg_confidence: number | null;
-    max_confidence: number | null;
-    first_heard: string;
-    last_heard: string;
-    thumbnail_url?: string;
-  }
 
   interface Props {
     species: SpeciesData | null;

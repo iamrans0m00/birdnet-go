@@ -46,6 +46,7 @@ Performance Optimizations:
   import { t } from '$lib/i18n';
   import type { DailySpeciesSummary, Detection } from '$lib/types/detection.types';
   import type { PendingDetection } from '$lib/types/pending.types';
+  import type { SpeciesData } from '$lib/types/species';
   import {
     getLocalDateString,
     isFutureDate,
@@ -160,16 +161,6 @@ Performance Optimizations:
   let pendingDetections = $state<PendingDetection[]>([]);
 
   // Species detail modal state
-  interface SpeciesData {
-    common_name: string;
-    scientific_name: string;
-    count: number;
-    avg_confidence: number | null;
-    max_confidence: number | null;
-    first_heard: string;
-    last_heard: string;
-    thumbnail_url?: string;
-  }
   let selectedSpecies = $state<SpeciesData | null>(null);
   let showSpeciesDetailModal = $state(false);
 

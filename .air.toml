@@ -43,9 +43,13 @@ tmp_dir = "tmp"  # Temporary directory for build artifacts
       -o /tmp/birdnet-go/main .
 
     # On macOS, add the Homebrew library path to rpath since Go's -r flag
-    # doesn't properly handle multiple rpaths
+    # doesn't properly handle multiple rpaths. Only add when missing — adding
+    # a duplicate rpath fails, and we want real install_name_tool errors to
+    # surface (no 2>/dev/null || true) instead of being silently swallowed.
     if [ "$(uname)" = "Darwin" ]; then
-      install_name_tool -add_rpath "${TFLITE_LIB_DIR}" /tmp/birdnet-go/main 2>/dev/null || true
+      if ! otool -l /tmp/birdnet-go/main | awk '/LC_RPATH/{f=1; next} f && /path /{print $2; f=0}' | grep -Fxq "${TFLITE_LIB_DIR}"; then
+        install_name_tool -add_rpath "${TFLITE_LIB_DIR}" /tmp/birdnet-go/main
+      fi
     fi
   """
 

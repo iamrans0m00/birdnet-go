@@ -424,7 +424,11 @@ func (c *GuideCache) checkDBCache(ctx context.Context, scientificName, providerN
 	if isCacheEntryStale(guide.CachedAt, guide.IsNegativeEntry()) {
 		return nil, errCacheMiss
 	}
-	c.dataMap.Store(memCacheKey(scientificName, locale), guide)
+	// Store a distinct copy in the in-memory tier and return another distinct
+	// copy to the caller, so a caller mutating the returned guide cannot
+	// corrupt the cached entry (matches checkMemoryCache's pattern).
+	stored := *guide
+	c.dataMap.Store(memCacheKey(scientificName, locale), &stored)
 	if guide.IsNegativeEntry() {
 		if c.metrics != nil {
 			c.metrics.RecordCacheHit(providerName, GuideQualityNotFound)
@@ -438,7 +442,8 @@ func (c *GuideCache) checkDBCache(ctx context.Context, scientificName, providerN
 		}
 		c.metrics.RecordCacheHit(providerName, quality)
 	}
-	return guide, nil
+	returned := *guide
+	return &returned, nil
 }
 
 // triggerAsyncRefresh starts a background goroutine to refresh stale data.
@@ -592,14 +597,27 @@ func mergeGuides(primary, secondary *SpeciesGuide) SpeciesGuide {
 	return result
 }
 
-// TruncateUTF8 truncates s to at most maxBytes while preserving valid UTF-8.
-// It never splits a multi-byte character. The suffix (e.g. "…") is appended
-// only when truncation actually occurred; pass "" for none.
+// TruncateUTF8 truncates s so the returned string is at most maxBytes,
+// preserving valid UTF-8 (never splits a multi-byte character). The suffix
+// (e.g. "…") is appended only when truncation actually occurred and reserves
+// its own bytes from the budget so the final length never exceeds maxBytes.
+// If suffix alone is at least maxBytes we drop the suffix and just return a
+// UTF-8-safe prefix of s within the budget.
 func TruncateUTF8(s string, maxBytes int, suffix string) string {
+	if maxBytes <= 0 {
+		return ""
+	}
 	if len(s) <= maxBytes {
 		return s
 	}
-	truncated := s[:maxBytes]
+	suffixBytes := len(suffix)
+	limit := maxBytes - suffixBytes
+	if limit <= 0 {
+		// Suffix doesn't fit; return a UTF-8-safe prefix of s within the budget.
+		limit = maxBytes
+		suffix = ""
+	}
+	truncated := s[:limit]
 	for !utf8.ValidString(truncated) && truncated != "" {
 		truncated = truncated[:len(truncated)-1]
 	}
