@@ -342,7 +342,9 @@ describe('SpeciesComparison', () => {
 
     await waitFor(() => {
       expect(screen.getAllByText('Song Thrush').length).toBeGreaterThan(0);
-      expect(screen.getByText('Description')).toBeInTheDocument();
+      // The parsed first section body flows into the (open-by-default)
+      // description panel via getFirstSectionBody(similarGuideSections).
+      expect(screen.getByText('A beautiful songbird')).toBeInTheDocument();
     });
   });
 

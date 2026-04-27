@@ -248,12 +248,7 @@
     <h3 class="text-sm font-semibold">
       {t('analytics.species.similar.title')}
     </h3>
-    <button
-      type="button"
-      class="comparison-close"
-      onclick={onclose}
-      aria-label={t('common.close')}
-    >
+    <button type="button" class="comparison-close" onclick={onclose} aria-label={t('common.close')}>
       <X class="h-4 w-4" />
     </button>
   </div>
