@@ -285,10 +285,13 @@ func (e *AudioEngine) StartStream(sourceID, url, transport string) error {
 	channels := src.Channels
 	if channels <= 0 {
 		channels = defaultChannels
+<<<<<<< HEAD
 	}
 	bitDepth := src.BitDepth
 	if bitDepth <= 0 {
 		bitDepth = defaultBitDepth
+=======
+>>>>>>> f029b698a (fix(audiocore): wire stream manager in New() and replace magic channel constant)
 	}
 	streamCfg := &ffmpeg.StreamConfig{
 		SourceID:         sourceID,
