@@ -1,0 +1,5 @@
+# Air's TOML parser preserves \r inside multi-line strings, so CRLF endings
+# in .air.toml break the embedded shell build script on Windows/WSL checkouts
+# (e.g. `task download-avicommons-data\r` is treated as an unknown task name).
+# Force LF regardless of the contributor's core.autocrlf setting.
+.air.toml text eol=lf
