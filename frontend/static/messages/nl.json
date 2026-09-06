@@ -2685,9 +2685,9 @@
           "label": "Taalregio",
           "helpText": "Taalregio voor vertaalde soorten algemene namen."
         },
-        "tensorflowThreads": {
-          "label": "TensorFlow CPU-threads",
-          "helpText": "Aantal CPU threads. Zet op 0 om alle beschikbare threads te gebruiken."
+        "inferenceThreads": {
+          "label": "CPU-threads voor inferentie",
+          "helpText": "Aantal CPU-threads dat wordt gebruikt voor modelinferentie. Zet op 0 om alle beschikbare threads te gebruiken. Heeft geen effect op modellen die op een GPU draaien."
         }
       },
       "errors": {
@@ -4961,7 +4961,16 @@
       "streamTitleDefault": "Vogelaudiostream",
       "streamArtist": "BirdNET-Go",
       "streamAlbum": "Livestream",
-      "playbackError": "Afspeelfout: {details}"
+      "playbackError": "Afspeelfout: {details}",
+      "audibleBats": {
+        "title": "Hoorbare vleermuisweergave",
+        "subtitle": "Vertraag ultrasone roepen naar het menselijke gehoorbereik.",
+        "timeExpansion": "Tijdsexpansie",
+        "enable": "Inschakelen",
+        "disable": "Uitschakelen",
+        "generating": "Afgeleide audio genereren…",
+        "error": "Kan hoorbare vleermuisaudio niet genereren"
+      }
     },
     "spectrogram": {
       "notGenerated": "Spectrogram nog niet beschikbaar",

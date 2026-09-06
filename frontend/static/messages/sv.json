@@ -2685,9 +2685,9 @@
           "label": "Språk",
           "helpText": "Språk för översatta artnamn."
         },
-        "tensorflowThreads": {
-          "label": "TensorFlow CPU-trådar",
-          "helpText": "Antal CPU-trådar. Ange 0 för att använda alla tillgängliga trådar."
+        "inferenceThreads": {
+          "label": "CPU-trådar för inferens",
+          "helpText": "Antal CPU-trådar som används för modellinferens. Ange 0 för att använda alla tillgängliga trådar. Har ingen effekt på modeller som körs på en GPU."
         }
       },
       "errors": {
@@ -4961,7 +4961,16 @@
       "streamTitleDefault": "Fågelljudström",
       "streamArtist": "BirdNET-Go",
       "streamAlbum": "Livestream",
-      "playbackError": "Uppspelningsfel: {details}"
+      "playbackError": "Uppspelningsfel: {details}",
+      "audibleBats": {
+        "title": "Hörbar fladdermusuppspelning",
+        "subtitle": "Sakta ned ultraljudsläten till människans hörselområde.",
+        "timeExpansion": "Tidsutvidgning",
+        "enable": "Aktivera",
+        "disable": "Inaktivera",
+        "generating": "Genererar härlett ljud…",
+        "error": "Det gick inte att generera hörbart fladdermusljud"
+      }
     },
     "spectrogram": {
       "notGenerated": "Spektrogrammet har inte genererats ännu",

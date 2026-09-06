@@ -41,6 +41,13 @@ const hlsCleanupTimeout = 2 * time.Second
 // policyNone is the sentinel value indicating no retention/provider policy is configured.
 const policyNone = "none"
 
+// Stream-manager display labels for the RTSP monitoring startup log. They name
+// whichever manager the BIRDNET_STREAM_INGEST gate selected.
+const (
+	streamManagerFFmpeg = "FFmpeg manager"
+	streamManagerNative = "native stream manager"
+)
+
 // AudioPipelineService manages the audio capture pipeline, buffer management,
 // and control monitor as an app.Service. It coordinates HLS cleanup, audio source
 // initialization, sound level monitoring, quiet hours scheduling, clip cleanup,
@@ -179,9 +186,7 @@ func (p *AudioPipelineService) Start(_ context.Context) error {
 	// Set the primary model ID and buffer dimensions on the engine so that
 	// analysis buffers are allocated from the model's spec, not hardcoded
 	// constants. This matches the secondary model allocation path.
-	primaryInfo := bn.PrimaryModelInfo()
-	clipBytes, overlapBytes, readSize := primaryInfo.Spec.BufferDimensions()
-	p.engine.SetPrimaryModel(primaryInfo.ID, clipBytes, overlapBytes, readSize)
+	p.applyPrimaryModelDims()
 
 	// Register all loaded models in the ai_models database table so they
 	// appear even before any detections are saved.
@@ -252,7 +257,7 @@ func (p *AudioPipelineService) Start(_ context.Context) error {
 
 	// Register watchdog reset callback so analysis monitors are recreated
 	// when the watchdog force-resets a stuck stream.
-	p.engine.FFmpegManager().SetOnStreamReset(func(newSourceID string) {
+	p.engine.StreamManager().SetOnStreamReset(func(newSourceID string) {
 		if err := p.bufferMgr.AddMonitor(newSourceID); err != nil {
 			audiocore.GetLogger().Warn("failed to add monitor after watchdog stream reset",
 				logger.String("source_id", newSourceID),
@@ -319,6 +324,17 @@ func (p *AudioPipelineService) Start(_ context.Context) error {
 			}
 			return p.quietHoursScheduler.IsStreamSuppressed(sourceID)
 		},
+		// RecoveryState lets the watchdog defer a restart to the native stream
+		// supervisor while it reconnects in place. Sound-card sources and the FFmpeg
+		// producer have no recovery intent, so the lookup miss / RecoveryUnknown both
+		// return the legacy restart path.
+		RecoveryState: func(sourceID string) (audiocore.RecoveryState, time.Time) {
+			h, err := p.engine.StreamManager().StreamHealth(sourceID)
+			if err != nil || h == nil {
+				return audiocore.RecoveryUnknown, time.Time{}
+			}
+			return h.Recovery, h.RecoveryEntered
+		},
 	}
 	p.watchdog = audiocore.NewLivenessWatchdog(
 		buildLivenessConfig(settings.Realtime.Audio.Watchdog),
@@ -343,10 +359,17 @@ func (p *AudioPipelineService) Start(_ context.Context) error {
 		Properties: map[string]any{},
 	})
 
-	// RTSP health monitoring is built into the FFmpeg manager.
+	// RTSP health monitoring is built into whichever stream manager the
+	// BIRDNET_STREAM_INGEST gate selected: the native stream manager when
+	// native ingest is enabled, otherwise the FFmpeg manager.
 	if len(settings.Realtime.RTSP.Streams) > 0 {
-		audiocore.GetLogger().Info("RTSP streams will be monitored by FFmpeg manager",
+		streamManagerName := streamManagerFFmpeg
+		if conf.NativeStreamIngestEnabled() {
+			streamManagerName = streamManagerNative
+		}
+		audiocore.GetLogger().Info("RTSP streams will be monitored",
 			logger.Int("stream_count", len(settings.Realtime.RTSP.Streams)),
+			logger.String("stream_manager", streamManagerName),
 			logger.String("operation", "rtsp_monitoring_setup"))
 	}
 
@@ -499,9 +522,33 @@ func (p *AudioPipelineService) restartAudioCapture() {
 	// Remove all existing sources.
 	p.removeAllSources("restart")
 
+	// Re-resolve the primary model's buffer dimensions from current settings
+	// before re-adding sources, so a hot-reloaded birdnet.overlap takes effect
+	// (engine.AddSource allocates the primary buffer from these cached dims).
+	p.applyPrimaryModelDims()
+
 	// Re-add sources, register consumers, and update buffer monitors.
 	audioLevelChan := p.apiService.AudioLevelChan()
 	p.setupAudioSources(audioLevelChan, "restart")
+}
+
+// applyPrimaryModelDims resolves the primary model's analysis-buffer dimensions
+// from the current settings (honoring birdnet.overlap; the bat model stays fixed
+// at 50%) and pushes them to the engine, so subsequent AddSource calls allocate
+// the primary buffer at the current cadence. Called at startup and on every
+// audio-capture restart, so an overlap change routed through a restart
+// reallocates the primary buffer with the new dimensions.
+func (p *AudioPipelineService) applyPrimaryModelDims() {
+	if p.bnAnalyzer == nil {
+		return
+	}
+	bn := p.bnAnalyzer.BirdNET()
+	if bn == nil {
+		return
+	}
+	primaryInfo := bn.PrimaryModelInfo()
+	clipBytes, overlapBytes, readSize := primaryInfo.Spec.BufferDimensions(primaryInfo.Overlap)
+	p.engine.SetPrimaryModel(primaryInfo.ID, clipBytes, overlapBytes, readSize)
 }
 
 // RestartSource tears down and reinitializes a single audio source.
@@ -981,7 +1028,7 @@ func (p *AudioPipelineService) registerConsumersForSources(sourceIDs []string, s
 				allocatedModels[modelInfos[i].ID] = true
 				continue
 			}
-			clipBytes, overlapBytes, readSize := modelInfos[i].Spec.BufferDimensions()
+			clipBytes, overlapBytes, readSize := modelInfos[i].Spec.BufferDimensions(modelInfos[i].Overlap)
 			if allocErr := bufMgr.AllocateAnalysis(sid, modelInfos[i].ID, clipBytes, overlapBytes, readSize); allocErr != nil {
 				log.Warn("failed to allocate analysis buffer",
 					logger.String("source_id", sid),
@@ -1106,13 +1153,33 @@ func sourceNeedsReconfigure(running *audiocore.AudioSource, desired *audiocore.S
 	// running FFmpeg, silently breaking hot-reload.
 	mediaModeChanged := conf.MediaMode(running.MediaMode).Canonical() !=
 		conf.MediaMode(desired.MediaMode).Canonical()
+	// Both sides carry the resolved concrete transport (buildSourceConfigsWithModels
+	// resolves it via RTSPSettings.ResolveTransport, and the registry stores that
+	// same value), so a direct compare is correct. It must NOT canonicalize an
+	// empty value to conf.DefaultTransport here: the true default is the engine
+	// global, which can be "udp", and hardcoding "tcp" would mask a real
+	// udp->tcp change (issue #4240 hot-reload path).
+	transportChanged := running.Transport != desired.Transport
 	return running.SampleRate != desired.SampleRate ||
 		sourceSampleRateChanged ||
 		running.BitDepth != desired.BitDepth ||
 		running.Channels != desired.Channels ||
 		channelModeChanged ||
 		mediaModeChanged ||
+		transportChanged ||
 		sourceChannelsChanged
+}
+
+// rtspStreamTransport resolves the concrete transport for an rtsp.streams entry:
+// the per-stream value if set, else the global default (via ResolveTransport),
+// and only for RTSP/RTMP types where transport applies. Resolving here keeps the
+// built SourceConfig, the registry entry, and the engine's FFmpeg args all in
+// agreement on one concrete value, so change detection compares like with like.
+func rtspStreamTransport(stream *conf.StreamConfig, rtsp *conf.RTSPSettings) string {
+	if stream.Type != conf.StreamTypeRTSP && stream.Type != conf.StreamTypeRTMP {
+		return ""
+	}
+	return rtsp.ResolveTransport(stream.Transport)
 }
 
 // resolveDesiredModelSet resolves config-level model IDs to registry IDs,
@@ -1442,6 +1509,7 @@ func (p *AudioPipelineService) buildSourceConfigsWithModels() []sourceConfigWith
 				SourceChannels:   probe.channels,
 				ChannelMode:      string(stream.ChannelMode),
 				MediaMode:        string(stream.MediaMode),
+				Transport:        rtspStreamTransport(stream, &settings.Realtime.RTSP),
 				Gain:             stream.Gain,
 			},
 			modelIDs: stream.Models,
@@ -1481,6 +1549,10 @@ func (p *AudioPipelineService) buildSourceConfigsWithModels() []sourceConfigWith
 		// stream URL from being opened as an ALSA device (which fails and
 		// breaks live audio) even before the config migration relocates it.
 		sourceType := audiocore.SourceTypeAudioCard
+		// transport stays empty for ALSA cards; a misplaced RTSP/RTMP stream URL
+		// resolves to the global default so the built config carries the same
+		// concrete value the engine will use (audio.sources has no per-stream field).
+		transport := ""
 		if streamType, isStream := audiocore.StreamSourceType(device); isStream {
 			if _, dup := streamConns[device]; dup {
 				// Already produced from rtsp.streams; skip the duplicate so the
@@ -1488,6 +1560,9 @@ func (p *AudioPipelineService) buildSourceConfigsWithModels() []sourceConfigWith
 				continue
 			}
 			sourceType = streamType
+			if streamType == audiocore.SourceTypeRTSP || streamType == audiocore.SourceTypeRTMP {
+				transport = settings.Realtime.RTSP.ResolveTransport("")
+			}
 		}
 
 		result = append(result, sourceConfigWithModels{
@@ -1498,6 +1573,7 @@ func (p *AudioPipelineService) buildSourceConfigsWithModels() []sourceConfigWith
 				SampleRate:       sampleRate,
 				BitDepth:         conf.BitDepth,
 				Channels:         1,
+				Transport:        transport,
 				Gain:             src.Gain,
 			},
 			modelIDs: src.Models,
@@ -1771,7 +1847,11 @@ func modelIsDownloading(mm *classifier.ModelManager, modelID string) bool {
 	}
 	catalog := classifier.ActiveCatalog()
 	for i := range catalog {
-		if catalog[i].RegistryID == registryID && mm.GetDownloadState(catalog[i].ID) != nil {
+		// Suppress the not-analyzing alarm only while a download is genuinely in
+		// progress. A FAILED state lingers for failedStateRetention so SSE pollers
+		// can see it, but the model is NOT analyzing during that window, so a
+		// non-nil-but-failed state must not be read as "still downloading".
+		if catalog[i].RegistryID == registryID && mm.GetDownloadState(catalog[i].ID).IsActive() {
 			return true
 		}
 	}

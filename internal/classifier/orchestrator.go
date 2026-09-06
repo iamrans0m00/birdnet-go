@@ -45,15 +45,25 @@ type entryRef struct {
 	entry *modelEntry
 }
 
-// secondaryBackendKey identifies the inference backend / OpenVINO device that an
-// OV-capable secondary model was last built against. Each modelEntry stores its
-// own key (see modelEntry.backend); ReloadSecondaryModels uses it as a per-entry
-// change-detection gate so an unrelated reload_birdnet trigger (locale,
-// thresholds) does not needlessly rebuild a large secondary model.
+// secondaryBackendKey identifies the inference backend / OpenVINO device / CPU
+// thread count that an OV-capable secondary model was last built against. Each
+// modelEntry stores its own key (see modelEntry.backend); ReloadSecondaryModels
+// uses it as a per-entry change-detection gate so an unrelated reload_birdnet
+// trigger (locale, thresholds) does not needlessly rebuild a large secondary
+// model, while a change that DOES affect the built session (backend, device, or
+// thread count) does force a rebuild.
 type secondaryBackendKey struct {
 	backend  string
 	ovDevice string
 	ovPath   string
+	// threads is BirdNET.Threads (the CPU inference thread budget) the session was
+	// built with. It is part of the gate so a runtime thread-count change rebuilds
+	// every secondary model, matching the primary's reload. The raw configured
+	// value is stored (0 = auto): it never misses a change, and at worst forces one
+	// redundant rebuild when toggling 0 and a value that happens to equal NumCPU.
+	// Ignored in practice by GPU sessions, which reject INFERENCE_NUM_THREADS, so a
+	// GPU-bound secondary simply rebuilds to an equivalent session.
+	threads int
 }
 
 // Orchestrator manages classifier model instances and provides the primary
@@ -393,7 +403,7 @@ func (o *Orchestrator) registerTaxonomyResolver(modelsDir string) {
 	}
 
 	log := GetLogger()
-	taxonomyPath := filepath.Join(modelsDir, "shared", "taxonomy.csv")
+	taxonomyPath := filepath.Join(modelsDir, sharedDirName, "taxonomy.csv")
 
 	locale := settings.BirdNET.Locale
 	// Load the resolver outside the lock; NewTaxonomyResolver does file I/O.
@@ -600,7 +610,7 @@ func (o *Orchestrator) resolveInstalledPaths(registryID string) (modelPath, labe
 				case RoleLabels:
 					lp = filepath.Join(subdir, f.LocalName)
 				case RoleEmbeddings:
-					ep = filepath.Join(o.modelsDir, "shared", f.LocalName)
+					ep = filepath.Join(o.modelsDir, sharedDirName, f.LocalName)
 				}
 			}
 			if mp != "" {
@@ -625,6 +635,45 @@ func (o *Orchestrator) resolveInstalledPaths(registryID string) (modelPath, labe
 
 // Predict runs inference using the primary model.
 // Delegates to PredictModel for uniform locking and telemetry.
+// inferenceFailureLogEvery is the interval, in consecutive failures of one
+// model, at which PredictModel repeats its ERROR log after the first failure.
+const inferenceFailureLogEvery = 100
+
+// inferenceFailureStreaks tracks consecutive PredictModel failures per model ID
+// (value: *atomic.Int64) for the log rate limiting in PredictModel.
+//
+//nolint:gochecknoglobals // log-flood guard shared with globalInferenceCounters
+var inferenceFailureStreaks sync.Map
+
+// inferenceFailureStreak increments and returns the consecutive failure count
+// for modelID.
+func (o *Orchestrator) inferenceFailureStreak(modelID string) int64 {
+	v, _ := inferenceFailureStreaks.LoadOrStore(modelID, new(atomic.Int64))
+	return v.(*atomic.Int64).Add(1) //nolint:errcheck // stored type is fixed above
+}
+
+// resetInferenceFailureStreak clears the consecutive failure count for modelID
+// after a successful inference so the next fault is logged at ERROR again.
+func (o *Orchestrator) resetInferenceFailureStreak(modelID string) {
+	if v, ok := inferenceFailureStreaks.Load(modelID); ok {
+		v.(*atomic.Int64).Store(0) //nolint:errcheck // stored type is fixed above
+	}
+}
+
+// dropInferenceFailureStreak removes modelID's streak entry when its instance is
+// torn down or replaced, so a later instance under the same ID starts fresh (its
+// first failure is logged at ERROR) and stale IDs do not accumulate across reloads.
+func dropInferenceFailureStreak(modelID string) {
+	inferenceFailureStreaks.Delete(modelID)
+}
+
+// inferenceFailureLogsAtError reports whether the streak-th consecutive failure
+// of one model is logged at ERROR (the first, then every
+// inferenceFailureLogEvery-th) rather than DEBUG.
+func inferenceFailureLogsAtError(streak int64) bool {
+	return streak == 1 || streak%inferenceFailureLogEvery == 0
+}
+
 func (o *Orchestrator) Predict(ctx context.Context, sample [][]float32) ([]datastore.Results, error) {
 	o.mu.RLock()
 	id := o.ModelInfo.ID
@@ -683,11 +732,22 @@ func (o *Orchestrator) PredictModel(ctx context.Context, modelID string, sample 
 
 	if err != nil {
 		globalInferenceCounters.RecordError(modelID)
-		log.Error("PredictModel inference failed",
+		// A broken backend fails every window (one per few seconds per source), so
+		// after the first failure only every inferenceFailureLogEvery-th repeat is
+		// logged at ERROR; the rest go to DEBUG. The metrics counter above still
+		// records each one.
+		streak := o.inferenceFailureStreak(modelID)
+		emit := log.Debug
+		if inferenceFailureLogsAtError(streak) {
+			emit = log.Error
+		}
+		emit("PredictModel inference failed",
 			logger.String("model_id", modelID),
 			logger.Error(err),
+			logger.Int64("consecutive_failures", streak),
 			logger.Duration("duration", duration))
 	} else {
+		o.resetInferenceFailureStreak(modelID)
 		globalInferenceCounters.RecordInvoke(modelID, duration.Microseconds())
 		log.Debug("PredictModel complete",
 			logger.String("model_id", modelID),
@@ -757,6 +817,71 @@ func scientificNamesFromLabels(labels []string) []string {
 		sci, _ := SplitSpeciesName(label)
 		if sci != "" {
 			out = append(out, sci)
+		}
+	}
+	return out
+}
+
+// PrimaryResolvedModelPath returns the model file the primary classifier is
+// actually running (empty when the built-in baseline runs, or when no primary is
+// loaded). Cross-package consumers must prefer it over settings.BirdNET.ModelPath,
+// which after a stale-path recovery names a file the instance is not running. The
+// o.primary read is guarded by o.mu; the resolved-path read itself is lock-free.
+func (o *Orchestrator) PrimaryResolvedModelPath() string {
+	o.mu.RLock()
+	primary := o.primary
+	o.mu.RUnlock()
+	if primary == nil {
+		return ""
+	}
+	return primary.ResolvedModelPath()
+}
+
+// LoadedModelPaths returns, for each currently-loaded model family (keyed by its
+// registry ID, which is also the o.models key), the model file that instance is
+// actually running. A family PRESENT in the map with an EMPTY value is loaded and
+// running its built-in/default source; a family ABSENT from the map has no loaded
+// instance. That distinction lets the model-gallery scan tell "loaded, running the
+// built-in" from "not loaded", so it consults configuration only for the latter.
+// The model set is snapshotted under o.mu, which is then RELEASED before each
+// instance is read under its own entry.mu (see the body for why entry.instance
+// needs entry.mu). Because o.mu is never held while entry.mu is acquired, a caller
+// already holding another lock (ModelManager.mu, taken by ScanInstalled) never
+// causes o.mu to nest under it.
+func (o *Orchestrator) LoadedModelPaths() map[string]string {
+	// entry.instance is guarded by entry.mu, NOT o.mu: ReloadSecondaryModels,
+	// UnloadModel and Delete all swap it under entry.mu (see the "PredictModel reads
+	// entry.instance under entry.mu" contract at the reload swap), while o.mu guards
+	// only the o.models map itself. So snapshot the entries under o.mu, release it,
+	// then read each instance under its own entry.mu. This mirrors
+	// ReloadSecondaryModels (snapshot refs under o.mu, release, then per-entry
+	// entry.mu), and crucially never holds o.mu while acquiring entry.mu, so it adds
+	// no new lock-ordering edge.
+	type entryRef struct {
+		id    string
+		entry *modelEntry
+	}
+	o.mu.RLock()
+	refs := make([]entryRef, 0, len(o.models))
+	for id, entry := range o.models {
+		if entry != nil {
+			refs = append(refs, entryRef{id: id, entry: entry})
+		}
+	}
+	o.mu.RUnlock()
+
+	out := make(map[string]string, len(refs))
+	for _, r := range refs {
+		// Capture the instance under entry.mu, then call the lock-free
+		// ResolvedModelPath() on the captured value after releasing the lock: the
+		// resolved path is fixed at construction (secondaries) or published lock-free
+		// (the primary) and is not touched by Close(), so reading it off-lock on a
+		// captured instance is safe even if the entry is torn down concurrently.
+		r.entry.mu.Lock()
+		inst := r.entry.instance
+		r.entry.mu.Unlock()
+		if inst != nil {
+			out[r.id] = inst.ResolvedModelPath()
 		}
 	}
 	return out
@@ -1375,6 +1500,10 @@ func (o *Orchestrator) reloadPrimaryModel(reload func(primary *BirdNET) error) e
 	}
 
 	info, taxMap, taxPath, sciIndex := o.primary.ReloadSnapshot()
+	// The reloaded primary is a fresh instance: drop its streak, and the previous
+	// ID's when the reload changed it, so neither lingers.
+	dropInferenceFailureStreak(o.ModelInfo.ID)
+	dropInferenceFailureStreak(info.ID)
 	o.ModelInfo = info
 	o.TaxonomyMap = taxMap
 	o.TaxonomyPath = taxPath
@@ -1411,22 +1540,24 @@ func (o *Orchestrator) reloadPrimaryModel(reload func(primary *BirdNET) error) e
 	return nil
 }
 
-// secondaryTripletFor returns the inference-backend triplet that OV-capable
-// secondary models build against. The secondaries share the primary's OpenVINO
-// configuration, so the triplet is derived from settings.BirdNET. Each modelEntry
-// records this (modelEntry.backend) at build time so ReloadSecondaryModels can
-// detect a per-model backend/device change.
+// secondaryTripletFor returns the inference-backend key that OV-capable secondary
+// models build against. The secondaries share the primary's OpenVINO configuration
+// and CPU thread budget, so the key is derived from settings.BirdNET. Each
+// modelEntry records this (modelEntry.backend) at build time so ReloadSecondaryModels
+// can detect a per-model backend/device/thread-count change.
 func secondaryTripletFor(settings *conf.Settings) secondaryBackendKey {
 	return secondaryBackendKey{
 		backend:  settings.BirdNET.Backend,
 		ovDevice: settings.BirdNET.OpenVINODevice,
 		ovPath:   settings.BirdNET.OpenVINOPath,
+		threads:  settings.BirdNET.Threads,
 	}
 }
 
 // ReloadSecondaryModels rebuilds the OV-capable secondary models (Perch, and the
-// bat embedding extractor) when the BirdNET inference backend or OpenVINO device
-// preference changes at runtime, so they move to the new device without a full restart.
+// bat embedding extractor) when the BirdNET inference backend, OpenVINO device
+// preference, or CPU thread count changes at runtime, so they move to the new
+// device (or thread budget) without a full restart, matching the primary reload.
 // It mirrors the primary reload's transactional safety: each model is built on
 // the new backend BEFORE the old instance is closed, and a build failure leaves
 // the old instance serving (one model failing does not abort the others).
@@ -1517,10 +1648,11 @@ func (o *Orchestrator) ReloadSecondaryModels() error {
 			continue
 		}
 		if current == triplet {
-			log.Debug("secondary model already built on current backend/device, skipping reload",
+			log.Debug("secondary model already built on current backend/device/threads, skipping reload",
 				logger.String("registry_id", ref.id),
 				logger.String("backend", triplet.backend),
-				logger.String("ov_device", triplet.ovDevice))
+				logger.String("ov_device", triplet.ovDevice),
+				logger.Int("threads", triplet.threads))
 			continue
 		}
 
@@ -1550,10 +1682,11 @@ func (o *Orchestrator) ReloadSecondaryModels() error {
 				ref.entry.backend = triplet
 			}
 			ref.entry.mu.Unlock()
-			log.Error("failed to rebuild secondary model on backend/device change; keeping existing instance",
+			log.Error("failed to rebuild secondary model on backend/device/threads change; keeping existing instance",
 				logger.String("registry_id", ref.id),
 				logger.String("backend", triplet.backend),
 				logger.String("ov_device", triplet.ovDevice),
+				logger.Int("threads", triplet.threads),
 				logger.Error(err))
 			continue
 		}
@@ -1597,6 +1730,7 @@ func (o *Orchestrator) ReloadSecondaryModels() error {
 		}
 		ref.entry.instance = newInst
 		ref.entry.backend = triplet
+		dropInferenceFailureStreak(ref.id) // fresh instance, fresh streak
 		ref.entry.mu.Unlock()
 
 		// Close the old instance after releasing entry.mu: native teardown can be
@@ -1610,10 +1744,11 @@ func (o *Orchestrator) ReloadSecondaryModels() error {
 				logger.Error(cerr))
 		}
 
-		log.Info("secondary model reloaded on new backend/device",
+		log.Info("secondary model reloaded on new backend/device/threads",
 			logger.String("registry_id", ref.id),
 			logger.String("backend", triplet.backend),
-			logger.String("ov_device", triplet.ovDevice))
+			logger.String("ov_device", triplet.ovDevice),
+			logger.Int("threads", triplet.threads))
 	}
 
 	return firstErr
@@ -1659,6 +1794,7 @@ func (o *Orchestrator) Delete() {
 		// re-creating the entry after deletion, and stops a teardown-then-recreate
 		// cycle from leaking counter entries.
 		globalInferenceCounters.Delete(id)
+		dropInferenceFailureStreak(id)
 		entry.mu.Unlock()
 	}
 
@@ -1692,12 +1828,12 @@ type secondaryModelBuilder func(o *Orchestrator, settings *conf.Settings, thread
 
 // openvinoCapableSecondaryBuilders maps the registry IDs of secondary models
 // whose construction honors the BirdNET inference backend / OpenVINO device
-// preference to a builder returning a fresh, unregistered instance.
-// ReloadSecondaryModels rebuilds exactly these models when the backend/device
-// changes at runtime. For Bat, only the heavy embedding extractor honors the
-// preference; the tiny bat classifier head always runs on ORT. Giving a new
-// secondary OpenVINO support is a one-line entry here, paired with the OV fields on
-// its loader config.
+// preference and CPU thread count to a builder returning a fresh, unregistered
+// instance. ReloadSecondaryModels rebuilds exactly these models when the
+// backend/device/thread-count changes at runtime. For Bat, only the heavy
+// embedding extractor honors the preference; the tiny bat classifier head always
+// runs on ORT. Giving a new secondary OpenVINO support is a one-line entry here,
+// paired with the OV fields on its loader config.
 var openvinoCapableSecondaryBuilders = map[string]secondaryModelBuilder{
 	RegistryIDBirdNETV3: func(o *Orchestrator, settings *conf.Settings, threads int) (ModelInstance, error) {
 		// Explicit nil-on-error return avoids the typed-nil interface trap (a
@@ -1916,6 +2052,7 @@ func (o *Orchestrator) UnloadModel(registryID string) error {
 	defer entry.mu.Unlock()
 
 	globalInferenceCounters.Delete(registryID)
+	dropInferenceFailureStreak(registryID)
 
 	o.rssMu.Lock()
 	delete(o.modelRSS, registryID)
@@ -2070,8 +2207,13 @@ func (o *Orchestrator) PrimaryModelID() string {
 // ModelInfo if no primary is set.
 func (o *Orchestrator) PrimaryModelInfo() ModelInfo {
 	o.mu.RLock()
-	defer o.mu.RUnlock()
-	return o.ModelInfo
+	info := o.ModelInfo
+	o.mu.RUnlock()
+	// Stamp the effective overlap from the live settings so buffer allocation
+	// and cadence consumers honor birdnet.overlap (bat stays fixed at 50%).
+	// CurrentSettings is independently synchronized, so resolve outside o.mu.
+	info.Overlap = ResolveModelOverlap(info.ID, info.Spec, o.CurrentSettings())
+	return info
 }
 
 // ModelInfos returns ModelInfo for all registered models. Thread-safe.
@@ -2098,6 +2240,11 @@ func (o *Orchestrator) ModelInfos() []ModelInfo {
 	primaryID := o.ModelInfo.ID
 	primaryInfo := o.ModelInfo
 	o.mu.RUnlock()
+
+	// Resolve overlap against the live settings snapshot (independently
+	// synchronized), so every returned ModelInfo carries the effective overlap
+	// used for buffer allocation and cadence.
+	settings := o.CurrentSettings()
 
 	infos := make([]ModelInfo, 0, len(refs))
 	for _, ref := range refs {
@@ -2137,6 +2284,7 @@ func (o *Orchestrator) ModelInfos() []ModelInfo {
 		// count, so source it from the live instance to report what is actually
 		// loaded.
 		info.NumSpecies = instance.NumSpecies()
+		info.Overlap = ResolveModelOverlap(info.ID, info.Spec, settings)
 		infos = append(infos, info)
 	}
 	return infos

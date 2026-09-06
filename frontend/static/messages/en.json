@@ -2685,9 +2685,9 @@
           "label": "Locale",
           "helpText": "Locale for translated species common names."
         },
-        "tensorflowThreads": {
-          "label": "TensorFlow CPU Threads",
-          "helpText": "Number of CPU threads. Set to 0 to use all available threads."
+        "inferenceThreads": {
+          "label": "Inference CPU Threads",
+          "helpText": "Number of CPU threads used for model inference. Set to 0 to use all available threads. Has no effect on models running on a GPU."
         }
       },
       "errors": {
@@ -4961,7 +4961,16 @@
       "streamTitleDefault": "Bird Audio Stream",
       "streamArtist": "BirdNET-Go",
       "streamAlbum": "Live Stream",
-      "playbackError": "Playback error: {details}"
+      "playbackError": "Playback error: {details}",
+      "audibleBats": {
+        "title": "Audible bat playback",
+        "subtitle": "Slow ultrasonic calls into human hearing range.",
+        "timeExpansion": "Time expansion",
+        "enable": "Activate",
+        "disable": "Deactivate",
+        "generating": "Generating derived audio…",
+        "error": "Failed to generate audible bats audio"
+      }
     },
     "spectrogram": {
       "notGenerated": "Spectrogram not yet generated",

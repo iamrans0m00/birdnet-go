@@ -29,6 +29,7 @@ type Metrics struct {
 	HTTP          *metrics.HTTPMetrics
 	Notification  *metrics.NotificationMetrics
 	PrivacyFilter *metrics.PrivacyFilterMetrics
+	AudioStream   *metrics.AudioStreamMetrics
 	GuideProvider *metrics.GuideProviderMetrics
 }
 
@@ -97,6 +98,11 @@ func NewMetrics() (*Metrics, error) {
 		return nil, fmt.Errorf("failed to create PrivacyFilter metrics: %w", err)
 	}
 
+	audioStreamMetrics, err := metrics.NewAudioStreamMetrics(registry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create AudioStream metrics: %w", err)
+	}
+
 	guideProviderMetrics, err := metrics.NewGuideProviderMetrics(registry)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GuideProvider metrics: %w", err)
@@ -116,6 +122,7 @@ func NewMetrics() (*Metrics, error) {
 		HTTP:          httpMetrics,
 		Notification:  notificationMetrics,
 		PrivacyFilter: privacyFilterMetrics,
+		AudioStream:   audioStreamMetrics,
 		GuideProvider: guideProviderMetrics,
 	}
 

@@ -2685,9 +2685,9 @@
           "label": "Landestandard",
           "helpText": "Landestandard for oversatte artsfællesnavne."
         },
-        "tensorflowThreads": {
-          "label": "TensorFlow CPU-tråde",
-          "helpText": "Antal CPU-tråde. Sæt til 0 for at bruge alle tilgængelige tråde."
+        "inferenceThreads": {
+          "label": "CPU-tråde til inferens",
+          "helpText": "Antal CPU-tråde, der bruges til modelinferens. Sæt til 0 for at bruge alle tilgængelige tråde. Har ingen effekt på modeller, der kører på en GPU."
         }
       },
       "errors": {
@@ -4961,7 +4961,16 @@
       "streamTitleDefault": "Fuglelydstrøm",
       "streamArtist": "BirdNET-Go",
       "streamAlbum": "Live stream",
-      "playbackError": "Afspilningsfejl: {details}"
+      "playbackError": "Afspilningsfejl: {details}",
+      "audibleBats": {
+        "title": "Hørbar flagermusafspilning",
+        "subtitle": "Sænk ultralydskald til det menneskelige høreområde.",
+        "timeExpansion": "Tidsudvidelse",
+        "enable": "Aktivér",
+        "disable": "Deaktivér",
+        "generating": "Genererer afledt lyd…",
+        "error": "Kunne ikke generere hørbar flagermuslyd"
+      }
     },
     "spectrogram": {
       "notGenerated": "Spektrogram er endnu ikke genereret",

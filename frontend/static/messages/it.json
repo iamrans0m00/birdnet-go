@@ -2685,9 +2685,9 @@
           "label": "Lingua",
           "helpText": "Lingua per nomi comuni specie tradotti."
         },
-        "tensorflowThreads": {
-          "label": "Thread CPU TensorFlow",
-          "helpText": "Numero di thread CPU. Imposta a 0 per usare tutti i thread disponibili."
+        "inferenceThreads": {
+          "label": "Thread CPU per inferenza",
+          "helpText": "Numero di thread CPU utilizzati per l'inferenza del modello. Imposta a 0 per usare tutti i thread disponibili. Non ha effetto sui modelli in esecuzione su una GPU."
         }
       },
       "errors": {
@@ -4961,7 +4961,16 @@
       "streamTitleDefault": "Stream audio uccelli",
       "streamArtist": "BirdNET-Go",
       "streamAlbum": "Diretta",
-      "playbackError": "Errore di riproduzione: {details}"
+      "playbackError": "Errore di riproduzione: {details}",
+      "audibleBats": {
+        "title": "Riproduzione udibile dei pipistrelli",
+        "subtitle": "Rallenta i richiami ultrasonici fino alla gamma udibile dall’uomo.",
+        "timeExpansion": "Espansione temporale",
+        "enable": "Attiva",
+        "disable": "Disattiva",
+        "generating": "Generazione audio derivato…",
+        "error": "Impossibile generare l’audio udibile dei pipistrelli"
+      }
     },
     "spectrogram": {
       "notGenerated": "Spettrogramma non ancora generato",

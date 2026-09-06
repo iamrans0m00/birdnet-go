@@ -32,14 +32,14 @@ func (bn *BirdNET) Predict(ctx context.Context, sample [][]float32) ([]datastore
 	settings := bn.currentSettings()
 	start := time.Now()
 
-	// The decoration below reports the CONFIGURED path
-	// (settings.BirdNET.ModelPath), not bn.configuredModelPath(), and that is
-	// deliberate: this runs BEFORE bn.mu is taken, and bn.primaryPath is written
-	// under bn.mu by reloadModelInternal, so reading the resolved value here would
-	// be a data race. Reporting the resolved path on THIS path needs a lock-free
-	// published copy alongside bn.identity. The two decorations after the lock do
-	// report the resolved path, since after a stale-path recovery the configured
-	// one names a file the instance is not running.
+	// This decoration runs BEFORE bn.mu is taken, so it must not read
+	// bn.primaryPath (written under bn.mu by reloadModelInternal). It reads the
+	// RESOLVED path lock-free from the published identity snapshot via
+	// bn.resolvedModelPath(), so after a stale-path recovery it names the file the
+	// instance is actually running rather than settings.BirdNET.ModelPath, which
+	// would name a file this instance is not loaded from. The two decorations after
+	// the lock report the same resolved path via bn.configuredModelPath(), so all
+	// three now agree.
 	//
 	// Guard against empty sample slice. Pre-inference rejections are tagged but
 	// not counted as predictions.
@@ -47,7 +47,7 @@ func (bn *BirdNET) Predict(ctx context.Context, sample [][]float32) ([]datastore
 		span.markErrored(errTypeEmptySample)
 		return nil, errors.Newf("empty audio sample").
 			Category(errors.CategoryValidation).
-			ModelContext(settings.BirdNET.ModelPath, modelID).
+			ModelContext(bn.resolvedModelPath(), modelID).
 			Build()
 	}
 
@@ -85,6 +85,12 @@ func (bn *BirdNET) Predict(ctx context.Context, sample [][]float32) ([]datastore
 	// Record model invoke timing separately
 	if m := getMetrics(); m != nil {
 		m.RecordModelInvoke(modelID, invokeDuration.Seconds())
+	}
+
+	if idx := firstNonFinite(predictions); idx != noNonFiniteScore {
+		err = newNonFiniteScoreError(nonFiniteScore{modelID: modelID, index: idx, count: len(predictions)}, bn.RuntimeInfo)
+		recordPredictionFailure(span, modelID, errTypeNonFiniteLogits, start, err)
+		return nil, err
 	}
 
 	// Use optimized sigmoid function with buffer reuse
@@ -128,6 +134,45 @@ func sortResults(results []datastore.Results) {
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Confidence > results[j].Confidence
 	})
+}
+
+// noNonFiniteScore is the index firstNonFinite returns when every score is finite.
+const noNonFiniteScore = -1
+
+// firstNonFinite returns the index of the first NaN or infinite value in
+// scores, or noNonFiniteScore when every value is finite.
+func firstNonFinite(scores []float32) int {
+	for i, v := range scores {
+		if f := float64(v); math.IsNaN(f) || math.IsInf(f, 0) {
+			return i
+		}
+	}
+	return noNonFiniteScore
+}
+
+// nonFiniteScore locates the offending value for newNonFiniteScoreError.
+type nonFiniteScore struct {
+	modelID string // registry ID of the classifier that produced the score
+	index   int    // position of the first non-finite value in the backend output
+	count   int    // number of scores the backend returned
+}
+
+// newNonFiniteScoreError builds the error every ModelInstance.Predict returns
+// when its backend produced a NaN or Inf score. A non-finite score is a backend
+// fault, not a prediction: it compares false against every threshold, so left
+// alone it is promoted to a detection instead of being dropped. runtimeInfo is
+// the model's RuntimeInfo method, so the error names the backend, device and
+// precision that produced the value (the OpenVINO f16 GPU path is the known
+// offender).
+func newNonFiniteScoreError(score nonFiniteScore, runtimeInfo func() (device, backend, precision string)) error {
+	device, backend, precision := runtimeInfo()
+	return errors.Newf("%s classifier returned a non-finite score (index %d of %d)", score.modelID, score.index, score.count).
+		Category(errors.CategoryAudioAnalysis).
+		Context("model", score.modelID).
+		Context("backend", backend).
+		Context("device", device).
+		Context("precision", precision).
+		Build()
 }
 
 // pairLabelsAndConfidence pairs labels with their corresponding confidence values.

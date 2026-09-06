@@ -2685,9 +2685,9 @@
           "label": "Lokalizacja",
           "helpText": "Lokalizacja dla przetłumaczonych nazw pospolitych gatunków."
         },
-        "tensorflowThreads": {
-          "label": "Wątki CPU TensorFlow",
-          "helpText": "Liczba wątków CPU. Ustaw na 0, aby użyć wszystkich dostępnych wątków."
+        "inferenceThreads": {
+          "label": "Wątki CPU wnioskowania",
+          "helpText": "Liczba wątków CPU używanych do wnioskowania modelu. Ustaw na 0, aby użyć wszystkich dostępnych wątków. Nie ma wpływu na modele działające na GPU."
         }
       },
       "errors": {
@@ -4961,7 +4961,16 @@
       "streamTitleDefault": "Strumień audio ptaków",
       "streamArtist": "BirdNET-Go",
       "streamAlbum": "Transmisja na żywo",
-      "playbackError": "Błąd odtwarzania: {details}"
+      "playbackError": "Błąd odtwarzania: {details}",
+      "audibleBats": {
+        "title": "Słyszalne odtwarzanie nietoperzy",
+        "subtitle": "Spowalnia ultradźwiękowe odgłosy do zakresu słyszalnego dla człowieka.",
+        "timeExpansion": "Rozciągnięcie czasu",
+        "enable": "Włącz",
+        "disable": "Wyłącz",
+        "generating": "Generowanie pochodnego dźwięku…",
+        "error": "Nie udało się wygenerować słyszalnego dźwięku nietoperzy"
+      }
     },
     "spectrogram": {
       "notGenerated": "Spektrogram jeszcze niegenerowany",

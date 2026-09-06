@@ -2685,9 +2685,9 @@
           "label": "Idioma",
           "helpText": "Idioma para nombres comunes de especies traducidos."
         },
-        "tensorflowThreads": {
-          "label": "Hilos de CPU TensorFlow",
-          "helpText": "Número de hilos de CPU. Establezca en 0 para usar todos los hilos disponibles."
+        "inferenceThreads": {
+          "label": "Hilos de CPU para inferencia",
+          "helpText": "Número de hilos de CPU utilizados para la inferencia del modelo. Establezca en 0 para usar todos los hilos disponibles. No tiene efecto en modelos que se ejecutan en una GPU."
         }
       },
       "errors": {
@@ -4961,7 +4961,16 @@
       "streamTitleDefault": "Transmisión de audio de aves",
       "streamArtist": "BirdNET-Go",
       "streamAlbum": "Transmisión en vivo",
-      "playbackError": "Error de reproducción: {details}"
+      "playbackError": "Error de reproducción: {details}",
+      "audibleBats": {
+        "title": "Reproducción audible de murciélagos",
+        "subtitle": "Ralentiza las llamadas ultrasónicas hasta el rango audible humano.",
+        "timeExpansion": "Expansión de tiempo",
+        "enable": "Activar",
+        "disable": "Desactivar",
+        "generating": "Generando audio derivado…",
+        "error": "No se pudo generar el audio de murciélagos audibles"
+      }
     },
     "spectrogram": {
       "notGenerated": "Espectrograma aún no generado",

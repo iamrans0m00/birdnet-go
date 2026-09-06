@@ -2685,9 +2685,9 @@
           "label": "Lokalizace",
           "helpText": "Lokalizace pro přeložené běžné názvy druhů."
         },
-        "tensorflowThreads": {
-          "label": "CPU vlákna TensorFlow",
-          "helpText": "Počet CPU vláken. Nastavte na 0 pro použití všech dostupných vláken."
+        "inferenceThreads": {
+          "label": "CPU vlákna pro inferenci",
+          "helpText": "Počet CPU vláken použitých pro inferenci modelu. Nastavte na 0 pro použití všech dostupných vláken. Nemá vliv na modely běžící na GPU."
         }
       },
       "errors": {
@@ -4961,7 +4961,16 @@
       "streamTitleDefault": "Audio stream ptáků",
       "streamArtist": "BirdNET-Go",
       "streamAlbum": "Živý přenos",
-      "playbackError": "Chyba přehrávání: {details}"
+      "playbackError": "Chyba přehrávání: {details}",
+      "audibleBats": {
+        "title": "Slyšitelné přehrávání netopýrů",
+        "subtitle": "Zpomalí ultrazvuková volání do rozsahu slyšitelného člověkem.",
+        "timeExpansion": "Časové roztažení",
+        "enable": "Zapnout",
+        "disable": "Vypnout",
+        "generating": "Generuje se odvozený zvuk…",
+        "error": "Nepodařilo se vygenerovat zvuk slyšitelných netopýrů"
+      }
     },
     "spectrogram": {
       "notGenerated": "Spektrogram zatím nebyl vygenerován",
