@@ -1311,8 +1311,8 @@ func baseLanguage(locale string) string {
 // summarizeDescription returns a short, single-paragraph summary of a description.
 func summarizeDescription(description string) string {
 	intro := description
-	if idx := strings.Index(description, guideprovider.SectionMarker); idx >= 0 {
-		intro = description[:idx]
+	if before, _, ok := strings.Cut(description, guideprovider.SectionMarker); ok {
+		intro = before
 	}
 	intro = strings.TrimSpace(intro)
 	if len(intro) > guideSummaryMaxLength {

@@ -165,8 +165,9 @@ func TestGuideCache_CloseReleasesProviders(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			prov := &closableProvider{
-				fakeProvider: fakeProvider{name: WikipediaProviderName, result: &SpeciesGuide{CommonName: "x"}},
-				closeErr:     tc.closeErr,
+				name:     WikipediaProviderName,
+				result:   &SpeciesGuide{CommonName: "x"},
+				closeErr: tc.closeErr,
 			}
 			c := NewGuideCache(newFakeStore(), noopMetrics{})
 			c.RegisterProvider(prov.Name(), prov)

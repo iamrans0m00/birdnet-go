@@ -155,8 +155,8 @@ func TestConvertWikiSections_ChaffinchStructure(t *testing.T) {
 	segments := strings.Split(out, "## ")
 	var voiceBody string
 	for _, seg := range segments {
-		if strings.HasPrefix(seg, "Voice\n") {
-			voiceBody = strings.TrimPrefix(seg, "Voice\n")
+		if after, ok := strings.CutPrefix(seg, "Voice\n"); ok {
+			voiceBody = after
 			break
 		}
 	}

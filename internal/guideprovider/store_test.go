@@ -31,7 +31,7 @@ import (
 func TestGuideCacheEntry_UniqueIndexColumnsDeclareSize(t *testing.T) {
 	t.Parallel()
 
-	entryType := reflect.TypeOf(GuideCacheEntry{})
+	entryType := reflect.TypeFor[GuideCacheEntry]()
 	var checked int
 	for field := range entryType.Fields() {
 		tag := field.Tag.Get("gorm")
